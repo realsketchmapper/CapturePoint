@@ -1,0 +1,34 @@
+import { Stack } from "expo-router";
+import { useFonts } from "expo-font";
+import { BluetoothProvider } from '@/contexts/BluetoothContext';
+import { AuthProvider } from "@/contexts/AuthContext";
+
+export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    'RobotoSlab_Bold': require('../assets/fonts/RobotoSlab-Bold.ttf'),
+    'RobotoSlab-Medium': require('../assets/fonts/RobotoSlab-Medium.ttf'),
+    'RobotoSlab-Regular': require('../assets/fonts/RobotoSlab-Regular.ttf'),
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
+  return (
+    <AuthProvider>
+    <BluetoothProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen 
+          name="SplashScreen" 
+          options={{ 
+            presentation: 'fullScreenModal',
+          }} 
+        />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="projectview" />
+        <Stack.Screen name="mapview" />
+      </Stack>
+    </BluetoothProvider>
+    </AuthProvider>
+  );
+}
