@@ -3,10 +3,13 @@ import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { ProjectList } from '../components/project/ProjectList';
 import { useProjects } from '@/hooks/useProject';
+import { useActiveProject } from '@/hooks/useActiveProject';
 import { Project } from '@/types/project.types';
 
 const ProjectView = () => {
   const { projects, loading, error, fetchProjects } = useProjects();
+
+  const { setActiveProject } = useActiveProject();
 
   const handleProjectPress = (project: Project) => {
     console.log("loading project!");

@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
 import { BluetoothProvider } from '@/contexts/BluetoothContext';
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ProjectProvider } from "@/contexts/ProjectContext";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -15,6 +16,7 @@ export default function RootLayout() {
   }
 
   return (
+    <ProjectProvider>
     <AuthProvider>
     <BluetoothProvider>
       <Stack screenOptions={{ headerShown: false }}>
@@ -30,5 +32,6 @@ export default function RootLayout() {
       </Stack>
     </BluetoothProvider>
     </AuthProvider>
+    </ProjectProvider>
   );
 }
