@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo } from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useMemo } from 'react';
+import { StyleSheet, Modal, View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useFeature } from '@/hooks/useFeature';
-import { useFeatureList } from '@/hooks/useFeatureList';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import { Feature } from '@/types/features.types';
@@ -12,15 +11,23 @@ interface FeatureListModalProps {
 }
 
 type GroupedFeatures = {
-    [key: string]: Feature[];
+  [key: string]: Feature[];
 }
 
 export const FeatureListModal: React.FC<FeatureListModalProps> = ({ 
   isVisible, 
   onClose
 }) => {
-  const { selectedFeature, setSelectedFeature, expandedLayers, toggleLayer } = useFeature();
-  const { features, isLoading, error, refreshFeatures } = useFeatureList();
+  const { 
+    selectedFeature, 
+    setSelectedFeature, 
+    expandedLayers, 
+    toggleLayer,
+    features,
+    isLoading,
+    error,
+    featuresLoaded
+  } = useFeature();
 
   const groupedFeatures = useMemo<GroupedFeatures>(() => {
     const groups = features.reduce<GroupedFeatures>((acc, feature) => {
@@ -44,12 +51,6 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = ({
         return acc;
       }, {});
   }, [features]);
-
-  useEffect(() => {
-    if (isVisible) {
-      refreshFeatures();
-    }
-  }, [isVisible]);
 
   const handleFeatureSelect = (feature: Feature) => {
     setSelectedFeature(feature);
@@ -79,59 +80,62 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = ({
           ) : error ? (
             <View style={styles.centerContent}>
               <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity onPress={refreshFeatures} style={styles.retryButton}>
-                <Text>Retry</Text>
-              </TouchableOpacity>
+            </View>
+          ) : !featuresLoaded ? (
+            <View style={styles.centerContent}>
+              <Text style={styles.errorText}>
+                No features loaded. Please select a project first.
+              </Text>
             </View>
           ) : (
-          
-          <ScrollView style={styles.featureList}>
-            {Object.entries(groupedFeatures).map(([layer, layerFeatures]) => (
-              <View key={layer}>
-                <TouchableOpacity 
-                  style={styles.layerHeader}
-                  onPress={() => toggleLayer(layer)}
-                >
-                  {expandedLayers.has(layer) ? (
-                    <MaterialIcons name='arrow-drop-down' size={20} color="#000" />
-                  ) : (
-                    <MaterialIcons name='keyboard-arrow-right' size={20} color="#000" />
+            <ScrollView style={styles.featureList}>
+              {Object.entries(groupedFeatures).map(([layer, layerFeatures]) => (
+                <View key={layer}>
+                  <TouchableOpacity 
+                    style={styles.layerHeader}
+                    onPress={() => toggleLayer(layer)}
+                  >
+                    {expandedLayers.has(layer) ? (
+                      <MaterialIcons name='arrow-drop-down' size={20} color="#000" />
+                    ) : (
+                      <MaterialIcons name='keyboard-arrow-right' size={20} color="#000" />
+                    )}
+                    <Text style={styles.layerTitle}>{layer}</Text>
+                  </TouchableOpacity>
+                  
+                  {expandedLayers.has(layer) && (
+                    <View style={styles.featureGroup}>
+                      {layerFeatures.map(feature => (
+                        <TouchableOpacity
+                          key={feature.id}
+                          style={[
+                            styles.featureItem,
+                            selectedFeature?.id === feature.id && styles.selectedFeature
+                          ]}
+                          onPress={() => handleFeatureSelect(feature)}
+                        >
+                          <View style={styles.featureItemContent}>
+                            {feature.svg && (
+                              <View style={styles.svgContainer}>
+                                <SvgXml xml={feature.svg} width={24} height={24} />
+                              </View>
+                            )}
+                            <Text style={styles.featureName}>{feature.name}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   )}
-                  <Text style={styles.layerTitle}>{layer}</Text>
-                </TouchableOpacity>
-                
-                {expandedLayers.has(layer) && (
-                  <View style={styles.featureGroup}>
-                    {layerFeatures.map(feature => (
-                      <TouchableOpacity
-                        key={feature.id}
-                        style={[
-                          styles.featureItem,
-                          selectedFeature?.id === feature.id && styles.selectedFeature
-                        ]}
-                        onPress={() => handleFeatureSelect(feature)}
-                      >
-                        <View style={styles.featureItemContent}>
-                          {feature.svg && (
-                            <View style={styles.svgContainer}>
-                              <SvgXml xml={feature.svg} width={24} height={24} />
-                            </View>
-                          )}
-                          <Text style={styles.featureName}>{feature.name}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ))}
-          </ScrollView>
-           )}
+                </View>
+              ))}
+            </ScrollView>
+          )}
         </View>
       </View>
     </Modal>
   );
 };
+
 
 const styles = StyleSheet.create({
   centerContent: {

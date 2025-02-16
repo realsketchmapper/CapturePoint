@@ -42,9 +42,9 @@ export const HeaderContainer: React.FC = () => {
       <View style={styles.headerContent}>
         <ProjectNameDisplay />
         <View style={styles.buttonContainer}>
+        <FeatureButton onPress={handleFeaturePress} />
           <BluetoothButton onPress={handleBluetoothPress} />
           <SettingsButton onPress={handleSettingsPress} />
-          <FeatureButton onPress={handleFeaturePress} />
         </View>
       </View>
 

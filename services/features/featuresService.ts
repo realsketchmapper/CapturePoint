@@ -1,46 +1,20 @@
 import { api } from "@/api/clients";
-import { API_ENDPOINTS } from "@/api/endpoints";
 import { Feature } from "@/types/features.types";
 
-interface ApiResponse<T> {
-  success: boolean;
-  error?: string;
-  data: T;
-}
-
-export class FeaturesService {
-  static async getFeatures(): Promise<Feature[]> {
+export const featureService = {
+  fetchProjectFeatures: async (projectId: number): Promise<Feature[]> => {
     try {
+      console.log("projectId in feature service:", projectId);
+      const response = await api.get(`/projects/${projectId}/features`);
       
-      const response = await api.get<ApiResponse<Feature[]>>(
-        API_ENDPOINTS.FEATURES
-       
-      );
-
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to fetch features');
+      if (response.data.success) {
+        console.log("features", response.data.features);
+        return response.data.features;
       }
-
-      // Check if data exists
-      if (!response.data.data || !Array.isArray(response.data.data)) {
-        console.log('No features data found or invalid format');
-        return [];
-      }
-
-      return response.data.data;
-    } catch (error: any) {
-      console.error('Error fetching features:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          params: error.config?.params
-        }
-      });
-
-      throw new Error(error.message || 'Failed to fetch features');
+      throw new Error('Failed to fetch features');
+    } catch (error) {
+      console.error('Error in fetchProjectFeatures:', error);
+      throw error;
     }
   }
-}
+};

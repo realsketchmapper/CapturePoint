@@ -23,5 +23,7 @@ export interface Feature {
     features: Feature[];
     isLoading: boolean;
     error: string | null;
-    refreshFeatures: () => Promise<void>;
+    fetchFeatures: (projectId: number) => void;
+    clearFeatures: () => void;
+    featuresLoaded: boolean;
   }

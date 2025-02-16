@@ -2,6 +2,7 @@ export interface Project {
     id: number;
     name: string;
     client_name: string;
+    work_type: string;
   }
   
 export interface ProjectListProps {

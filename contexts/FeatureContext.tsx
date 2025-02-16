@@ -1,6 +1,6 @@
 import React, { createContext, useState, ReactNode, useEffect } from 'react';
 import { Feature, FeatureContextType } from '@/types/features.types';
-import { FeaturesService } from '@/services/features/featuresService';
+import { featureService } from '@/services/features/featuresService';
 
 export const FeatureContext = createContext<FeatureContextType | undefined>(undefined);
 
@@ -14,6 +14,7 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
   const [features, setFeatures] = useState<Feature[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [featuresLoaded, setFeaturesLoaded] = useState(false);
 
   const toggleLayer = (layerName: string) => {
     setExpandedLayers(prev => {
@@ -27,12 +28,16 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
     });
   };
 
-  const fetchFeatures = async () => {
+  const fetchFeatures = async (projectId: number) => {
+    if (featuresLoaded) return;
+    
     setIsLoading(true);
     setError(null);
+    
     try {
-      const data = await FeaturesService.getFeatures();
+      const data = await featureService.fetchProjectFeatures(projectId);
       setFeatures(data);
+      setFeaturesLoaded(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch features');
     } finally {
@@ -40,17 +45,25 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
     }
   };
 
+  const clearFeatures = () => {
+    setFeatures([]);
+    setFeaturesLoaded(false);
+    setSelectedFeature(null);
+  };
+
   return (
-    <FeatureContext.Provider 
-      value={{ 
-        selectedFeature, 
-        setSelectedFeature, 
-        expandedLayers, 
+    <FeatureContext.Provider
+      value={{
+        selectedFeature,
+        setSelectedFeature,
+        expandedLayers,
         toggleLayer,
         features,
         isLoading,
         error,
-        refreshFeatures: fetchFeatures
+        fetchFeatures,
+        clearFeatures,
+        featuresLoaded
       }}
     >
       {children}

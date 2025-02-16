@@ -16,7 +16,7 @@ export const ProjectNameDisplay: React.FC<ProjectNameDisplayProps> = ({
 
   return (
     <Text style={[styles.text, style]}>
-      WO# { activeProject?.name || 'No Project Selected'}
+      { activeProject?.name || 'No Project Selected'}
     </Text>
   );
 };
