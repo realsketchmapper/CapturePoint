@@ -4,6 +4,7 @@ import { BluetoothProvider } from '@/contexts/BluetoothContext';
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
+import { FeatureProvider } from "@/contexts/FeatureContext";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -17,6 +18,7 @@ export default function RootLayout() {
   }
 
   return (
+    <FeatureProvider>
     <SettingsProvider>
     <ProjectProvider>
     <AuthProvider>
@@ -36,5 +38,6 @@ export default function RootLayout() {
     </AuthProvider>
     </ProjectProvider>
     </SettingsProvider>
+    </FeatureProvider>
   );
 }

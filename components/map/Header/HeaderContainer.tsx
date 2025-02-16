@@ -9,6 +9,9 @@ import { Colors } from '@/theme/colors';
 import { BluetoothButton } from './BluetoothButton';
 import { SettingsButton } from './SettingsButton';
 import { ProjectNameDisplay } from './ProjectNameDisplay';
+import { FeatureButton } from './FeatureButton';
+import { useFeatureModal } from '@/hooks/useFeatureModal';
+import { FeatureListModal } from '@/components/modals/FeatureModals/FeatureListModal';
 
 export const HeaderContainer: React.FC = () => {
   const {
@@ -28,6 +31,12 @@ export const HeaderContainer: React.FC = () => {
     handleCloseSettings,
   } = useSettings();
 
+  const {
+    isFeatureModalVisible,
+    handleFeaturePress,
+    handleCloseFeatureModal,
+  } = useFeatureModal();
+
   return (
     <View style={styles.header}>
       <View style={styles.headerContent}>
@@ -35,6 +44,7 @@ export const HeaderContainer: React.FC = () => {
         <View style={styles.buttonContainer}>
           <BluetoothButton onPress={handleBluetoothPress} />
           <SettingsButton onPress={handleSettingsPress} />
+          <FeatureButton onPress={handleFeaturePress} />
         </View>
       </View>
 
@@ -52,6 +62,12 @@ export const HeaderContainer: React.FC = () => {
           deviceType={selectedDeviceType}
         />
       )}
+
+      <FeatureListModal
+        isVisible={isFeatureModalVisible}
+        onClose={handleCloseFeatureModal}
+      />
+
 
       <SettingsMainModal
         visible={isVisible}

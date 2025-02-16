@@ -12,7 +12,7 @@ export const ProjectListItem: React.FC<ProjectListItemProps> = ({
     onPress={() => onPress(project)}
   >
     <Text style={styles.projectName}>{project.name}</Text>
-    <Text style={styles.projectAddress}>{project.address}</Text>
+    <Text style={styles.projectAddress}>{project.client_name}</Text>
   </TouchableOpacity>
 );
 
