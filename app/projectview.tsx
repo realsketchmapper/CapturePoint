@@ -1,18 +1,18 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { ProjectList } from '../components/project/ProjectList';
 import { useProjects } from '@/hooks/useProject';
-import { useActiveProject } from '@/hooks/useActiveProject';
 import { Project } from '@/types/project.types';
+import { ProjectContext } from '@/contexts/ProjectContext';
 
 const ProjectView = () => {
   const { projects, loading, error, fetchProjects } = useProjects();
-
-  const { setActiveProject } = useActiveProject();
+  const { setActiveProject, activeProject } = useContext(ProjectContext);
 
   const handleProjectPress = (project: Project) => {
     console.log("loading project!");
+    setActiveProject(project);
     router.replace('../mapview');
   };
 

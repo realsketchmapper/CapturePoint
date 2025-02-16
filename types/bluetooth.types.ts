@@ -6,6 +6,7 @@ export interface DeviceTypeOption {
   id: string;
   name: BluetoothDeviceType;
   namePrefix: string;
+  gnssHeight: number;
 }
 
 export interface BluetoothState {

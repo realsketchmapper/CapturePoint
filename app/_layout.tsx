@@ -3,6 +3,7 @@ import { useFonts } from "expo-font";
 import { BluetoothProvider } from '@/contexts/BluetoothContext';
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -16,6 +17,7 @@ export default function RootLayout() {
   }
 
   return (
+    <SettingsProvider>
     <ProjectProvider>
     <AuthProvider>
     <BluetoothProvider>
@@ -33,5 +35,6 @@ export default function RootLayout() {
     </BluetoothProvider>
     </AuthProvider>
     </ProjectProvider>
+    </SettingsProvider>
   );
 }

@@ -1,11 +1,14 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { View, StyleSheet } from 'react-native';
 import { useBluetooth } from '@/hooks/useBluetooth';
+import { useSettings } from '@/hooks/useSettings';
 import { DeviceTypeModal } from '@/components/modals/BluetoothModals/DeviceTypeModal';
 import { DeviceSelectionModal } from '@/components/modals/BluetoothModals/DeviceSelectionModal';
+import SettingsMainModal from '@/components/modals/SettingsModal';
 import { Colors } from '@/theme/colors';
 import { BluetoothButton } from './BluetoothButton';
+import { SettingsButton } from './SettingsButton';
+import { ProjectNameDisplay } from './ProjectNameDisplay';
 
 export const HeaderContainer: React.FC = () => {
   const {
@@ -19,10 +22,20 @@ export const HeaderContainer: React.FC = () => {
     handleCloseDeviceSelectionModal
   } = useBluetooth();
 
+  const {
+    isVisible,
+    handleSettingsPress,
+    handleCloseSettings,
+  } = useSettings();
+
   return (
     <View style={styles.header}>
       <View style={styles.headerContent}>
-        <BluetoothButton onPress={handleBluetoothPress} />
+        <ProjectNameDisplay />
+        <View style={styles.buttonContainer}>
+          <BluetoothButton onPress={handleBluetoothPress} />
+          <SettingsButton onPress={handleSettingsPress} />
+        </View>
       </View>
 
       <DeviceTypeModal
@@ -39,6 +52,11 @@ export const HeaderContainer: React.FC = () => {
           deviceType={selectedDeviceType}
         />
       )}
+
+      <SettingsMainModal
+        visible={isVisible}
+        onClose={handleCloseSettings}
+      />
     </View>
   );
 };
@@ -53,7 +71,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
-  headerButton: {
-    padding: 8,
-  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  }
 });
