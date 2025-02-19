@@ -5,6 +5,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { FeatureProvider } from "@/contexts/FeatureContext";
+import { NMEAProvider } from "@/contexts/NMEAContext";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -22,6 +23,7 @@ export default function RootLayout() {
     <SettingsProvider>
     <ProjectProvider>
     <AuthProvider>
+    <NMEAProvider>
     <BluetoothProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen 
@@ -35,6 +37,7 @@ export default function RootLayout() {
         <Stack.Screen name="mapview" />
       </Stack>
     </BluetoothProvider>
+    </NMEAProvider>
     </AuthProvider>
     </ProjectProvider>
     </SettingsProvider>

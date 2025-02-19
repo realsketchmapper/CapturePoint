@@ -3,6 +3,7 @@ import { BluetoothDevice } from 'react-native-bluetooth-classic';
 import { BluetoothContextType, BluetoothDeviceType } from '@/types/bluetooth.types';
 import { BluetoothManager } from '@/services/bluetooth/bluetoothManager';
 import { deviceStorage } from '@/services/bluetooth/deviceStorage';
+import { useNMEAContext } from './NMEAContext';
 
 const BluetoothContext = createContext<BluetoothContextType | null>(null);
 
@@ -13,6 +14,7 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const { startListening, stopListening } = useNMEAContext(); // Add NMEA context
 
   const scanDevices = useCallback(async (deviceType: BluetoothDeviceType) => {
     try {
@@ -40,8 +42,13 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsConnecting(true);
       setConnectionError(null);
 
-      await BluetoothManager.connectToDevice(device);
-      return true;
+      const connected = await BluetoothManager.connectToDevice(device);
+      
+      if (connected) {
+        await startListening(device.address);
+      }
+
+      return connected;
     } catch (err) {
       const errorMessage = err instanceof Error 
         ? err.message 
@@ -51,7 +58,16 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsConnecting(false);
     }
-  }, []);
+  }, [startListening]);
+
+  const disconnectDevice = useCallback(async (address: string) => {
+    try {
+      await stopListening(address);
+      await BluetoothManager.disconnectDevice(address);
+    } catch (err) {
+      console.error('Error disconnecting:', err);
+    }
+  }, [stopListening]);
 
   const clearErrors = useCallback(() => {
     setError(null);
@@ -65,6 +81,7 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
     connectionError,
     scanDevices,
     connectToDevice,
+    disconnectDevice, // Add disconnectDevice to the context value
     clearErrors
   };
 
@@ -83,5 +100,3 @@ export const useBluetoothContext = () => {
   return context;
 };
 
-// Optional: Export the raw context if needed for testing or advanced use cases
-export { BluetoothContext };

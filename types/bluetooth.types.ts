@@ -19,6 +19,7 @@ export interface BluetoothState {
 export interface BluetoothActions {
   scanDevices: (deviceType: BluetoothDeviceType) => Promise<BluetoothDevice[]>;
   connectToDevice: (device: BluetoothDevice) => Promise<boolean>;
+  disconnectDevice: (address: string) => Promise<void>;  // Added this line
   clearErrors: () => void;
 }
 

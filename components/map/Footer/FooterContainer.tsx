@@ -1,14 +1,22 @@
-// src/app/(map)/components/Footer/FooterContainer.tsx
+// FooterContainer.tsx
 import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Colors } from '@/theme/colors';
 import { CurrentFeatureDisplay } from './CurrentFeatures';
+import { RMSDisplay } from './RMSDisplay';
+import { NMEAQualityDisplay } from './NMEAQualityDisplay';
 
 export const FooterContainer: React.FC = () => {
   return (
     <View style={styles.footer}>
       <View style={styles.footerContent}>
-        <CurrentFeatureDisplay />
+        <View style={styles.leftSection}>
+          <CurrentFeatureDisplay />
+        </View>
+        <View style={styles.rightSection}>
+          <NMEAQualityDisplay style={styles.nmeaDisplay} />
+          <RMSDisplay />
+        </View>
       </View>
     </View>
   );
@@ -22,7 +30,18 @@ const styles = StyleSheet.create({
   },
   footerContent: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  leftSection: {
+    flex: 1,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  nmeaDisplay: {
+    flex: 0, // Override the flex: 1 from NMEAQualityDisplay
+    marginRight: 16,
   },
 });
