@@ -5,6 +5,7 @@ import { HeaderContainer } from '../components/map/Header/HeaderContainer';
 import { FooterContainer } from '../components/map/Footer/FooterContainer';
 import { MapControls } from '../components/map/MapControls';
 
+
 const MapView: React.FC = () => {
   return (
     <View style={styles.container}>

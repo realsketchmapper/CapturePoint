@@ -6,6 +6,9 @@ import { ProjectProvider } from "@/contexts/ProjectContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { FeatureProvider } from "@/contexts/FeatureContext";
 import { NMEAProvider } from "@/contexts/NMEAContext";
+import { CollectionProvider } from "@/contexts/CollectionContext";
+import { MapProvider } from "@/contexts/MapDisplayContext";
+import { LinePreviewProvider } from "@/components/map/LinePreview";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -19,28 +22,34 @@ export default function RootLayout() {
   }
 
   return (
-    <FeatureProvider>
-    <SettingsProvider>
-    <ProjectProvider>
-    <AuthProvider>
-    <NMEAProvider>
-    <BluetoothProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen 
-          name="SplashScreen" 
-          options={{ 
-            presentation: 'fullScreenModal',
-          }} 
-        />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="projectview" />
-        <Stack.Screen name="mapview" />
-      </Stack>
-    </BluetoothProvider>
-    </NMEAProvider>
-    </AuthProvider>
-    </ProjectProvider>
-    </SettingsProvider>
-    </FeatureProvider>
+    <MapProvider>
+      <LinePreviewProvider>
+      <FeatureProvider>
+        <CollectionProvider>
+          <SettingsProvider>
+            <ProjectProvider>
+              <AuthProvider>
+                <NMEAProvider>
+                  <BluetoothProvider>
+                    <Stack screenOptions={{ headerShown: false }}>
+                      <Stack.Screen 
+                        name="SplashScreen" 
+                        options={{ 
+                          presentation: 'fullScreenModal',
+                        }} 
+                      />
+                      <Stack.Screen name="login" />
+                      <Stack.Screen name="projectview" />
+                      <Stack.Screen name="mapview" />
+                    </Stack>
+                  </BluetoothProvider>
+                </NMEAProvider>
+              </AuthProvider>
+            </ProjectProvider>
+          </SettingsProvider>
+        </CollectionProvider>
+      </FeatureProvider>
+      </LinePreviewProvider>
+    </MapProvider>
   );
 }

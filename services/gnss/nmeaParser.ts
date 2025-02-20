@@ -11,11 +11,13 @@ export class NMEAParser {
     if (parts.length < 15) return null;
 
     // Convert DDMM.MMMMM to decimal degrees
-    const convertCoordinate = (coord: string, direction: string): number | null => {
+    const convertCoordinate = (coord: string, direction: string, isLongitude: boolean): number | null => {
       if (!coord || !direction) return null;
       
-      const degrees = parseInt(coord.substring(0, 2));
-      const minutes = parseFloat(coord.substring(2));
+      // Get degrees length based on whether it's longitude or latitude
+      const degreeLength = isLongitude ? 3 : 2;
+      const degrees = parseInt(coord.substring(0, degreeLength));
+      const minutes = parseFloat(coord.substring(degreeLength));
       let decimal = degrees + (minutes / 60);
       
       if (direction === 'S' || direction === 'W') {
@@ -27,8 +29,8 @@ export class NMEAParser {
 
     return {
       time: parts[1],
-      latitude: convertCoordinate(parts[2], parts[3]),
-      longitude: convertCoordinate(parts[4], parts[5]),
+      latitude: convertCoordinate(parts[2], parts[3], false),  // false for latitude
+      longitude: convertCoordinate(parts[4], parts[5], true),  // true for longitude
       quality: parseInt(parts[6]) || 0,
       satellites: parseInt(parts[7]) || 0,
       hdop: parseFloat(parts[8]) || 0,

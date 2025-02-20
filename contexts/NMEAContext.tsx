@@ -14,6 +14,7 @@ export const NMEAProvider: React.FC<{ children: React.ReactNode }> = ({
   const [error, setError] = useState<string | null>(null);
 
   const handleNMEAData = useCallback((data: string) => {
+    //console.log("NMEA RAW", data);
     const lines = data.split('\n');
     for (const line of lines) {
       const trimmedLine = line.trim();
