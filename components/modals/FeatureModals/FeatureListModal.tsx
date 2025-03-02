@@ -1,14 +1,9 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Modal, View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-import { useFeature } from '@/hooks/useFeature';
+import { useFeatureContext } from '@/contexts/FeatureContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
-import { Feature } from '@/types/features.types';
-
-interface FeatureListModalProps {
-  isVisible: boolean;
-  onClose: () => void;
-}
+import { Feature, FeatureListModalProps } from '@/types/features.types';
 
 type GroupedFeatures = {
   [key: string]: Feature[];
@@ -27,7 +22,7 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = ({
     isLoading,
     error,
     featuresLoaded
-  } = useFeature();
+  } = useFeatureContext();
 
   const groupedFeatures = useMemo<GroupedFeatures>(() => {
     const groups = features.reduce<GroupedFeatures>((acc, feature) => {

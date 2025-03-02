@@ -1,19 +1,12 @@
-// src/components/ProjectNameDisplay.tsx
-import { FeatureContext } from '@/contexts/FeatureContext';
-import React, { useContext }from 'react';
+import React from 'react';
 import { Text, StyleSheet } from 'react-native';
-import { useFeature } from '@/hooks/useFeature';
-
-interface CurrentFeatureDisplayProps {
-    text?: string;
-    style?: object;
-  }
+import { useFeatureContext } from '@/contexts/FeatureContext';
+import { CurrentFeatureDisplayProps } from '@/types/currentFeatures.types';
   
   export const CurrentFeatureDisplay: React.FC<CurrentFeatureDisplayProps> = ({
-    text,
     style,
   }) => {
-    const { selectedFeature } = useFeature();
+    const { selectedFeature } = useFeatureContext();
     
     return (
       <Text style={[styles.text, style]}>

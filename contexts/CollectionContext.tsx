@@ -1,49 +1,73 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Position, CollectionContextType, CollectionState } from '@/types/collection.types';
-import { isValidPosition } from '@/utils/collections';
 import { Feature } from '@/types/features.types';
-import { useFeature } from '@/hooks/useFeature';
+import { useLocationContext } from '@/contexts/LocationContext';
+import { useCameraContext } from './CameraContext';
 
 const CollectionContext = createContext<CollectionContextType | undefined>(undefined);
 
 export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  
-  const { selectedFeature } = useFeature();
-  
+  const { currentLocation } = useLocationContext();
+  const { setCamera } = useCameraContext();
   const [collectionState, setCollectionState] = useState<CollectionState>({
     points: [],
     isActive: false,
     activeFeature: null
   });
 
+  // Helper function to get valid coordinates from a position
+  const getValidCoordinates = useCallback((position?: Position): [number, number] | null => {
+    if (position?.longitude && position?.latitude) {
+      return [position.longitude, position.latitude];
+    }
+    return currentLocation;
+  }, [currentLocation]);
+  
+  // Start collection with position (using current location if provided position is invalid)
   const startCollection = useCallback((initialPosition: Position, feature: Feature): boolean => {
-    if (!isValidPosition(initialPosition)) {
+    const pointCoordinates = getValidCoordinates(initialPosition);
+    
+    if (!pointCoordinates) {
+      console.log("coords are invalid");
       return false;
     }
-
-    const validPoint: [number, number] = [initialPosition.longitude, initialPosition.latitude];
+    
     setCollectionState({
-      points: [validPoint],
+      points: [pointCoordinates],
       isActive: true,
-      activeFeature: selectedFeature
+      activeFeature: feature
     });
     
     return true;
-  }, []);
+  }, [getValidCoordinates]);
 
-  const recordPoint = useCallback((position: Position): boolean => {
-    if (!collectionState.isActive || !isValidPosition(position)) {
+  // Record a point using provided position or current location
+  const recordPoint = useCallback((position?: Position): boolean => {
+    if (!collectionState.isActive) {
       return false;
     }
-
-    const validPoint: [number, number] = [position.longitude, position.latitude];
+    
+    const pointCoordinates = getValidCoordinates(position);
+    
+    if (!pointCoordinates) {
+      return false;
+    }
+    
     setCollectionState(prev => ({
       ...prev,
-      points: [...prev.points, validPoint]
+      points: [...prev.points, pointCoordinates]
     }));
-
+    
+    // Set camera to current location when a point is recorded
+    if (currentLocation) {
+      setCamera({
+        centerCoordinate: currentLocation,
+        animationDuration: 500
+      });
+    }
+    
     return true;
-  }, [collectionState.isActive]);
+  }, [collectionState.isActive, currentLocation, getValidCoordinates, setCamera]);
 
   const stopCollection = useCallback(() => {
     setCollectionState({
@@ -53,11 +77,6 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   }, []);
 
-  const getCurrentCollection = useCallback(() => ({
-    points: collectionState.points,
-    isActive: collectionState.isActive
-  }), [collectionState]);
-
   return (
     <CollectionContext.Provider
       value={{
@@ -65,8 +84,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         currentPoints: collectionState.points,
         startCollection,
         stopCollection,
-        recordPoint,
-        getCurrentCollection
+        recordPoint
       }}
     >
       {children}
@@ -74,7 +92,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   );
 };
 
-export const useCollection = () => {
+export const useCollectionContext = () => {
   const context = useContext(CollectionContext);
   if (context === undefined) {
     throw new Error('useCollection must be used within a CollectionProvider');

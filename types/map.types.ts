@@ -1,44 +1,24 @@
-import { GeoJsonProperties } from "geojson";
-import { FeatureCollection } from "geojson";
-import { FeatureType } from "./features.types";
+import type { FeatureCollection, GeoJsonProperties } from 'geojson';
+import { FeatureToRender } from './features.types';
 
-export interface MapFeature {
-    id: string;
-    coordinates: [number, number] | [number, number][];
-    type: FeatureType;
-    properties?: GeoJsonProperties;
-  }
-  
-  export interface CameraOptions {
-    centerCoordinate: [number, number];
-    zoomLevel: number;
-    animationDuration?: number;
-  }
-  
+// Simplified type definitions
+export type Coordinate = [number, number];
+export type FeatureType = 'point' | 'line' | 'polygon';
 
 export interface MapContextType {
-  // Core map state
+  // Feature management
+  addPoint: (coordinates: Coordinate, properties?: GeoJsonProperties) => string | null;
+  addLine: (coordinates: Coordinate[], properties?: GeoJsonProperties) => string | null;
+  updateFeature: (id: string, coordinates: Coordinate | Coordinate[]) => void;
+  removeFeature: (id: string) => void;
+  clearFeatures: () => void;
+  
+  // Map state
   features: FeatureCollection;
   isMapReady: boolean;
   setIsMapReady: (ready: boolean) => void;
-
-  // Feature manipulation
-  addPoint: (coordinates: [number, number], properties?: GeoJsonProperties) => string;
-  addLine: (coordinates: [number, number][], properties?: GeoJsonProperties) => string;
-  updateFeature: (id: string, coordinates: [number, number] | [number, number][]) => void;
-  removeFeature: (id: string) => void;
-  clearFeatures: () => void;
-
-  // Camera control
-  setCamera: (options: CameraOptions) => void;
-
-  renderFeature: (feature: {
-    type: FeatureType;
-    coordinates: [number, number] | [number, number][];
-    properties?: GeoJsonProperties;
-  }) => string;
-  previewFeature: (
-    coordinates: [number, number] | [number, number][],
-    type: FeatureType
-  ) => string;
+  
+  // Feature rendering
+  renderFeature: (feature: FeatureToRender) => string | null;
+  previewFeature: (coordinates: Coordinate | Coordinate[], type: FeatureType) => string | null;
 }

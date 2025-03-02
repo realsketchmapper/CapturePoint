@@ -1,89 +1,150 @@
-import React, { useEffect, useRef } from 'react';
+// MapControls.tsx (Updated)
+import React, { useRef, useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import MapLibreGL, { CameraRef } from '@maplibre/maplibre-react-native';
+import {
+  MapView,
+  ShapeSource,
+  CircleLayer,
+  LineLayer,
+  Camera,
+  MapViewRef
+} from '@maplibre/maplibre-react-native';
 import { RightSidebarContainer } from './RightSideBar/RightSidebarContainer';
 import { useMapContext } from '@/contexts/MapDisplayContext';
-
-
-const defaultMapStyle = {
-  version: 8,
-  sources: {
-    'satellite-tiles': {
-      type: 'raster',
-      tiles: ['https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'],
-      tileSize: 256,
-    },
-  },
-  layers: [
-    {
-      id: 'satellite-layer',
-      type: 'raster',
-      source: 'satellite-tiles',
-      minzoom: 0,
-      maxzoom: 22,
-    },
-  ],
-};
+import { useLocationContext } from '@/contexts/LocationContext';
+import { useCameraContext } from '@/contexts/CameraContext';
+import { defaultMapStyle } from '@/services/maplibre/maplibre_helpers';
+import GNSSPositionMarker from './GNSSPositionMarkerIcon';
 
 export const MapControls: React.FC = () => {
-  const { features, setCamera, isMapReady, setIsMapReady } = useMapContext();
-  const cameraRef = useRef<CameraRef>(null);
-  const lastCoordinatesRef = useRef<string>('');
+  const {
+    features,
+    isMapReady,
+    setIsMapReady
+  } = useMapContext();
+
+  const {
+    currentLocation,
+  } = useLocationContext();
+  
+  const {
+    setCameraRef,
+    setCamera,
+    setBoundingBoxPercentage
+  } = useCameraContext();
+
+  const mapRef = useRef<MapViewRef | null>(null);
+  const userInteractionRef = useRef<boolean>(false);
+  const userInteractionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
+
+  // Set bounding box to 70% of the visible map
+  useEffect(() => {
+    setBoundingBoxPercentage(70);
+  }, [setBoundingBoxPercentage]);
 
   const handleMapReady = () => {
     setIsMapReady(true);
-    setCamera({
-      centerCoordinate: [-122.4194, 37.7749],
-      zoomLevel: 12,
-      animationDuration: 0
-    });
+    setIsFirstLoad(true);
   };
 
+  // Center map on current location when available and map is ready
   useEffect(() => {
-    if (features.features.length > 0) {
-      const latestFeature = features.features[features.features.length - 1];
+    if (isMapReady && currentLocation && (isFirstLoad || !userInteractionRef.current)) {
+      setCamera({
+        centerCoordinate: currentLocation,
+        zoomLevel: 18,
+        animationDuration: 500
+      });
       
-      if (latestFeature.geometry.type === 'Point') {
-        const coordinates = latestFeature.geometry.coordinates;
-        const coordString = coordinates.join(',');
-
-        // Only update if these are new coordinates
-        if (coordString !== lastCoordinatesRef.current) {
-          console.log("Moving camera to new coordinates:", coordinates);
-          lastCoordinatesRef.current = coordString;
-          
-          if (cameraRef.current) {
-            cameraRef.current.setCamera({
-              centerCoordinate: coordinates,
-              zoomLevel: 18,
-              animationDuration: 500
-            });
-          }
-        }
+      if (isFirstLoad) {
+        setIsFirstLoad(false);
       }
     }
-  }, [features]);
+  }, [isMapReady, currentLocation, setCamera, isFirstLoad]);
+
+  // Track when user is interacting with the map
+  const handleRegionWillChange = () => {
+    if (!userInteractionRef.current) {
+      userInteractionRef.current = true;
+      console.log("User started changing map region");
+    }
+    
+    // Clear any existing timeout to prevent premature reset
+    if (userInteractionTimeoutRef.current) {
+      clearTimeout(userInteractionTimeoutRef.current);
+      userInteractionTimeoutRef.current = null;
+    }
+  };
+
+  const handleRegionDidChange = () => {
+    // Only set a timeout if we're not already waiting for one
+    if (userInteractionTimeoutRef.current === null) {
+      userInteractionTimeoutRef.current = setTimeout(() => {
+        if (userInteractionRef.current) {
+          userInteractionRef.current = false;
+          console.log("User finished changing map region");
+        }
+        userInteractionTimeoutRef.current = null;
+      }, 2000); // Longer timeout to reduce frequency
+    }
+  };
+
+  const handleMapPress = () => {
+    userInteractionRef.current = true;
+    
+    // Clear existing timeout
+    if (userInteractionTimeoutRef.current) {
+      clearTimeout(userInteractionTimeoutRef.current);
+    }
+    
+    // Set new timeout
+    userInteractionTimeoutRef.current = setTimeout(() => {
+      userInteractionRef.current = false;
+      userInteractionTimeoutRef.current = null;
+    }, 2000);
+  };
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (userInteractionTimeoutRef.current) {
+        clearTimeout(userInteractionTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <View style={styles.mapContainer}>
-      <MapLibreGL.MapView
+      <MapView
+        ref={mapRef}
         style={styles.map}
         mapStyle={defaultMapStyle}
         onDidFinishLoadingMap={handleMapReady}
+        onRegionWillChange={handleRegionWillChange}
+        onRegionDidChange={handleRegionDidChange}
+        onPress={handleMapPress}
       >
-        <MapLibreGL.Camera
-          ref={cameraRef}
+        <Camera
+          ref={setCameraRef}
           defaultSettings={{
-            centerCoordinate: [-122.4194, 37.7749],
-            zoomLevel: 12
+            centerCoordinate: currentLocation || [-122.4194, 37.7749],
+            zoomLevel: 18
           }}
         />
-        <MapLibreGL.ShapeSource
+
+        {/* Use the simpler GNSS Position Marker */}
+        <GNSSPositionMarker 
+          color="#FF6B00"
+          //size={1.2}
+        />
+
+        {/* Collected data source */}
+        <ShapeSource
           id="collectedData"
           shape={features}
         >
-          {/* Point Layer */}
-          <MapLibreGL.CircleLayer
+          <CircleLayer
             id="pointLayer"
             filter={['==', ['geometry-type'], 'Point']}
             style={{
@@ -95,8 +156,7 @@ export const MapControls: React.FC = () => {
               circleStrokeOpacity: 0.5
             }}
           />
-          {/* Line Layer */}
-          <MapLibreGL.LineLayer
+          <LineLayer
             id="lineLayer"
             filter={['==', ['geometry-type'], 'LineString']}
             style={{
@@ -107,8 +167,9 @@ export const MapControls: React.FC = () => {
               lineJoin: 'round'
             }}
           />
-        </MapLibreGL.ShapeSource>
-      </MapLibreGL.MapView>
+        </ShapeSource>
+      </MapView>
+      
       <RightSidebarContainer />
     </View>
   );
@@ -122,3 +183,5 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+export default MapControls;

@@ -3,19 +3,15 @@ import { Modal, View, Text, Switch, StyleSheet, TouchableOpacity } from 'react-n
 import Slider from '@react-native-community/slider';
 import { useBluetooth } from '@/hooks/useBluetooth';
 import { useSettingsContext } from '@/contexts/SettingsContext';
-
-interface SettingsModalProps {
-  visible: boolean;
-  onClose: () => void;
-}
+import { SettingsModalProps } from '@/types/settings.types';
 
 const SettingsMainModal: React.FC<SettingsModalProps> = ({
   visible,
   onClose,
 }) => {
   const { settings, handleSettingsChange } = useSettingsContext();
-  const { connectedDevice } = useBluetooth();
-  const showTiltSetting = connectedDevice?.type !== 'STONEX';
+  const { selectedDeviceType } = useBluetooth();
+  const showTiltSetting = selectedDeviceType !== 'STONEX';
 
   return (
     <Modal

@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { BluetoothDevice } from 'react-native-bluetooth-classic';
 import { BluetoothContextType, BluetoothDeviceType } from '@/types/bluetooth.types';
 import { BluetoothManager } from '@/services/bluetooth/bluetoothManager';
-import { deviceStorage } from '@/services/bluetooth/deviceStorage';
 import { useNMEAContext } from './NMEAContext';
 
 const BluetoothContext = createContext<BluetoothContextType | null>(null);

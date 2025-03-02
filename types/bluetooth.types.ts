@@ -23,4 +23,24 @@ export interface BluetoothActions {
   clearErrors: () => void;
 }
 
+export interface BluetoothButtonProps {
+  onPress: () => void;
+  iconSize?: number;
+  iconColor?: string;
+  style?: object;
+}
+
+export interface DeviceTypeModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSelectDeviceType: (deviceType: BluetoothDeviceType) => void;
+}
+
+export interface DeviceSelectionModalProps {
+  isVisible: boolean;
+  onClose: () => void;
+  onDeviceSelected: (device: BluetoothDevice) => Promise<boolean>;
+  deviceType: BluetoothDeviceType;
+}
+
 export type BluetoothContextType = BluetoothState & BluetoothActions;

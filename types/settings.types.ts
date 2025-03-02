@@ -3,3 +3,8 @@ export interface SettingsProps {
     collectionDuration: number;
     useTilt: boolean;
   }
+  
+export interface SettingsModalProps {
+  visible: boolean;
+  onClose: () => void;
+}

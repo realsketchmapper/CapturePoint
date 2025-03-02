@@ -1,3 +1,5 @@
+import { ReactNode } from "react";
+
 export interface Project {
     id: number;
     name: string;
@@ -20,4 +22,18 @@ export interface ProjectListItemProps {
 export interface ProjectsHeaderProps {
   onRefresh: () => void;
   loading: boolean;
+}
+
+export interface ProjectNameDisplayProps {
+  text?: string;
+  style?: object;
+}
+
+export interface ProjectContextType {
+  activeProject: Project | null;
+  setActiveProject: (project: Project | null) => void;
+}
+
+export interface ProjectProviderProps {
+  children: ReactNode;
 }

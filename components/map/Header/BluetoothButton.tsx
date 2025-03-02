@@ -1,13 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-
-interface BluetoothButtonProps {
-  onPress: () => void;
-  iconSize?: number;
-  iconColor?: string;
-  style?: object;
-}
+import { BluetoothButtonProps } from '@/types/bluetooth.types';
 
 export const BluetoothButton: React.FC<BluetoothButtonProps> = ({
   onPress,

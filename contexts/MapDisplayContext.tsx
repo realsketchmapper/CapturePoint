@@ -1,21 +1,13 @@
-// mapContext.tsx
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import MapLibreGL, { CameraRef } from '@maplibre/maplibre-react-native';
-import type { 
-  Feature, 
-  Point, 
-  LineString, 
-  FeatureCollection,
-  GeoJsonProperties 
-} from 'geojson';
-import { MapFeature, CameraOptions, MapContextType } from '@/types/map.types';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
 import { FeatureToRender } from '@/types/features.types';
+import { MapContextType, Coordinate, FeatureType } from '@/types/map.types';
 
 const MapContext = createContext<MapContextType | undefined>(undefined);
 
 export const useMapContext = () => {
   const context = useContext(MapContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useMapContext must be used within a MapProvider');
   }
   return context;
@@ -28,122 +20,169 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     features: []
   });
   
-  const featureMap = useRef(new Map<string, MapFeature>());
-  const cameraRef = useRef<CameraRef>(null);
+  // Generate a simple ID
+  const generateId = () => Math.random().toString(36).slice(2, 11);
 
-  const generateId = () => Math.random().toString(36).substr(2, 9);
-
-  const addPoint = useCallback((coordinates: [number, number], properties: GeoJsonProperties = {}) => {
-    const id = generateId();
-    const feature: MapFeature = { id, coordinates, type: 'point', properties };
-    featureMap.current.set(id, feature);
-
-    setFeatures(prev => ({
-      type: 'FeatureCollection',
-      features: [...prev.features, {
-        type: 'Feature',
-        id,
-        geometry: {
-          type: 'Point',
-          coordinates
-        } as Point,
-        properties
-      } as Feature<Point>]
-    }));
-
-    return id;
-  }, []);
-
-  const addLine = useCallback((coordinates: [number, number][], properties: GeoJsonProperties = {}) => {
-    const id = generateId();
-    const feature: MapFeature = { id, coordinates, type: 'line', properties };
-    featureMap.current.set(id, feature);
-
-    setFeatures(prev => ({
-      type: 'FeatureCollection',
-      features: [...prev.features, {
-        type: 'Feature',
-        id,
-        geometry: {
-          type: 'LineString',
-          coordinates
-        } as LineString,
-        properties
-      } as Feature<LineString>]
-    }));
-
-    return id;
-  }, []);
-
-  const updateFeature = useCallback((id: string, coordinates: [number, number] | [number, number][]) => {
-    const feature = featureMap.current.get(id);
-    if (!feature) return;
-
-    feature.coordinates = coordinates;
+  // Validate coordinates for both points and lines
+  const isValidCoords = useCallback((coords: any): boolean => {
+    if (!Array.isArray(coords)) return false;
     
-    setFeatures(prev => ({
-      type: 'FeatureCollection',
-      features: prev.features.map(f => {
-        if (f.id === id) {
-          return {
-            type: 'Feature',
-            id: f.id,
+    // Point coordinate [lng, lat]
+    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      return !isNaN(coords[0]) && !isNaN(coords[1]);
+    }
+    
+    // Line coordinates [[lng, lat], [lng, lat], ...]
+    if (Array.isArray(coords[0])) {
+      return coords.every(point => 
+        Array.isArray(point) && 
+        point.length === 2 && 
+        !isNaN(point[0]) && 
+        !isNaN(point[1])
+      );
+    }
+    
+    return false;
+  }, []);
+
+  // Add a point to the map
+  const addPoint = useCallback((coordinates: Coordinate, properties: GeoJsonProperties = {}) => {
+    if (!isValidCoords(coordinates)) {
+      console.warn('Invalid coordinates provided to addPoint');
+      return null;
+    }
+
+    const id = generateId();
+    
+    const pointFeature: Feature<Point> = {
+      type: 'Feature',
+      id,
+      geometry: {
+        type: 'Point',
+        coordinates
+      },
+      properties
+    };
+    
+    setFeatures((prev) => {
+      const newFeatures = [...prev.features, pointFeature];
+      return {
+        type: 'FeatureCollection',
+        features: newFeatures
+      } as FeatureCollection;
+    });
+
+    return id;
+  }, [isValidCoords]);
+
+  // Add a line to the map
+  const addLine = useCallback((coordinates: Coordinate[], properties: GeoJsonProperties = {}) => {
+    if (!isValidCoords(coordinates)) {
+      console.warn('Invalid coordinates provided to addLine');
+      return null;
+    }
+
+    const id = generateId();
+    
+    const lineFeature: Feature<LineString> = {
+      type: 'Feature',
+      id,
+      geometry: {
+        type: 'LineString',
+        coordinates
+      },
+      properties
+    };
+    
+    setFeatures((prev) => {
+      const newFeatures = [...prev.features, lineFeature];
+      return {
+        type: 'FeatureCollection',
+        features: newFeatures
+      } as FeatureCollection;
+    });
+
+    return id;
+  }, [isValidCoords]);
+
+  // Update an existing feature
+  const updateFeature = useCallback((id: string, coordinates: Coordinate | Coordinate[]) => {
+    if (!isValidCoords(coordinates)) {
+      console.warn('Invalid coordinates provided to updateFeature');
+      return;
+    }
+    
+    setFeatures((prev) => {
+      const updatedFeatures = prev.features.map(feature => {
+        if (feature.id === id) {
+          const isPoint = feature.geometry.type === 'Point';
+          
+          // Create a new feature with updated coordinates
+          const updatedFeature = {
+            ...feature,
             geometry: {
-              type: feature.type === 'point' ? 'Point' : 'LineString',
+              ...feature.geometry,
+              type: isPoint ? 'Point' : 'LineString',
               coordinates
-            } as Point | LineString,
-            properties: f.properties
-          } as Feature<Point | LineString>;
+            }
+          };
+          
+          return updatedFeature;
         }
-        return f;
-      })
-    }));
-  }, []);
+        return feature;
+      });
+      
+      return {
+        type: 'FeatureCollection',
+        features: updatedFeatures
+      } as FeatureCollection;
+    });
+  }, [isValidCoords]);
 
+  // Remove a feature
   const removeFeature = useCallback((id: string) => {
-    featureMap.current.delete(id);
-    
-    setFeatures(prev => ({
-      type: 'FeatureCollection',
-      features: prev.features.filter(f => f.id !== id)
-    }));
+    setFeatures((prev) => {
+      const filteredFeatures = prev.features.filter(feature => feature.id !== id);
+      return {
+        type: 'FeatureCollection',
+        features: filteredFeatures
+      } as FeatureCollection;
+    });
   }, []);
 
+  // Clear all features
   const clearFeatures = useCallback(() => {
-    featureMap.current.clear();
     setFeatures({
       type: 'FeatureCollection',
       features: []
     });
   }, []);
 
-  const setCamera = useCallback((options: CameraOptions) => {
-    if (cameraRef.current) {
-      cameraRef.current.setCamera({
-        centerCoordinate: options.centerCoordinate,
-        zoomLevel: options.zoomLevel,
-        animationDuration: options.animationDuration ?? 500
-      });
-    }
-  }, []);
-
+  // Render any type of feature
   const renderFeature = useCallback((feature: FeatureToRender) => {
     if (feature.type === 'point') {
-      return addPoint(feature.coordinates as [number, number], feature.properties);
+      return addPoint(feature.coordinates as Coordinate, feature.properties);
     } else if (feature.type === 'line') {
-      return addLine(feature.coordinates as [number, number][], feature.properties);
+      return addLine(feature.coordinates as Coordinate[], feature.properties);
     }
-    throw new Error(`Unsupported feature type: ${feature.type}`);
+    console.warn(`Unsupported feature type: ${feature.type}`);
+    return null;
   }, [addPoint, addLine]);
 
-  const previewFeature = useCallback((coordinates: [number, number] | [number, number][], type: 'point' | 'line' | 'polygon') => {
-    const previewProperties = { isPreview: true };
+  // Preview a feature
+  const previewFeature = useCallback((
+    coordinates: Coordinate | Coordinate[], 
+    type: FeatureType
+  ) => {
+    const previewProps = { isPreview: true, previewStyle: true };
+    
     if (type === 'point') {
-      return addPoint(coordinates as [number, number], previewProperties);
+      return addPoint(coordinates as Coordinate, previewProps);
     } else if (type === 'line') {
-      return addLine(coordinates as [number, number][], previewProperties);
+      return addLine(coordinates as Coordinate[], previewProps);
     }
-    throw new Error(`Unsupported preview type: ${type}`);
+    
+    return null;
   }, [addPoint, addLine]);
 
   return (
@@ -153,7 +192,6 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateFeature,
       removeFeature,
       clearFeatures,
-      setCamera,
       features,
       isMapReady,
       setIsMapReady,
@@ -164,3 +202,5 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     </MapContext.Provider>
   );
 };
+
+export default MapProvider;

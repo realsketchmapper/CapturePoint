@@ -13,11 +13,6 @@ export interface CollectionContextType {
   startCollection: (initialPosition: Position, feature: Feature) => boolean;
   stopCollection: () => void;
   recordPoint: (position: Position) => boolean;
-  // Add getter for current state
-  getCurrentCollection: () => {
-    points: [number, number][];
-    isActive: boolean;
-  };
 };
 
 export interface CollectionState {

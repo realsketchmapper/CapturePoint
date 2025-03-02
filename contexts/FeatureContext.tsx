@@ -1,4 +1,4 @@
-import React, { createContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, ReactNode, useContext, useCallback } from 'react';
 import { Feature, FeatureContextType } from '@/types/features.types';
 import { featureService } from '@/services/features/featuresService';
 
@@ -16,7 +16,7 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
   const [error, setError] = useState<string | null>(null);
   const [featuresLoaded, setFeaturesLoaded] = useState(false);
 
-  const toggleLayer = (layerName: string) => {
+  const toggleLayer = useCallback((layerName: string) => {
     setExpandedLayers(prev => {
       const newSet = new Set(prev);
       if (newSet.has(layerName)) {
@@ -26,9 +26,9 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
       }
       return newSet;
     });
-  };
+  }, []);
 
-  const fetchFeatures = async (projectId: number) => {
+  const fetchFeatures = useCallback(async (projectId: number) => {
     if (featuresLoaded) return;
     
     setIsLoading(true);
@@ -43,13 +43,13 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [featuresLoaded]);
 
-  const clearFeatures = () => {
+  const clearFeatures = useCallback(() => {
     setFeatures([]);
     setFeaturesLoaded(false);
     setSelectedFeature(null);
-  };
+  }, []);
 
   return (
     <FeatureContext.Provider
@@ -69,4 +69,12 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
       {children}
     </FeatureContext.Provider>
   );
+};
+
+export const useFeatureContext = () => {
+  const context = useContext(FeatureContext);
+  if (context === undefined) {
+    throw new Error('useFeatureContext must be used within a FeatureProvider');
+  }
+  return context;
 };

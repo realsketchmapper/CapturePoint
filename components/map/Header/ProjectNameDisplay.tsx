@@ -2,14 +2,9 @@
 import React, { useContext }from 'react';
 import { Text, StyleSheet } from 'react-native';
 import { ProjectContext } from '@/contexts/ProjectContext';
-
-interface ProjectNameDisplayProps {
-  text?: string;
-  style?: object;
-}
+import { ProjectNameDisplayProps } from '@/types/project.types';
 
 export const ProjectNameDisplay: React.FC<ProjectNameDisplayProps> = ({
-  text,
   style,
 }) => {
     const { activeProject } = useContext(ProjectContext);

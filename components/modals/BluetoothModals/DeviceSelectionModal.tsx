@@ -11,16 +11,9 @@ import {
   Platform
 } from 'react-native';
 import { BluetoothDevice } from 'react-native-bluetooth-classic';
-import { BluetoothDeviceType } from '@/types/bluetooth.types';
 import { useBluetoothContext } from '@/contexts/BluetoothContext';
 import { Colors } from '@/theme/colors';
-
-interface DeviceSelectionModalProps {
-  isVisible: boolean;
-  onClose: () => void;
-  onDeviceSelected: (device: BluetoothDevice) => Promise<boolean>;
-  deviceType: BluetoothDeviceType;
-}
+import { DeviceSelectionModalProps } from '@/types/bluetooth.types';
 
 export const DeviceSelectionModal: React.FC<DeviceSelectionModalProps> = ({
   isVisible,

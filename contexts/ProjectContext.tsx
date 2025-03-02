@@ -1,20 +1,11 @@
 import React, { createContext, useState, useCallback, ReactNode } from 'react';
 import { Project } from '@/types/project.types';
-import { projectService } from '@/services/projects/projectService';
-
-interface ProjectContextType {
-  activeProject: Project | null;
-  setActiveProject: (project: Project | null) => void;
-}
+import { ProjectContextType } from '@/types/project.types';
 
 export const ProjectContext = createContext<ProjectContextType>({
   activeProject: null,
   setActiveProject: () => {},
 });
-
-interface ProjectProviderProps {
-  children: ReactNode;
-}
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeProject, setActiveProject] = useState<Project | null>(null);

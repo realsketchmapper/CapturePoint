@@ -33,8 +33,17 @@ export interface Feature {
 
   export type FeatureType = 'point' | 'line' | 'polygon';
 
-  export interface FeatureToRender {
-    type: 'point' | 'line' | 'polygon';
+  export type FeatureToRender = {
+    type: 'point' | 'line';
     coordinates: [number, number] | [number, number][];
     properties?: GeoJsonProperties;
+  };
+
+  export interface FeatureButtonProps {
+    onPress: () => void;
+  }
+
+  export interface FeatureListModalProps {
+    isVisible: boolean;
+    onClose: () => void;
   }

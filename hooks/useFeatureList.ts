@@ -1,4 +1,4 @@
-import { useFeature } from './useFeature';
+import { useFeatureContext } from "@/contexts/FeatureContext";
 
 export const useFeatureList = () => {
     const { 
@@ -7,7 +7,7 @@ export const useFeatureList = () => {
       error, 
       fetchFeatures,
       featuresLoaded 
-    } = useFeature();
+    } = useFeatureContext();
     
     return {
       features,

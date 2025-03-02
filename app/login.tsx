@@ -9,12 +9,12 @@ import {
   StyleSheet
 } from 'react-native';
 import { router } from 'expo-router';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Colors } from '@/theme/colors';
 
 export default function Login() {
-  const { login, isLoading, error } = useAuth();
+  const { login, isLoading, error } = useAuthContext();
 
   const handleLogin = async (email: string, password: string) => {
     try {
