@@ -1,13 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-
-interface SettingsButtonProps {
-  onPress: () => void;
-  iconSize?: number;
-  iconColor?: string;
-  style?: object;
-}
+import { SettingsButtonProps } from '@/types/settings.types';
 
 export const SettingsButton: React.FC<SettingsButtonProps> = ({
   onPress,

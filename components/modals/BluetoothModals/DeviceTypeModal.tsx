@@ -4,7 +4,6 @@ import { DeviceTypeOption, DeviceTypeModalProps } from '@/types/bluetooth.types'
 import { BLUETOOTH_DEVICE_TYPES } from '@/utils/constants';
 import { Colors } from '@/theme/colors';
 
-
 export const DeviceTypeModal: React.FC<DeviceTypeModalProps> = ({
   visible,
   onClose,

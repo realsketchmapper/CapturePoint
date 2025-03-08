@@ -1,29 +1,21 @@
-// GNSSPositionMarker.tsx
-import React, { useMemo, useEffect } from 'react';
-import { useLocationContext } from '@/contexts/LocationContext';
+// components/FilteredPositionMarker.tsx
+import React, { useMemo } from 'react';
 import { ShapeSource, CircleLayer } from '@maplibre/maplibre-react-native';
 import type { FeatureCollection } from 'geojson';
 
-interface GNSSPositionMarkerProps {
+type FilteredPositionMarkerProps = {
+  position: [number, number];
   color?: string;
   size?: number;
-}
+};
 
-const GNSSPositionMarker: React.FC<GNSSPositionMarkerProps> = ({
+const FilteredPositionMarker: React.FC<FilteredPositionMarkerProps> = ({
+  position,
   color = '#FF6B00',
   size = 1.2
 }) => {
-  const { currentLocation } = useLocationContext();
-
   // Create GeoJSON feature for the position
   const positionFeature = useMemo((): FeatureCollection => {
-    if (!currentLocation) return {
-      type: 'FeatureCollection',
-      features: []
-    };
-    
-    console.log("Creating position feature with location:", currentLocation);
-    
     return {
       type: 'FeatureCollection',
       features: [{
@@ -31,33 +23,21 @@ const GNSSPositionMarker: React.FC<GNSSPositionMarkerProps> = ({
         properties: {},
         geometry: {
           type: 'Point',
-          coordinates: currentLocation
+          coordinates: position
         }
       }]
     };
-  }, [currentLocation]);
-
-  // Log the current location for debugging
-  useEffect(() => {
-    if (currentLocation) {
-      console.log("GNSS Current Location:", currentLocation);
-    }
-  }, [currentLocation]);
-
-  if (!currentLocation) {
-    console.log("No current location available");
-    return null;
-  }
+  }, [position]);
 
   // Use simple CircleLayers for visibility - creates a bullseye pattern
   return (
     <ShapeSource
-      id="positionSource"
+      id="filteredPositionSource"
       shape={positionFeature}
     >
       {/* White background circle for visibility */}
       <CircleLayer
-        id="positionMarkerBackground"
+        id="filteredPositionMarkerBackground"
         style={{
           circleRadius: 12 * size,
           circleColor: 'white',
@@ -67,7 +47,7 @@ const GNSSPositionMarker: React.FC<GNSSPositionMarkerProps> = ({
       
       {/* Colored ring */}
       <CircleLayer
-        id="positionMarkerRing"
+        id="filteredPositionMarkerRing"
         style={{
           circleRadius: 10 * size,
           circleColor: 'white',
@@ -79,7 +59,7 @@ const GNSSPositionMarker: React.FC<GNSSPositionMarkerProps> = ({
       
       {/* Inner circle */}
       <CircleLayer
-        id="positionMarkerInner"
+        id="filteredPositionMarkerInner"
         style={{
           circleRadius: 5 * size,
           circleColor: color,
@@ -90,4 +70,4 @@ const GNSSPositionMarker: React.FC<GNSSPositionMarkerProps> = ({
   );
 };
 
-export default GNSSPositionMarker;
+export default FilteredPositionMarker;

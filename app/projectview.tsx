@@ -5,7 +5,7 @@ import { ProjectList } from '../components/project/ProjectList';
 import { useProjects } from '@/hooks/useProject';
 import { Project } from '@/types/project.types';
 import { ProjectContext } from '@/contexts/ProjectContext';
-import { useFeatureContext } from '@/contexts/FeatureContext';
+import { useFeatureContext } from '@/FeatureContext';
 
 const ProjectView = () => {
   const { projects, loading, error, fetchProjects } = useProjects();
@@ -14,13 +14,8 @@ const ProjectView = () => {
 
   const handleProjectPress = async (project: Project) => {
     try {
-      console.log("loading project!");
-
       clearFeatures();
-
       setActiveProject(project);
-      console.log("project id", project.id);
-      
 
       await fetchFeatures(project.id);
       

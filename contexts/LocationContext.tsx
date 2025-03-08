@@ -10,7 +10,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [currentLocation, setCurrentLocation] = useState<[number, number] | null>(null);
 
   useEffect(() => {
-    if (ggaData && ggaData.latitude !== undefined && ggaData.longitude !== undefined) {
+    // Check if ggaData exists and both latitude and longitude are not null
+    if (ggaData && ggaData.latitude !== null && ggaData.longitude !== null) {
       const newLocation: [number, number] = [ggaData.longitude, ggaData.latitude];
       setCurrentLocation(newLocation);
     }

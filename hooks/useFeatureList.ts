@@ -1,4 +1,4 @@
-import { useFeatureContext } from "@/contexts/FeatureContext";
+import { useFeatureContext } from "@/FeatureContext";
 
 export const useFeatureList = () => {
     const { 

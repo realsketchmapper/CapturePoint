@@ -1,4 +1,4 @@
-// MapControls.tsx (Updated)
+// components/MapControls.tsx (simplified version)
 import React, { useRef, useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import {
@@ -7,142 +7,105 @@ import {
   CircleLayer,
   LineLayer,
   Camera,
-  MapViewRef
+  MapViewRef,
+  CameraRef,
 } from '@maplibre/maplibre-react-native';
 import { RightSidebarContainer } from './RightSideBar/RightSidebarContainer';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 import { useLocationContext } from '@/contexts/LocationContext';
-import { useCameraContext } from '@/contexts/CameraContext';
 import { defaultMapStyle } from '@/services/maplibre/maplibre_helpers';
-import GNSSPositionMarker from './GNSSPositionMarkerIcon';
+import FilteredPositionMarker from './FilteredPositionMarker';
+import FeatureMarkers from './FeatureMarkers';
+import { useFilteredPosition } from '@/hooks/useFilteredPosition';
+import PointCollectionControls from '../collection/PointCollectionControls';
 
 export const MapControls: React.FC = () => {
-  const {
-    features,
-    isMapReady,
-    setIsMapReady
-  } = useMapContext();
-
-  const {
-    currentLocation,
-  } = useLocationContext();
+  const { features, isMapReady, setIsMapReady } = useMapContext();
+  const { currentLocation } = useLocationContext();
   
-  const {
-    setCameraRef,
-    setCamera,
-    setBoundingBoxPercentage
-  } = useCameraContext();
-
   const mapRef = useRef<MapViewRef | null>(null);
-  const userInteractionRef = useRef<boolean>(false);
-  const userInteractionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
-
-  // Set bounding box to 70% of the visible map
-  useEffect(() => {
-    setBoundingBoxPercentage(70);
-  }, [setBoundingBoxPercentage]);
-
+  const cameraRef = useRef<CameraRef | null>(null);
+  const [followGNSS, setFollowGNSS] = useState(true);
+  const initialCenterDone = useRef<boolean>(false);
+  
+  // Get the filtered position from our hook
+  const filteredPosition = useFilteredPosition(1); // 5 meters threshold
+  
   const handleMapReady = () => {
     setIsMapReady(true);
-    setIsFirstLoad(true);
   };
 
-  // Center map on current location when available and map is ready
+  // Initial centering
   useEffect(() => {
-    if (isMapReady && currentLocation && (isFirstLoad || !userInteractionRef.current)) {
-      setCamera({
+    if (isMapReady && currentLocation && !initialCenterDone.current && cameraRef.current) {
+      console.log("setting initial position");
+      cameraRef.current.setCamera({
         centerCoordinate: currentLocation,
         zoomLevel: 18,
-        animationDuration: 500
+        animationDuration: 500,
       });
-      
-      if (isFirstLoad) {
-        setIsFirstLoad(false);
-      }
+      initialCenterDone.current = true;
     }
-  }, [isMapReady, currentLocation, setCamera, isFirstLoad]);
+  }, [isMapReady, currentLocation]);
 
-  // Track when user is interacting with the map
-  const handleRegionWillChange = () => {
-    if (!userInteractionRef.current) {
-      userInteractionRef.current = true;
-      console.log("User started changing map region");
-    }
-    
-    // Clear any existing timeout to prevent premature reset
-    if (userInteractionTimeoutRef.current) {
-      clearTimeout(userInteractionTimeoutRef.current);
-      userInteractionTimeoutRef.current = null;
-    }
-  };
-
-  const handleRegionDidChange = () => {
-    // Only set a timeout if we're not already waiting for one
-    if (userInteractionTimeoutRef.current === null) {
-      userInteractionTimeoutRef.current = setTimeout(() => {
-        if (userInteractionRef.current) {
-          userInteractionRef.current = false;
-          console.log("User finished changing map region");
-        }
-        userInteractionTimeoutRef.current = null;
-      }, 2000); // Longer timeout to reduce frequency
-    }
-  };
-
-  const handleMapPress = () => {
-    userInteractionRef.current = true;
-    
-    // Clear existing timeout
-    if (userInteractionTimeoutRef.current) {
-      clearTimeout(userInteractionTimeoutRef.current);
-    }
-    
-    // Set new timeout
-    userInteractionTimeoutRef.current = setTimeout(() => {
-      userInteractionRef.current = false;
-      userInteractionTimeoutRef.current = null;
-    }, 2000);
-  };
-
-  // Clean up timeout on unmount
+  // Position updates - using filtered position
   useEffect(() => {
-    return () => {
-      if (userInteractionTimeoutRef.current) {
-        clearTimeout(userInteractionTimeoutRef.current);
-      }
-    };
-  }, []);
+    if (isMapReady && initialCenterDone.current && filteredPosition && followGNSS && cameraRef.current) {
+      console.log("setting new position because filtered position changed");
+      cameraRef.current.setCamera({
+        centerCoordinate: filteredPosition,
+        animationDuration: 300
+      });
+    }
+  }, [filteredPosition, isMapReady, followGNSS]);
+
+  // When user interacts with the map, temporarily stop following
+  const handleRegionWillChange = (event?: any) => {
+    if (event?.properties?.isUserInteraction) {
+      setFollowGNSS(false);
+      
+      setTimeout(() => {
+        setFollowGNSS(true);
+      }, 5000); // 5-second delay
+    }
+  };
 
   return (
-    <View style={styles.mapContainer}>
+    <View style={mapStyles.mapContainer}>
       <MapView
         ref={mapRef}
-        style={styles.map}
+        style={mapStyles.map}
         mapStyle={defaultMapStyle}
         onDidFinishLoadingMap={handleMapReady}
         onRegionWillChange={handleRegionWillChange}
-        onRegionDidChange={handleRegionDidChange}
-        onPress={handleMapPress}
       >
         <Camera
-          ref={setCameraRef}
+          ref={cameraRef}
           defaultSettings={{
-            centerCoordinate: currentLocation || [-122.4194, 37.7749],
-            zoomLevel: 18
-          }}
+            centerCoordinate: filteredPosition || [-122.4194, 37.7749],
+            zoomLevel: 18,         
+          }} 
         />
 
-        {/* Use the simpler GNSS Position Marker */}
-        <GNSSPositionMarker 
-          color="#FF6B00"
-          //size={1.2}
-        />
+        {/* Only render marker if we have a filtered position */}
+        {filteredPosition && (
+          <FilteredPositionMarker 
+            position={filteredPosition}
+            color="#FF6B00"
+            size={0.5}
+          />
+        )}
 
-        {/* Collected data source */}
+        <FeatureMarkers features={features.features} />
+
         <ShapeSource
           id="collectedData"
-          shape={features}
+          shape={{
+            type: 'FeatureCollection',
+            features: features.features.filter(
+              feature => !(feature.geometry.type === 'Point' && feature.properties?.featureId)
+            )
+          }}
         >
           <CircleLayer
             id="pointLayer"
@@ -171,11 +134,12 @@ export const MapControls: React.FC = () => {
       </MapView>
       
       <RightSidebarContainer />
+      <PointCollectionControls />
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+const mapStyles = StyleSheet.create({
   mapContainer: {
     flex: 1,
   },
@@ -183,5 +147,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-
-export default MapControls;

@@ -4,11 +4,7 @@ import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { EmailInput } from './EmailInput';
 import { PasswordInput } from './PasswordInput';
 import { Colors } from '@/theme/colors';
-
-interface LoginFormProps {
-  onSubmit: (email: string, password: string) => Promise<void>;
-  isLoading: boolean;
-}
+import { LoginFormProps } from '@/types/auth.types';
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => {
   const [credentials, setCredentials] = useState({

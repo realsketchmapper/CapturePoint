@@ -1,4 +1,4 @@
-import React, { createContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useCallback, ReactNode, useContext } from 'react';
 import { Project } from '@/types/project.types';
 import { ProjectContextType } from '@/types/project.types';
 
@@ -29,4 +29,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       {children}
     </ProjectContext.Provider>
   );
+};
+
+// Add this hook to access the ProjectContext
+export const useProjectContext = () => {
+  const context = useContext(ProjectContext);
+  if (context === undefined) {
+    throw new Error('useProjectContext must be used within a ProjectProvider');
+  }
+  return context;
 };

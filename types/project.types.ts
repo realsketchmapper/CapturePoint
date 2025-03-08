@@ -37,3 +37,9 @@ export interface ProjectContextType {
 export interface ProjectProviderProps {
   children: ReactNode;
 }
+
+export interface ProjectData {
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+}

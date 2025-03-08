@@ -2,8 +2,8 @@ import { ViewStyle, TextStyle } from "react-native";
 
 export interface GGAData {
   time: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;  // Updated to handle null
+  longitude: number | null; // Updated to handle null
   quality: number;
   satellites: number;
   hdop: number;

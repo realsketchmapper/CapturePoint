@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
-import { useFeatureContext } from '@/contexts/FeatureContext';
+import { useFeatureContext } from '@/FeatureContext';
 import { CurrentFeatureDisplayProps } from '@/types/currentFeatures.types';
   
   export const CurrentFeatureDisplay: React.FC<CurrentFeatureDisplayProps> = ({

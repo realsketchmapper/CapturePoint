@@ -14,15 +14,14 @@ export const NMEAProvider: React.FC<{ children: React.ReactNode }> = ({
   const [error, setError] = useState<string | null>(null);
 
   const handleNMEAData = useCallback((data: string) => {
-    //console.log("NMEA RAW", data);
+
     const lines = data.split('\n');
     for (const line of lines) {
       const trimmedLine = line.trim();
       
-      // Parse GGA data
       const parsedGGA = NMEAParser.parseGGA(trimmedLine);
       if (parsedGGA) {
-        // Convert altitude from meters to feet
+ 
         const convertedData = {
           ...parsedGGA,
           altitude: parsedGGA.altitude * 3.28084,
@@ -31,7 +30,6 @@ export const NMEAProvider: React.FC<{ children: React.ReactNode }> = ({
         setGGAData(convertedData);
       }
 
-      // Parse GST data
       const parsedGST = NMEAParser.parseGST(trimmedLine);
       if (parsedGST) {
         // Convert errors from meters to feet if needed

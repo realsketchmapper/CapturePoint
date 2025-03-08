@@ -2,7 +2,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import CollectionButton from './CollectButton';
+import CollectionButton from './CollectionButton';
 
 export const RightSidebarContainer: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -19,7 +19,6 @@ export const RightSidebarContainer: React.FC = () => {
       ]}
     >
       <CollectionButton />
-      {/* Add more buttons here as needed */}
     </View>
   );
 };
@@ -30,9 +29,9 @@ const styles = StyleSheet.create({
     right: 10,
     top: 0,
     bottom: 0,
-    width: 60,  // Adjust based on your button sizes
+    width: 60, 
     justifyContent: 'flex-start',
     alignItems: 'center',
-    zIndex: 1,  // Ensure it stays above the map
+    zIndex: 1, 
   }
 });

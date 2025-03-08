@@ -1,6 +1,7 @@
-import React, { createContext, useEffect, useState, useCallback, useContext} from 'react';
+import React, { createContext, useEffect, useState, useCallback, useContext } from 'react';
 import { AuthService } from '@/services/auth/authService';
 import { User, AuthContextState, AuthContextActions } from '@/types/auth.types';
+import NetInfo from '@react-native-community/netinfo';
 
 type AuthContextType = AuthContextState & AuthContextActions;
 
@@ -12,10 +13,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
+  // Check auth state when the app loads
   useEffect(() => {
-    checkAuthState();
+    const initAuth = async () => {
+      try {
+        setIsLoading(true);
+        const userData = await AuthService.getCurrentUser();
+        setUser(userData);
+      } catch (error) {
+        console.error('Auth state check failed:', error);
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+        setIsInitialized(true);
+      }
+    };
+
+    initAuth();
   }, []);
+
+  // Monitor network status changes
+  useEffect(() => {
+    // Skip if no user or already fully online
+    if (!user || (user && !user.isOffline)) return;
+
+    const unsubscribe = NetInfo.addEventListener(async (state) => {
+      if (state.isConnected && user?.isOffline) {
+        // We're back online and were in offline mode - validate token
+        const isValid = await AuthService.validateToken();
+        if (isValid && user) {
+          // Update user to online mode
+          setUser({
+            ...user,
+            isOffline: false
+          });
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {
@@ -43,10 +82,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   
   const checkAuthState = useCallback(async () => {
     try {
+      setIsLoading(true);
       const userData = await AuthService.getCurrentUser();
-      if (userData) {
-        setUser(userData);
-      }
+      setUser(userData);
     } catch (error) {
       console.error('Auth state check failed:', error);
     } finally {
@@ -59,9 +97,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       user,
       isLoading,
       isAuthenticated: !!user,
+      isInitialized, // New property to indicate auth is fully initialized
+      isOffline: user?.isOffline || false, // Expose offline state
       error,
       login,
-      logout
+      logout,
+      checkAuthState
     }}>
       {children}
     </AuthContext.Provider>

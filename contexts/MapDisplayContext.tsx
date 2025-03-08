@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
 import { FeatureToRender } from '@/types/features.types';
 import { MapContextType, Coordinate, FeatureType } from '@/types/map.types';
-
+import { generateId } from '@/utils/collections';
 const MapContext = createContext<MapContextType | undefined>(undefined);
 
 export const useMapContext = () => {
@@ -19,9 +19,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     type: 'FeatureCollection',
     features: []
   });
-  
-  // Generate a simple ID
-  const generateId = () => Math.random().toString(36).slice(2, 11);
+
 
   // Validate coordinates for both points and lines
   const isValidCoords = useCallback((coords: any): boolean => {
@@ -160,9 +158,9 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Render any type of feature
   const renderFeature = useCallback((feature: FeatureToRender) => {
-    if (feature.type === 'point') {
+    if (feature.type === 'Point') {
       return addPoint(feature.coordinates as Coordinate, feature.properties);
-    } else if (feature.type === 'line') {
+    } else if (feature.type === 'Line') {
       return addLine(feature.coordinates as Coordinate[], feature.properties);
     }
     console.warn(`Unsupported feature type: ${feature.type}`);

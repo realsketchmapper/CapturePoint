@@ -3,3 +3,8 @@ export interface FilteredPositionMarkerProps {
     size?: number;
     minDistanceThreshold?: number;
   }
+
+  export interface GNSSPositionMarkerProps {
+    color?: string;
+    size?: number;
+  }

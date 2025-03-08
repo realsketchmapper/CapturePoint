@@ -1,11 +1,11 @@
 import type { GeoJsonProperties } from 'geojson';
-
+import { ReactNode } from 'react';
 
 export interface Feature {
     id: number;
     svg: string;
     name: string;
-    type: 'point' | 'line' | 'polygon';
+    type: 'Point' | 'Line' | 'Polygon';
     color: string;
     line_weight: number;
     dash_pattern: string;
@@ -16,6 +16,7 @@ export interface Feature {
     created_at: string;
     updated_at: string;
     is_active: boolean;
+    image_url: string;
   }
   
   export interface FeatureContextType {
@@ -26,15 +27,16 @@ export interface Feature {
     features: Feature[];
     isLoading: boolean;
     error: string | null;
-    fetchFeatures: (projectId: number) => void;
+    fetchFeatures: (projectId: number) => Promise<void>;
     clearFeatures: () => void;
     featuresLoaded: boolean;
+    imagesPreloaded: boolean;
   }
 
   export type FeatureType = 'point' | 'line' | 'polygon';
 
   export type FeatureToRender = {
-    type: 'point' | 'line';
+    type: 'Point' | 'Line' | 'Polygon';
     coordinates: [number, number] | [number, number][];
     properties?: GeoJsonProperties;
   };
@@ -46,4 +48,8 @@ export interface Feature {
   export interface FeatureListModalProps {
     isVisible: boolean;
     onClose: () => void;
+  }
+
+  export interface FeatureProviderProps {
+    children: ReactNode;
   }

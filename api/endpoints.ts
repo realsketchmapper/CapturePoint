@@ -1,7 +1,7 @@
 export const API_ENDPOINTS = {
     BASE_URL: 'https://v2.sketchmapper.com',
-    LOGIN: 'https://v2.sketchmapper.com/login',
+    LOGIN: '/login',
     PROJECTS: '/projects',
-    FEATURES: '/api/mobile/features',
-    // Add other endpoints here
+    SYNC_POINTS: '/projects/:projectId/sync-points',
+    VALIDATE_TOKEN: '/validate/'
   } as const;

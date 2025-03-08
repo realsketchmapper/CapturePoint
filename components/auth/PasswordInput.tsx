@@ -2,13 +2,7 @@ import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { } from 'react-native/Libraries/NewAppScreen';
-import { Colors } from '@/theme/colors';
-
-interface PasswordInputProps {
-  value: string;
-  onChangeText: (text: string) => void;
-  onSubmit?: () => void;
-}
+import { PasswordInputProps } from '@/types/auth.types';
 
 export const PasswordInput: React.FC<PasswordInputProps> = ({
   value,
@@ -56,7 +50,7 @@ const styles = StyleSheet.create({
     fontFamily: 'RobotoSlab-Regular'
   },
   passwordInput: {
-    paddingRight: 50, // Make room for the eye icon
+    paddingRight: 50,
   },
   eyeIcon: {
     position: 'absolute',

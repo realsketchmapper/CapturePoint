@@ -1,21 +1,7 @@
 import { Project } from '@/types/project.types';
 import { api } from '@/api/clients';
 import { API_ENDPOINTS } from '@/api/endpoints';
-
-interface ApiResponse<T> {
-  success: boolean;
-  error?: string;
-  projects?: T;
-}
-
-interface ProjectData {
-  // Define your project data structure here
-  latitude: number;
-  longitude: number;
-  timestamp: string;
-  
-  // Add other fields as needed
-}
+import { ApiResponse } from '@/types/api.types';
 
 class ProjectService {
   async fetchProjects(): Promise<Project[]> {

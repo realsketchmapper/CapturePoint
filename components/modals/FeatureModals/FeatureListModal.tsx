@@ -1,15 +1,15 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, Modal, View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-import { useFeatureContext } from '@/contexts/FeatureContext';
+import React, { useMemo, useCallback } from 'react';
+import { StyleSheet, Modal, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { useFeatureContext } from '@/FeatureContext';
 import { MaterialIcons } from '@expo/vector-icons';
-import { SvgXml } from 'react-native-svg';
 import { Feature, FeatureListModalProps } from '@/types/features.types';
+import { SvgXml } from 'react-native-svg';
 
 type GroupedFeatures = {
   [key: string]: Feature[];
 }
 
-export const FeatureListModal: React.FC<FeatureListModalProps> = ({ 
+export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({ 
   isVisible, 
   onClose
 }) => {
@@ -21,10 +21,11 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = ({
     features,
     isLoading,
     error,
-    featuresLoaded
+    featuresLoaded,
   } = useFeatureContext();
 
   const groupedFeatures = useMemo<GroupedFeatures>(() => {
+    console.log('Recalculating groupedFeatures');
     const groups = features.reduce<GroupedFeatures>((acc, feature) => {
       if (!acc[feature.draw_layer]) {
         acc[feature.draw_layer] = [];
@@ -47,10 +48,89 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = ({
       }, {});
   }, [features]);
 
-  const handleFeatureSelect = (feature: Feature) => {
+  const handleFeatureSelect = useCallback((feature: Feature) => {
     setSelectedFeature(feature);
     onClose();
-  };
+  }, [setSelectedFeature, onClose]);
+
+  // Function to render the appropriate image based on feature type
+  const renderFeatureImage = useCallback((feature: Feature) => {
+    // For line or polygon type features with SVG data
+    if ((feature.type === 'Line' || 
+         feature.type === 'Polygon') && feature.svg) {
+      try {
+        // Check if the SVG content is valid
+        if (feature.svg.includes('<svg') && feature.svg.includes('</svg>')) {
+          return (
+            <SvgXml 
+              xml={feature.svg} 
+              width={24} 
+              height={24} 
+            />
+          );
+        } else {
+          return <MaterialIcons name="broken-image" size={24} color="orange" />;
+        }
+      } catch (error) {
+        return <MaterialIcons name="broken-image" size={24} color="red" />;
+      }
+    } 
+    // For point features with image URLs (PNGs)
+    else if ((feature.type === 'Point') && feature.image_url) {
+      return (
+        <Image 
+          source={{ uri: feature.image_url }} 
+          style={styles.featureImage} 
+          resizeMode="contain"
+        />
+      );
+    } 
+    // Fallback for features without images
+    else {
+      return <MaterialIcons name="image" size={24} color="#ccc" />;
+    }
+  }, []);
+
+  // Memoize the rendering of layers and features to prevent re-renders
+  const renderFeatureGroups = useMemo(() => {
+    return Object.entries(groupedFeatures).map(([layer, layerFeatures]) => (
+      <View key={layer}>
+        <TouchableOpacity 
+          style={styles.layerHeader}
+          onPress={() => toggleLayer(layer)}
+        >
+          {expandedLayers.has(layer) ? (
+            <MaterialIcons name='arrow-drop-down' size={20} color="#000" />
+          ) : (
+            <MaterialIcons name='keyboard-arrow-right' size={20} color="#000" />
+          )}
+          <Text style={styles.layerTitle}>{layer}</Text>
+        </TouchableOpacity>
+        
+        {expandedLayers.has(layer) && (
+          <View style={styles.featureGroup}>
+            {layerFeatures.map(feature => (
+              <TouchableOpacity
+                key={feature.id}
+                style={[
+                  styles.featureItem,
+                  selectedFeature?.id === feature.id && styles.selectedFeature
+                ]}
+                onPress={() => handleFeatureSelect(feature)}
+              >
+                <View style={styles.featureItemContent}>
+                  <View style={styles.imageContainer}>
+                    {renderFeatureImage(feature)}
+                  </View>
+                  <Text style={styles.featureName}>{feature.name}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+    ));
+  }, [groupedFeatures, expandedLayers, toggleLayer, selectedFeature, handleFeatureSelect, renderFeatureImage]);
 
   return (
     <Modal
@@ -84,53 +164,14 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = ({
             </View>
           ) : (
             <ScrollView style={styles.featureList}>
-              {Object.entries(groupedFeatures).map(([layer, layerFeatures]) => (
-                <View key={layer}>
-                  <TouchableOpacity 
-                    style={styles.layerHeader}
-                    onPress={() => toggleLayer(layer)}
-                  >
-                    {expandedLayers.has(layer) ? (
-                      <MaterialIcons name='arrow-drop-down' size={20} color="#000" />
-                    ) : (
-                      <MaterialIcons name='keyboard-arrow-right' size={20} color="#000" />
-                    )}
-                    <Text style={styles.layerTitle}>{layer}</Text>
-                  </TouchableOpacity>
-                  
-                  {expandedLayers.has(layer) && (
-                    <View style={styles.featureGroup}>
-                      {layerFeatures.map(feature => (
-                        <TouchableOpacity
-                          key={feature.id}
-                          style={[
-                            styles.featureItem,
-                            selectedFeature?.id === feature.id && styles.selectedFeature
-                          ]}
-                          onPress={() => handleFeatureSelect(feature)}
-                        >
-                          <View style={styles.featureItemContent}>
-                            {feature.svg && (
-                              <View style={styles.svgContainer}>
-                                <SvgXml xml={feature.svg} width={24} height={24} />
-                              </View>
-                            )}
-                            <Text style={styles.featureName}>{feature.name}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              ))}
+              {renderFeatureGroups}
             </ScrollView>
           )}
         </View>
       </View>
     </Modal>
   );
-};
-
+});
 
 const styles = StyleSheet.create({
   centerContent: {
@@ -201,12 +242,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  svgContainer: {
+  imageContainer: {
     marginRight: 10,
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  featureImage: {
+    width: 24,
+    height: 24,
+  },
+  placeholderContainer: {
+    marginRight: 10,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 4,
   },
   selectedFeature: {
     backgroundColor: '#e6f3ff',

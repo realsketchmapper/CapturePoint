@@ -1,11 +1,6 @@
 import React from 'react';
 import { TextInput, StyleSheet} from 'react-native';
-
-interface EmailInputProps {
-  value: string;
-  onChangeText: (text: string) => void;
-  onSubmit?: () => void;
-}
+import { EmailInputProps } from '@/types/auth.types';
 
 export const EmailInput: React.FC<EmailInputProps> = ({
   value,

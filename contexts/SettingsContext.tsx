@@ -1,11 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SettingsProps } from '@/types/settings.types';
-
-interface SettingsContextType {
-  settings: SettingsProps;
-  handleSettingsChange: (newSettings: SettingsProps) => void;
-}
+import { SettingsContextType } from '@/types/settings.types';
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
