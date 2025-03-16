@@ -17,9 +17,11 @@ export interface Feature {
     updated_at: string;
     is_active: boolean;
     image_url: string;
-  }
+    coordinates: [number, number] | [number, number][];
+    properties?: GeoJsonProperties;
+}
   
-  export interface FeatureContextType {
+export interface FeatureContextType {
     selectedFeature: Feature | null;
     setSelectedFeature: (feature: Feature | null) => void;
     expandedLayers: Set<string>;
@@ -31,25 +33,25 @@ export interface Feature {
     clearFeatures: () => void;
     featuresLoaded: boolean;
     imagesPreloaded: boolean;
-  }
+}
 
-  export type FeatureType = 'point' | 'line' | 'polygon';
+export type FeatureType = 'point' | 'line' | 'polygon';
 
-  export type FeatureToRender = {
+export type FeatureToRender = {
     type: 'Point' | 'Line' | 'Polygon';
     coordinates: [number, number] | [number, number][];
     properties?: GeoJsonProperties;
-  };
+};
 
-  export interface FeatureButtonProps {
+export interface FeatureButtonProps {
     onPress: () => void;
-  }
+}
 
-  export interface FeatureListModalProps {
+export interface FeatureListModalProps {
     isVisible: boolean;
     onClose: () => void;
-  }
+}
 
-  export interface FeatureProviderProps {
+export interface FeatureProviderProps {
     children: ReactNode;
-  }
+}

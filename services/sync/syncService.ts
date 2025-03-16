@@ -4,6 +4,7 @@ import { API_ENDPOINTS } from "@/api/endpoints";
 import { storageService } from '../storage/storageService';
 import NetInfo from '@react-native-community/netinfo';
 import { PointCollected } from "@/types/pointCollected.types";
+import { AxiosError } from 'axios';
 
 export interface SyncResult {
   success: boolean;
@@ -60,7 +61,7 @@ const formatPointForAPI = (point: PointCollected) => {
   
   // Return a carefully structured object for the API
   // The field names and structure are critical here
-  return {
+  const formattedPoint = {
     // CRITICAL: Make sure client_id is a string and present
     client_id: String(point.id), 
     category: point.featureTypeId,
@@ -71,20 +72,21 @@ const formatPointForAPI = (point: PointCollected) => {
     project_id: point.projectId,
     // Coordinates in the format expected
     coords: [longitude, latitude],
-    // Individual coordinate components
-    //latitude: latitude,
-    //longitude: longitude,
-    // Include other data from NMEA
-    altitude: point.nmeaData?.gga?.altitude,
-    error_overall: point.nmeaData?.gst?.rmsTotal,
-    error_latitude: point.nmeaData?.gst?.latitudeError,
-    error_longitude: point.nmeaData?.gst?.longitudeError,
-    error_altitude: point.nmeaData?.gst?.heightError,
     // Add user ID information
     created_by: point.properties?.userId,
     // Add timestamp
-    created_at: point.created_at
+    created_at: point.created_at,
+    // Include properties without NMEA data
+    properties: point.properties,
+    // NMEA data as top-level field
+    nmea_data: {
+      gga: point.nmeaData.gga,
+      gst: point.nmeaData.gst
+    }
   };
+
+  console.log("Formatted point for API:", JSON.stringify(formattedPoint, null, 2));
+  return formattedPoint;
 };
 
 export const syncService = {
@@ -97,8 +99,10 @@ export const syncService = {
   // Sync points with the server for a specific project
   syncPoints: async (projectId: number): Promise<SyncResult> => {
     try {
+      console.log("\n=== Starting sync process ===");
       // Verify project ID
       if (!projectId) {
+        console.log("❌ No project ID provided");
         return {
           success: false,
           syncedCount: 0,
@@ -110,6 +114,7 @@ export const syncService = {
       // Check if online
       const online = await syncService.isOnline();
       if (!online) {
+        console.log("❌ Device is offline");
         return { 
           success: false, 
           syncedCount: 0, 
@@ -120,8 +125,10 @@ export const syncService = {
       
       // Get unsynced points for this project from storageService
       const unsyncedPoints = await storageService.getUnsyncedPointsForProject(projectId);
+      console.log(`📊 Found ${unsyncedPoints.length} unsynced points for project ${projectId}`);
       
       if (unsyncedPoints.length === 0) {
+        console.log("✅ No points to sync");
         return { 
           success: true, 
           syncedCount: 0, 
@@ -129,19 +136,18 @@ export const syncService = {
         };
       }
       
-      console.log(`Syncing ${unsyncedPoints.length} points for project ${projectId}...`);
-      
       // Format points as expected by the backend
+      console.log("🔄 Formatting points for API...");
       const formattedPoints = unsyncedPoints.map(formatPointForAPI);
       
       // Log the first formatted point for debugging
       if (formattedPoints.length > 0) {
-        console.log('First formatted point for API:', JSON.stringify(formattedPoints[0]));
+        console.log('📝 First formatted point:', JSON.stringify(formattedPoints[0], null, 2));
       }
       
       // Construct the endpoint URL with the project ID
       const endpoint = API_ENDPOINTS.SYNC_POINTS.replace(':projectId', projectId.toString());
-      console.log(`Making API call to: ${endpoint}`);
+      console.log(`🌐 Making API call to: ${endpoint}`);
       
       // Send points to server with explicit error handling
       try {
@@ -151,20 +157,23 @@ export const syncService = {
           points: formattedPoints
         };
         
-        console.log('Full request payload:', JSON.stringify(payload));
+        console.log('📦 Request payload:', JSON.stringify(payload, null, 2));
         
         const response = await api.post(endpoint, payload);
         
-        console.log('API response:', response.data);
+        console.log('📥 API response:', JSON.stringify(response.data, null, 2));
         
         if (response.data && response.data.success) {
           const syncedIds = response.data.syncedIds || 
                            response.data.created_ids || 
                            unsyncedPoints.map(p => p.id);
           
+          console.log(`✅ Successfully synced ${syncedIds.length} points`);
+          
           // Mark as synced in local storage
           if (syncedIds.length > 0) {
             await storageService.markPointsAsSynced(syncedIds);
+            console.log(`📝 Marked ${syncedIds.length} points as synced in local storage`);
           }
           
           return {
@@ -173,6 +182,7 @@ export const syncService = {
             failedCount: 0
           };
         } else {
+          console.log("❌ Sync failed:", response.data?.error || 'Unknown error');
           return {
             success: false,
             syncedCount: 0,
@@ -180,43 +190,59 @@ export const syncService = {
             errorMessage: response.data?.error || 'Sync failed'
           };
         }
-      } catch (error: any) {
-        console.error('API Error:', error);
+      } catch (error) {
+        console.error('❌ API Error:', error);
         
         // Log the response data if available
-        if (error.response) {
-          console.error('Response data:', error.response.data);
-          console.error('Response status:', error.response.status);
-        }
-        
-        // Provide more detailed error information
-        let errorMessage = 'Unknown API error';
-        if (error.response) {
-          // The request was made and the server responded with a status code
-          errorMessage = `Server returned ${error.response.status}: ${error.response.data?.error || 'No error details'}`;
-        } else if (error.request) {
-          // The request was made but no response was received
-          errorMessage = 'No response received from server';
-        } else {
-          // Something happened in setting up the request
-          errorMessage = error.message || 'Error setting up request';
+        if (error instanceof AxiosError) {
+          if (error.response) {
+            console.error('Response data:', error.response.data);
+            console.error('Response status:', error.response.status);
+            console.error('Response headers:', error.response.headers);
+          } else if (error.request) {
+            console.error('No response received:', error.request);
+          } else {
+            console.error('Error setting up request:', error.message);
+          }
+          
+          // Provide more detailed error information
+          let errorMessage = 'Unknown API error';
+          if (error.response) {
+            // The request was made and the server responded with a status code
+            errorMessage = `Server returned ${error.response.status}: ${error.response.data?.error || 'No error details'}`;
+          } else if (error.request) {
+            // The request was made but no response was received
+            errorMessage = 'No response received from server';
+          } else {
+            // Something happened in setting up the request
+            errorMessage = error.message || 'Error setting up request';
+          }
+          
+          return {
+            success: false,
+            syncedCount: 0,
+            failedCount: unsyncedPoints.length,
+            errorMessage
+          };
         }
         
         return {
           success: false,
           syncedCount: 0,
           failedCount: unsyncedPoints.length,
-          errorMessage
+          errorMessage: error instanceof Error ? error.message : 'Unknown API error'
         };
       }
     } catch (error) {
-      console.error(`Error syncing points for project ${projectId}:`, error);
+      console.error(`❌ Error syncing points for project ${projectId}:`, error);
       return {
         success: false,
         syncedCount: 0,
         failedCount: 0,
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
       };
+    } finally {
+      console.log("=== Sync process completed ===\n");
     }
   },
   
