@@ -112,7 +112,6 @@ export const MapControls: React.FC = () => {
         console.log('Found custom point:', customPoint);
         try {
           const points = await storageService.getAllPoints();
-          console.log('All stored points:', points);
           // Match by coordinates since IDs might be different
           const point = points.find(p => {
             if (customPoint.geometry.type !== 'Point') return false;

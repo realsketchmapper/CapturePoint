@@ -1,11 +1,15 @@
 import React, { useState, useCallback, useContext } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
 import { Colors } from '@/theme/colors';
 import { PointCollected } from '@/types/pointCollected.types';
 import { formatDate } from '@/utils/date';
 import { storageService } from '@/services/storage/storageService';
 import { AuthContext } from '@/contexts/AuthContext';
 import { AuthContextState } from '@/types/auth.types';
+import { featureService } from '@/services/features/featuresService';
+import { ProjectContext } from '@/contexts/ProjectContext';
+import { useMapContext } from '@/contexts/MapDisplayContext';
+import { Feature, FeatureToRender } from '@/types/features.types';
 
 interface MapPointDetailsProps {
   isVisible: boolean;
@@ -53,9 +57,12 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   if (!point) return null;
 
   const { user } = useContext(AuthContext) as AuthContextState;
+  const { activeProject } = useContext(ProjectContext);
+  const { clearFeatures, renderFeature } = useMapContext();
   const [description, setDescription] = useState(point.properties?.description || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) return 'N/A';
@@ -95,6 +102,135 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
     }
   }, [point, description, isSaving]);
 
+  const handleDelete = useCallback(async () => {
+    if (!point || !activeProject || isDeleting) return;
+
+    Alert.alert(
+      'Delete Point',
+      'Are you sure you want to delete this point? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsDeleting(true);
+              
+              // Try to inactivate the feature - this might succeed or fail if already inactive
+              try {
+                await featureService.inactivateFeature(activeProject.id, point.id.toString());
+              } catch (error) {
+                console.log('Error inactivating feature:', error);
+                // Continue with refresh even if inactivation failed - the feature might already be inactive
+              }
+              
+              // Always refresh the features to ensure map is in sync with backend
+              try {
+                // Clear existing features first
+                clearFeatures();
+                // Fetch and update with active features
+                const activeFeatures = await featureService.fetchActiveFeatures(activeProject.id);
+                // Render each active feature on the map
+                activeFeatures.forEach((feature: Feature) => {
+                  // Skip features without valid coordinates
+                  if (!feature.coordinates || 
+                      (Array.isArray(feature.coordinates) && feature.coordinates.length < 2)) {
+                    console.warn('Skipping feature with invalid coordinates:', feature.id);
+                    return;
+                  }
+
+                  try {
+                    // Ensure coordinates are in the correct format
+                    let formattedCoordinates: [number, number] | [number, number][];
+                    
+                    if (feature.type === 'Point') {
+                      // For points, ensure we have a single coordinate pair
+                      if (!Array.isArray(feature.coordinates)) {
+                        console.warn('Invalid coordinates format for point:', feature.id);
+                        return;
+                      }
+
+                      if (Array.isArray(feature.coordinates[0])) {
+                        // Handle nested array format: [[lon, lat]]
+                        const coord = feature.coordinates[0];
+                        if (!Array.isArray(coord) || coord.length < 2) {
+                          console.warn('Invalid nested coordinates for point:', feature.id);
+                          return;
+                        }
+                        formattedCoordinates = [Number(coord[0]), Number(coord[1])] as [number, number];
+                      } else {
+                        // Handle flat array format: [lon, lat]
+                        if (feature.coordinates.length < 2) {
+                          console.warn('Invalid flat coordinates for point:', feature.id);
+                          return;
+                        }
+                        formattedCoordinates = [
+                          Number(feature.coordinates[0]),
+                          Number(feature.coordinates[1])
+                        ] as [number, number];
+                      }
+                    } else {
+                      // For lines/polygons, ensure we have an array of coordinate pairs
+                      if (!Array.isArray(feature.coordinates)) {
+                        console.warn('Invalid coordinates format for line/polygon:', feature.id);
+                        return;
+                      }
+
+                      if (Array.isArray(feature.coordinates[0])) {
+                        // Already in correct format: [[lon, lat], [lon, lat], ...]
+                        formattedCoordinates = feature.coordinates.map(coord => {
+                          if (!Array.isArray(coord) || coord.length < 2) {
+                            throw new Error('Invalid coordinate pair in line/polygon');
+                          }
+                          return [Number(coord[0]), Number(coord[1])] as [number, number];
+                        });
+                      } else {
+                        // Convert single pair to array: [lon, lat] -> [[lon, lat]]
+                        if (feature.coordinates.length < 2) {
+                          console.warn('Invalid coordinates for line/polygon:', feature.id);
+                          return;
+                        }
+                        formattedCoordinates = [[
+                          Number(feature.coordinates[0]),
+                          Number(feature.coordinates[1])
+                        ] as [number, number]];
+                      }
+                    }
+
+                    const featureToRender: FeatureToRender = {
+                      type: feature.type,
+                      coordinates: formattedCoordinates,
+                      properties: {
+                        featureId: feature.id,
+                        name: feature.name,
+                        draw_layer: feature.draw_layer,
+                        ...feature.properties
+                      }
+                    };
+                    renderFeature(featureToRender);
+                  } catch (error) {
+                    console.error('Error formatting coordinates for feature:', feature.id, error);
+                  }
+                });
+                
+                onClose();
+              } catch (error) {
+                console.error('Error refreshing features:', error);
+                Alert.alert('Warning', 'The map may need to be refreshed manually.');
+              }
+            } finally {
+              setIsDeleting(false);
+            }
+          }
+        }
+      ]
+    );
+  }, [point, activeProject, isDeleting, onClose, clearFeatures, renderFeature]);
+
   return (
     <Modal
       visible={isVisible}
@@ -106,9 +242,23 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
         <View style={styles.modalContent}>
           <View style={styles.header}>
             <Text style={styles.title}>Point Details</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity 
+                onPress={handleDelete}
+                style={[styles.headerButton, styles.deleteButton]}
+                disabled={isDeleting}
+              >
+                <Text style={styles.deleteButtonText}>
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={onClose} 
+                style={styles.headerButton}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <ScrollView style={styles.scrollView}>
@@ -285,13 +435,21 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: Colors.DarkBlue,
+    flex: 1,
   },
-  closeButton: {
-    padding: 5,
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerButton: {
+    padding: 8,
+    borderRadius: 5,
   },
   closeButtonText: {
     color: Colors.DarkBlue,
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '500',
   },
   scrollView: {
     maxHeight: '80%',
@@ -379,6 +537,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'white',
     textAlign: 'center',
+  },
+  deleteButton: {
+    backgroundColor: Colors.BrightRed,
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 
