@@ -1,5 +1,5 @@
 // components/MapControls.tsx (simplified version)
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import {
   MapView,
@@ -13,20 +13,29 @@ import {
 import { RightSidebarContainer } from './RightSideBar/RightSidebarContainer';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 import { useLocationContext } from '@/contexts/LocationContext';
-import { defaultMapStyle } from '@/services/maplibre/maplibre_helpers';
+import { useSettingsContext } from '@/contexts/SettingsContext';
+import { getMapStyle } from '@/services/maplibre/maplibre_helpers';
 import FilteredPositionMarker from './FilteredPositionMarker';
 import FeatureMarkers from './FeatureMarkers';
 import { useFilteredPosition } from '@/hooks/useFilteredPosition';
-import PointCollectionControls from '../collection/PointCollectionControls';
+import MapPointDetails from '@/components/modals/PointModals/MapPointDetails';
+import { storageService } from '@/services/storage/storageService';
+import { PointCollected } from '@/types/pointCollected.types';
+import { Feature, GeoJsonProperties, Geometry } from 'geojson';
 
 export const MapControls: React.FC = () => {
   const { features, isMapReady, setIsMapReady } = useMapContext();
   const { currentLocation } = useLocationContext();
+  const { settings } = useSettingsContext();
   
   const mapRef = useRef<MapViewRef | null>(null);
   const cameraRef = useRef<CameraRef | null>(null);
   const [followGNSS, setFollowGNSS] = useState(true);
   const initialCenterDone = useRef<boolean>(false);
+  
+  // State for point details modal
+  const [selectedPoint, setSelectedPoint] = useState<PointCollected | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
   
   // Get the filtered position from our hook
   const filteredPosition = useFilteredPosition(1); // 5 meters threshold
@@ -70,14 +79,109 @@ export const MapControls: React.FC = () => {
     }
   };
 
+  // Handle point click
+  const handleMapClick = useCallback(async (event: any) => {
+    console.log('Map clicked:', event);
+    console.log('Current features:', features.features);
+    
+    if (!mapRef.current) {
+      console.log('No map ref');
+      return;
+    }
+
+    try {
+      // First check if we clicked on a custom marker point
+      const customPoint = features.features.find(feature => {
+        if (feature.geometry.type !== 'Point' || !feature.properties?.featureId) {
+          return false;
+        }
+        
+        const coords = feature.geometry.coordinates;
+        const clickCoords = event.geometry.coordinates;
+        
+        // Check if click is within ~10 pixels of the point
+        const distance = Math.sqrt(
+          Math.pow(coords[0] - clickCoords[0], 2) + 
+          Math.pow(coords[1] - clickCoords[1], 2)
+        );
+        
+        return distance < 0.0001; // Roughly 10 meters at most zoom levels
+      });
+
+      if (customPoint) {
+        console.log('Found custom point:', customPoint);
+        try {
+          const points = await storageService.getAllPoints();
+          console.log('All stored points:', points);
+          // Match by coordinates since IDs might be different
+          const point = points.find(p => {
+            if (customPoint.geometry.type !== 'Point') return false;
+            const coords = customPoint.geometry.coordinates as [number, number];
+            const coordsMatch = p.coordinates[0] === coords[0] &&
+                              p.coordinates[1] === coords[1];
+            return coordsMatch;
+          });
+          console.log('Matched point:', point);
+          
+          if (point) {
+            setSelectedPoint(point);
+            setIsModalVisible(true);
+          }
+        } catch (error) {
+          console.error('Error fetching custom point details:', error);
+        }
+        return;
+      }
+
+      // If no custom point found, check CircleLayer points
+      const circleFeatures = await mapRef.current.queryRenderedFeaturesAtPoint(
+        [event.properties.screenPointX, event.properties.screenPointY],
+        undefined,
+        ['collectedData']
+      );
+      
+      console.log('Circle features found:', circleFeatures);
+
+      // Find a regular point (not a location marker)
+      const circlePoint = circleFeatures.features.find(f => 
+        f.geometry.type === 'Point' && !f.properties?.isLocationMarker && !f.properties?.featureId
+      );
+
+      console.log('Circle point found:', circlePoint);
+
+      if (circlePoint?.id) {
+        try {
+          const points = await storageService.getAllPoints();
+          const point = points.find(p => p.id === circlePoint.id);
+          
+          if (point) {
+            setSelectedPoint(point);
+            setIsModalVisible(true);
+          }
+        } catch (error) {
+          console.error('Error fetching circle point details:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error handling click:', error);
+    }
+  }, [features.features]);
+
+  // Handle modal close
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+    setSelectedPoint(null);
+  };
+
   return (
     <View style={mapStyles.mapContainer}>
       <MapView
         ref={mapRef}
         style={mapStyles.map}
-        mapStyle={defaultMapStyle}
+        mapStyle={getMapStyle(settings.basemapStyle)}
         onDidFinishLoadingMap={handleMapReady}
         onRegionWillChange={handleRegionWillChange}
+        onPress={handleMapClick}
       >
         <Camera
           ref={cameraRef}
@@ -87,12 +191,12 @@ export const MapControls: React.FC = () => {
           }} 
         />
 
-        {/* Only render marker if we have a filtered position */}
         {filteredPosition && (
           <FilteredPositionMarker 
             position={filteredPosition}
             color="#FF6B00"
             size={0.5}
+            isLocationMarker={true}
           />
         )}
 
@@ -102,9 +206,7 @@ export const MapControls: React.FC = () => {
           id="collectedData"
           shape={{
             type: 'FeatureCollection',
-            features: features.features.filter(
-              feature => !(feature.geometry.type === 'Point' && feature.properties?.featureId)
-            )
+            features: features.features
           }}
         >
           <CircleLayer
@@ -134,7 +236,12 @@ export const MapControls: React.FC = () => {
       </MapView>
       
       <RightSidebarContainer />
-      <PointCollectionControls />
+
+      <MapPointDetails
+        isVisible={isModalVisible}
+        onClose={handleModalClose}
+        point={selectedPoint}
+      />
     </View>
   );
 };
