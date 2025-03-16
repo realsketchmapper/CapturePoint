@@ -3,6 +3,7 @@ import { View, FlatList, ActivityIndicator, Text, StyleSheet } from 'react-nativ
 import { ProjectListItem } from './ProjectListItem';
 import { ProjectsHeader } from './ProjectsHeader';
 import { ProjectListProps } from '@/types/project.types';
+import { Colors } from '@/theme/colors';
 
 export const ProjectList: React.FC<ProjectListProps> = ({
   projects,
@@ -13,8 +14,8 @@ export const ProjectList: React.FC<ProjectListProps> = ({
   if (loading && !projects.length) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007BFF" />
-        <Text>Loading...</Text>
+        <ActivityIndicator size="large" color="white" />
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
@@ -42,7 +43,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: Colors.DarkBlue,
   },
   listContent: {
     padding: 16,
@@ -51,6 +52,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
+    backgroundColor: Colors.DarkBlue,
+  },
+  loadingText: {
+    color: 'white',
+    marginTop: 12,
+    fontSize: 16,
   },
 });

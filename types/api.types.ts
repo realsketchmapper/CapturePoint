@@ -1,3 +1,5 @@
+import { AxiosRequestConfig } from 'axios';
+
 export interface ApiResponse<T> {
     success: boolean;
     error?: string;
@@ -9,3 +11,8 @@ export interface ApiResponse<T> {
     code?: string;
     status?: number;
   }
+
+export interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
+  retry?: number;
+  retryDelay?: number;
+}

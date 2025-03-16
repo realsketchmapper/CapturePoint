@@ -1,41 +1,51 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '../../constants/storage';
 
 interface StoredCredentials {
   token: string;
   userId: string;
   email: string;
+  name: string;
 }
 
 export const tokenStorage = {
   async storeCredentials(
     token: string,
     userId: string,
-    email: string
+    email: string,
+    name: string
   ): Promise<void> {
-    await AsyncStorage.multiSet([
-      ['userToken', token],
-      ['userId', userId],
-      ['userEmail', email]
-    ]);
+    try {
+      const credentials: StoredCredentials = {
+        token,
+        userId,
+        email,
+        name
+      };
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.USER_CREDENTIALS,
+        JSON.stringify(credentials)
+      );
+    } catch (error) {
+      console.error('Error storing credentials:', error);
+      throw error;
+    }
   },
 
   async getStoredCredentials(): Promise<StoredCredentials | null> {
-    const credentials = await AsyncStorage.multiGet([
-      'userToken',
-      'userId',
-      'userEmail'
-    ]);
-    
-    const [token, userId, email] = credentials.map(([_, value]) => value);
-
-    if (!token || !userId || !email) {
+    try {
+      const credentialsJson = await AsyncStorage.getItem(STORAGE_KEYS.USER_CREDENTIALS);
+      if (!credentialsJson) {
+        return null;
+      }
+      return JSON.parse(credentialsJson) as StoredCredentials;
+    } catch (error) {
+      console.error('Error getting stored credentials:', error);
       return null;
     }
-
-    return { token, userId, email };
   },
 
   async clearCredentials(): Promise<void> {
-    await AsyncStorage.multiRemove(['userToken', 'userId', 'userEmail']);
+    await AsyncStorage.removeItem(STORAGE_KEYS.USER_CREDENTIALS);
   }
 };

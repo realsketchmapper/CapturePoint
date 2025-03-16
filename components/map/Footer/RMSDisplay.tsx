@@ -3,6 +3,7 @@ import { Text, StyleSheet, View, ViewStyle, TextStyle } from 'react-native';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { NMEAParser } from '@/services/gnss/nmeaParser';
 import { RMSDisplayProps, RMSValues } from '@/types/nmea.types';
+import { Colors } from '@/theme/colors';
 
 const RMS_THRESHOLDS = {
     GREEN: 0.1,    // 0.1ft and below
@@ -11,11 +12,11 @@ const RMS_THRESHOLDS = {
   };
   
   const getRMSColor = (value: string): string => {
-    if (value === '--') return '#FFFFFF'; // White for no value
+    if (value === '--') return Colors.DarkBlue; // White for no value
     const numValue = parseFloat(value);
-    if (numValue <= RMS_THRESHOLDS.GREEN) return '#00FF00';  // Green
-    if (numValue <= RMS_THRESHOLDS.YELLOW) return '#FFFF00'; // Yellow
-    return '#FF0000'; // Red
+    if (numValue <= RMS_THRESHOLDS.GREEN) return Colors.BrightGreen;  // Green
+    if (numValue <= RMS_THRESHOLDS.YELLOW) return Colors.Yellow; // Yellow
+    return Colors.BrightRed; // Red
   };
 
 
@@ -137,13 +138,13 @@ const styles = StyleSheet.create<Styles>({
     width: 55,
   },
   label: {
-    color: 'white',
+    color: Colors.DarkBlue,
     fontSize: 10,
     fontFamily: 'RobotoSlab-Regular',
     width: 15,
   },
   text: {
-    color: 'white',
+    color: Colors.DarkBlue,
     fontSize: 10,
     textAlign: 'left',
     fontFamily: 'RobotoSlab-Regular',

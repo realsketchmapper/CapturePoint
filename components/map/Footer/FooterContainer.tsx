@@ -25,8 +25,10 @@ export const FooterContainer: React.FC = () => {
 const styles = StyleSheet.create({
   footer: {
     width: '100%',
-    backgroundColor: Colors.DarkBlue,
-    padding: 10,
+    backgroundColor: Colors.OffWhite,
+    padding: 8,
+    borderTopWidth: 2,
+    borderTopColor: Colors.DarkBlue,
   },
   footerContent: {
     flexDirection: 'row',

@@ -1,18 +1,27 @@
 import React from 'react';
-import { Button, View, StyleSheet, Text, Alert } from 'react-native';
+import { TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useCollectionContext } from '@/contexts/CollectionContext';
 import { useFeatureContext } from '@/FeatureContext';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 import { Position } from '@/types/collection.types';
+import { Colors } from '@/theme/colors';
+import { useNMEAContext } from '@/contexts/NMEAContext';
 
 const CollectionButton = () => {
-  const { isCollecting, startCollection, stopCollection, saveCurrentPoint } = useCollectionContext();
+  const { isCollecting, startCollection, stopCollection, saveCurrentPoint, currentPoints } = useCollectionContext();
   const { selectedFeature } = useFeatureContext();
-  const { currentLocation } = useLocationContext();
-  const { addPoint, addLine } = useMapContext(); // add line later
+  const { currentLocation, locationSource } = useLocationContext();
+  const { ggaData, gstData } = useNMEAContext();
+  const { addPoint, addLine, removeFeature } = useMapContext();
 
-  const handleCollect = () => {
+  // Don't render if not using NMEA
+  if (locationSource !== 'nmea') {
+    return null;
+  }
+
+  const handleCollect = async () => {
     if (!selectedFeature) {
       Alert.alert("No Feature Selected", "Please select a feature first.");
       return;
@@ -26,92 +35,96 @@ const CollectionButton = () => {
     const featureType = selectedFeature.type;
     switch (featureType) {
       case 'Point':
-        if (currentLocation) {
-          const [longitude, latitude] = currentLocation;
-          const positionObject: Position = { longitude, latitude };
-          
-          // Start collection
-          startCollection(positionObject, selectedFeature);
-          
-          // Add to map
-          addPoint(currentLocation, {
-            featureId: selectedFeature.id,
+        // Start collection and wait for it to complete
+        const newState = startCollection(currentLocation, selectedFeature);
+        if (!newState.isActive) {
+          console.error('Failed to start collection');
+          return;
+        }
+        
+        // Add point to map
+        const pointId = addPoint(currentLocation, {
+          featureId: selectedFeature.id,
+          name: selectedFeature.name,
+          imageUrl: selectedFeature.image_url,
+          svg: selectedFeature.svg,
+          draw_layer: selectedFeature.draw_layer
+        });
+        
+        if (!pointId) {
+          console.error('Failed to add point to map');
+          Alert.alert("Error", "Failed to create point. Please try again.");
+          return;
+        }
+        
+        // Try to save the point
+        try {
+          const success = await saveCurrentPoint({
             name: selectedFeature.name,
-            imageUrl: selectedFeature.image_url,
-            svg: selectedFeature.svg,
-            draw_layer: selectedFeature.draw_layer
-          });
+            featureType: selectedFeature.type,
+            draw_layer: selectedFeature.draw_layer,
+            pointId // This ID is required for map interactions
+          }, newState);
           
-          // Save BEFORE stopping collection
-          console.log('Saving point to storage via CollectionContext');
-          saveCurrentPoint({
-            name: selectedFeature.name,
-            imageUrl: selectedFeature.image_url,
-            draw_layer: selectedFeature.draw_layer
-          }).then(success => {
-            console.log('Point save result:', success);
-            
-            // Stop collection AFTER saving
-            //stopCollection();
-            
-            if (success) {
-              Alert.alert("Success", `Point collected and saved: ${selectedFeature.name}`);
-            } else {
-              Alert.alert("Warning", `Point collected but not saved: ${selectedFeature.name}`);
-            }
-          }).catch(error => {
-            console.error('Error saving point:', error);
-            stopCollection();
-            Alert.alert("Error", "Failed to save point");
-          });
+          if (!success) {
+            // If save failed, we should remove the point from the map since it wasn't saved
+            removeFeature(pointId);
+            console.error('Failed to save point');
+            Alert.alert("Error", "Failed to save point. Please try again.");
+          }
+        } catch (error) {
+          // Also remove the point from the map if there was an error
+          removeFeature(pointId);
+          console.error('Error saving point:', error);
+          Alert.alert("Error", "An error occurred while saving the point.");
+        } finally {
+          stopCollection(); // Always stop collection for points
         }
         break;
         
       case 'Line':
       case 'Polygon':
-        if (!isCollecting && currentLocation) {
-          const [longitude, latitude] = currentLocation;
-          const positionObject: Position = { longitude, latitude };
-          startCollection(positionObject, selectedFeature);
+        if (!isCollecting) {
+          startCollection(currentLocation, selectedFeature);
+        } else {
+          stopCollection();
         }
         break;
         
       default:
-        console.log("Unsupported feature type:", featureType);
+        console.warn("Unsupported feature type:", featureType);
     }
   };
   
   return (
-    <View style={styles.container}>
-      <View style={styles.buttonContainer}>
-        <Button
-          title="Collect"
-          onPress={handleCollect}
-          disabled={isCollecting && selectedFeature?.type === 'Point'}
-        />
-        
-        {isCollecting && selectedFeature && 
-         (selectedFeature.type === 'Line' || 
-          selectedFeature.type === 'Polygon') && (
-          <Button
-            title="Stop Collection"
-            onPress={stopCollection}
-            color="#e74c3c"
-          />
-        )}
-      </View>
-    </View>
+    <TouchableOpacity 
+      style={styles.button}
+      onPress={handleCollect}
+      disabled={isCollecting && selectedFeature?.type === 'Point'}
+    >
+      <MaterialIcons
+        name={isCollecting ? "stop" : "add-location"}
+        size={24}
+        color={Colors.DarkBlue}
+      />
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 10,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
+  button: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 8,
+    margin: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   }
 });
 

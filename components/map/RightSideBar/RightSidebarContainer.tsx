@@ -14,7 +14,7 @@ export const RightSidebarContainer: React.FC = () => {
         {
           paddingTop: insets.top + 10,
           paddingBottom: insets.bottom + 10,
-          right: insets.right + 10
+          right: insets.right + 1
         }
       ]}
     >

@@ -130,11 +130,11 @@ export const DeviceSelectionModal: React.FC<DeviceSelectionModalProps> = ({
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: Colors.DarkBlue,
   },
   safeArea: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: Colors.DarkBlue,
     marginTop: Platform.OS === 'android' ? 25 : 0,
   },
   header: {

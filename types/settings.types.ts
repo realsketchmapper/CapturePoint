@@ -1,7 +1,10 @@
+export type BasemapStyle = 'satellite' | 'streets';
+
 export interface SettingsProps {
     useTimedCollection: boolean;
     collectionDuration: number;
     useTilt: boolean;
+    basemapStyle: BasemapStyle;
   }
   
 export interface SettingsModalProps {
@@ -18,5 +21,5 @@ export interface SettingsButtonProps {
 
 export interface SettingsContextType {
   settings: SettingsProps;
-  handleSettingsChange: (newSettings: SettingsProps) => void;
+  handleSettingsChange: (settings: SettingsProps) => void;
 }

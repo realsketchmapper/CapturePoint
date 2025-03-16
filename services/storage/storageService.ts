@@ -26,6 +26,27 @@ export const storageService = {
     }
   },
   
+  // Update an existing point
+  updatePoint: async (point: PointCollected): Promise<void> => {
+    try {
+      // Get existing points
+      const pointsJson = await AsyncStorage.getItem(STORAGE_KEYS.COLLECTED_POINTS);
+      const points: PointCollected[] = pointsJson ? JSON.parse(pointsJson) : [];
+      
+      // Find and update the point
+      const updatedPoints = points.map(p => 
+        p.id === point.id ? point : p
+      );
+      
+      // Save updated list
+      await AsyncStorage.setItem(STORAGE_KEYS.COLLECTED_POINTS, JSON.stringify(updatedPoints));
+      console.log(`Point updated locally with ID: ${point.id}`);
+    } catch (error) {
+      console.error('Error updating point:', error);
+      throw error;
+    }
+  },
+  
   // Get all collected points
   getAllPoints: async (): Promise<PointCollected[]> => {
     try {

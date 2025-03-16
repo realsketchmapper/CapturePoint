@@ -47,11 +47,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'black',
+    backgroundColor: Colors.DarkBlue,
   },
   modalContent: {
     width: '80%',
-    backgroundColor: 'black',
+    backgroundColor: Colors.DarkBlue,
     borderRadius: 10,
     padding: 0,
   },

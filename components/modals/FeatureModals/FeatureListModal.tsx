@@ -4,6 +4,7 @@ import { useFeatureContext } from '@/FeatureContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Feature, FeatureListModalProps } from '@/types/features.types';
 import { SvgXml } from 'react-native-svg';
+import { Colors } from '@/theme/colors';
 
 type GroupedFeatures = {
   [key: string]: Feature[];
@@ -64,15 +65,15 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
           return (
             <SvgXml 
               xml={feature.svg} 
-              width={24} 
-              height={24} 
+              width="100%" 
+              height="100%" 
             />
           );
         } else {
-          return <MaterialIcons name="broken-image" size={24} color="orange" />;
+          return <MaterialIcons name="broken-image" size={20} color={Colors.Yellow} />;
         }
       } catch (error) {
-        return <MaterialIcons name="broken-image" size={24} color="red" />;
+        return <MaterialIcons name="broken-image" size={20} color={Colors.BrightRed} />;
       }
     } 
     // For point features with image URLs (PNGs)
@@ -87,7 +88,7 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
     } 
     // Fallback for features without images
     else {
-      return <MaterialIcons name="image" size={24} color="#ccc" />;
+      return <MaterialIcons name="image" size={20} color={Colors.LightBlue} />;
     }
   }, []);
 
@@ -100,9 +101,9 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
           onPress={() => toggleLayer(layer)}
         >
           {expandedLayers.has(layer) ? (
-            <MaterialIcons name='arrow-drop-down' size={20} color="#000" />
+            <MaterialIcons name='arrow-drop-down' size={20} color="white" />
           ) : (
-            <MaterialIcons name='keyboard-arrow-right' size={20} color="#000" />
+            <MaterialIcons name='keyboard-arrow-right' size={20} color="white" />
           )}
           <Text style={styles.layerTitle}>{layer}</Text>
         </TouchableOpacity>
@@ -144,13 +145,13 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
           <View style={styles.header}>
             <Text style={styles.title}>Select Feature</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text>Close</Text>
+              <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
           
           {isLoading ? (
             <View style={styles.centerContent}>
-              <ActivityIndicator size="large" />
+              <ActivityIndicator size="large" color="white" />
             </View>
           ) : error ? (
             <View style={styles.centerContent}>
@@ -174,45 +175,45 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
 });
 
 const styles = StyleSheet.create({
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.DarkBlue,
+  },
+  modalContent: {
+    flex: 1,
+    backgroundColor: Colors.DarkBlue,
+    padding: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: 'white',
+    paddingBottom: 12,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  closeButton: {
+    padding: 8,
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 16,
+  },
   centerContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   errorText: {
-    color: 'red',
-    marginBottom: 10,
-  },
-  retryButton: {
-    padding: 10,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 5,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    width: '90%',
-    height: '80%',
-    padding: 20,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  closeButton: {
-    padding: 10,
+    color: Colors.BrightRed,
+    fontSize: 16,
+    textAlign: 'center',
   },
   featureList: {
     flex: 1,
@@ -220,23 +221,24 @@ const styles = StyleSheet.create({
   layerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-    backgroundColor: '#f0f0f0',
-    marginVertical: 5,
-    borderRadius: 5,
+    padding: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginVertical: 8,
+    borderRadius: 8,
   },
   layerTitle: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: 'white',
     marginLeft: 10,
   },
   featureGroup: {
     marginLeft: 20,
   },
   featureItem: {
-    padding: 10,
+    padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   featureItemContent: {
     flexDirection: 'row',
@@ -248,10 +250,13 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 4,
+    padding: 4,
   },
   featureImage: {
-    width: 24,
-    height: 24,
+    width: '100%',
+    height: '100%',
   },
   placeholderContainer: {
     marginRight: 10,
@@ -259,13 +264,14 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 4,
   },
   selectedFeature: {
-    backgroundColor: '#e6f3ff',
+    backgroundColor: Colors.Aqua,
   },
   featureName: {
     fontSize: 14,
+    color: 'white',
   },
 });
