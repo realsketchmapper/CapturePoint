@@ -3,6 +3,7 @@ import { BluetoothDevice } from 'react-native-bluetooth-classic';
 import { BluetoothContextType, BluetoothDeviceType } from '@/types/bluetooth.types';
 import { BluetoothManager } from '@/services/bluetooth/bluetoothManager';
 import { useNMEAContext } from './NMEAContext';
+import { useLocationContext } from './LocationContext';
 
 const BluetoothContext = createContext<BluetoothContextType | null>(null);
 
@@ -13,7 +14,8 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const { startListening, stopListening } = useNMEAContext(); // Add NMEA context
+  const { startListening, stopListening } = useNMEAContext();
+  const { setUsingNMEA } = useLocationContext();
 
   const scanDevices = useCallback(async (deviceType: BluetoothDeviceType) => {
     try {
@@ -45,6 +47,7 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
       
       if (connected) {
         await startListening(device.address);
+        setUsingNMEA(true);
       }
 
       return connected;
@@ -57,16 +60,17 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
     } finally {
       setIsConnecting(false);
     }
-  }, [startListening]);
+  }, [startListening, setUsingNMEA]);
 
   const disconnectDevice = useCallback(async (address: string) => {
     try {
       await stopListening(address);
       await BluetoothManager.disconnectDevice(address);
+      setUsingNMEA(false);
     } catch (err) {
       console.error('Error disconnecting:', err);
     }
-  }, [stopListening]);
+  }, [stopListening, setUsingNMEA]);
 
   const clearErrors = useCallback(() => {
     setError(null);
@@ -80,7 +84,7 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
     connectionError,
     scanDevices,
     connectToDevice,
-    disconnectDevice, // Add disconnectDevice to the context value
+    disconnectDevice,
     clearErrors
   };
 

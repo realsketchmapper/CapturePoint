@@ -4,6 +4,8 @@ export interface Project {
     id: number;
     name: string;
     client_name: string;
+    address: string;
+    coords: Array<number>;
     work_type: string;
   }
   

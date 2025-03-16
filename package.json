@@ -54,6 +54,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@types/expo": "^32.0.13",
     "@types/jest": "^29.5.12",
     "@types/lodash": "^4.17.15",
     "@types/react": "~18.3.12",

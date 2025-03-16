@@ -1,4 +1,4 @@
-import React, { createContext, useEffect, useState, useCallback, useContext } from 'react';
+import React, { createContext, useEffect, useState, useCallback, useContext, useRef } from 'react';
 import { AuthService } from '@/services/auth/authService';
 import { User, AuthContextState, AuthContextActions } from '@/types/auth.types';
 import NetInfo from '@react-native-community/netinfo';
@@ -14,10 +14,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const initializationAttempted = useRef(false);
 
   // Check auth state when the app loads
   useEffect(() => {
     const initAuth = async () => {
+      if (initializationAttempted.current) return;
+      initializationAttempted.current = true;
+
       try {
         setIsLoading(true);
         const userData = await AuthService.getCurrentUser();
@@ -34,26 +38,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     initAuth();
   }, []);
 
-  // Monitor network status changes
+  // Monitor network status changes with debounce
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     // Skip if no user or already fully online
     if (!user || (user && !user.isOffline)) return;
 
-    const unsubscribe = NetInfo.addEventListener(async (state) => {
-      if (state.isConnected && user?.isOffline) {
-        // We're back online and were in offline mode - validate token
-        const isValid = await AuthService.validateToken();
-        if (isValid && user) {
-          // Update user to online mode
-          setUser({
-            ...user,
-            isOffline: false
-          });
-        }
+    const handleNetworkChange = async (isConnected: boolean) => {
+      if (isConnected && user?.isOffline) {
+        // Clear any existing timeout
+        if (timeoutId) clearTimeout(timeoutId);
+        
+        // Set a new timeout for validation
+        timeoutId = setTimeout(async () => {
+          const isValid = await AuthService.validateToken();
+          if (isValid && user) {
+            setUser({
+              ...user,
+              isOffline: false
+            });
+          }
+        }, 2000); // Wait 2 seconds before attempting validation
       }
+    };
+
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      handleNetworkChange(!!state.isConnected);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [user]);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -97,8 +114,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       user,
       isLoading,
       isAuthenticated: !!user,
-      isInitialized, // New property to indicate auth is fully initialized
-      isOffline: user?.isOffline || false, // Expose offline state
+      isInitialized,
+      isOffline: user?.isOffline || false,
       error,
       login,
       logout,

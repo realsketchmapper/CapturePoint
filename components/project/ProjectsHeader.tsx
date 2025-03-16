@@ -16,9 +16,9 @@ export const ProjectsHeader: React.FC<ProjectsHeaderProps> = ({
       disabled={loading}
     >
       {loading ? (
-        <ActivityIndicator color="#fff" size="small" />
+        <ActivityIndicator color="white" size="small" />
       ) : (
-        <MaterialIcons name="refresh" size={24} color="#fff" />
+        <MaterialIcons name="refresh" size={24} color="white" />
       )}
     </TouchableOpacity>
   </View>
@@ -28,16 +28,10 @@ const styles = StyleSheet.create({
   headerBar: {
     backgroundColor: Colors.DarkBlue,
     width: '100%',
-    padding: 4,
-    paddingTop: 5, // Adjust this value based on your status bar
-    elevation: 5, // for Android shadow
-    shadowColor: '#000', // for iOS shadow
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    padding: 16,
+    paddingTop: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTitle: {
     fontFamily: 'RobotoSlab-Bold',
@@ -46,8 +40,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   refreshButton: {
-    position: 'absolute',          // Add this
-    right: 15,                     // Add this
-    top: 10,                       // Match this with paddingTop
-  }
+    position: 'absolute',
+    right: 16,
+    top: 20,
+    padding: 8,
+  },
 });

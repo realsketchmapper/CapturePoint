@@ -1,12 +1,14 @@
 export interface User {
   id: number;
   email: string;
+  name: string;
   isOffline: boolean;
 }
 
 export interface LoginResponse {
   token: string;
   user_id: number;
+  user_name: string;
   message?: string;
 }
 
@@ -47,4 +49,5 @@ export interface StoredCredentials {
   token: string;
   userId: string;
   email: string;
+  name: string;
 }

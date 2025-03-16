@@ -2,6 +2,7 @@ import React from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FeatureButtonProps } from '@/types/features.types';
+import { Colors } from '@/theme/colors';
 
 export const FeatureButton: React.FC<FeatureButtonProps> = ({ onPress }) => {
   return (
@@ -12,7 +13,7 @@ export const FeatureButton: React.FC<FeatureButtonProps> = ({ onPress }) => {
       <MaterialCommunityIcons 
         name="map-marker-plus" 
         size={24} 
-        color='white'
+        color={Colors.DarkBlue}
       />
     </TouchableOpacity>
   );
@@ -20,7 +21,6 @@ export const FeatureButton: React.FC<FeatureButtonProps> = ({ onPress }) => {
 
 const styles = StyleSheet.create({
   button: {
-    padding: 8,
-    borderRadius: 4,
+    padding: 0,
   },
 });

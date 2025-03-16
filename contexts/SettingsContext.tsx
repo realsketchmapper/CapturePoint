@@ -12,6 +12,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     useTimedCollection: true,
     collectionDuration: 2,
     useTilt: false,
+    basemapStyle: 'satellite',
   });
 
   React.useEffect(() => {
@@ -19,7 +20,10 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
       try {
         const storedSettings = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
         if (storedSettings) {
-          setSettings(JSON.parse(storedSettings));
+          setSettings(prev => ({
+            ...prev,
+            ...JSON.parse(storedSettings)
+          }));
         }
       } catch (error) {
         console.error('Error loading settings:', error);

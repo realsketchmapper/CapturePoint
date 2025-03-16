@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useContext, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { useCollectionContext } from '@/contexts/CollectionContext';
 import { AuthContext } from '@/contexts/AuthContext';
-import NetInfo from '@react-native-community/netinfo';
 import { AuthService } from '@/services/auth/authService';
+import NetInfo from '@react-native-community/netinfo';
+
 
 const AppInitializer: React.FC = () => {
   const { syncPoints, syncStatus } = useCollectionContext();

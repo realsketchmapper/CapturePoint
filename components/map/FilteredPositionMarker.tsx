@@ -7,12 +7,14 @@ type FilteredPositionMarkerProps = {
   position: [number, number];
   color?: string;
   size?: number;
+  isLocationMarker?: boolean;
 };
 
 const FilteredPositionMarker: React.FC<FilteredPositionMarkerProps> = ({
   position,
   color = '#FF6B00',
-  size = 1.2
+  size = 1.2,
+  isLocationMarker = false
 }) => {
   // Create GeoJSON feature for the position
   const positionFeature = useMemo((): FeatureCollection => {
@@ -20,14 +22,16 @@ const FilteredPositionMarker: React.FC<FilteredPositionMarkerProps> = ({
       type: 'FeatureCollection',
       features: [{
         type: 'Feature',
-        properties: {},
+        properties: {
+          isLocationMarker
+        },
         geometry: {
           type: 'Point',
           coordinates: position
         }
       }]
     };
-  }, [position]);
+  }, [position, isLocationMarker]);
 
   // Use simple CircleLayers for visibility - creates a bullseye pattern
   return (
