@@ -14,10 +14,6 @@ export class AuthService {
     try {
       console.log('Login attempt started for email:', email);
       
-      // Clear any existing credentials first
-      console.log('Clearing any existing credentials...');
-      await tokenStorage.clearCredentials();
-      
       // Check network connectivity
       const networkState = await NetInfo.fetch();
       const isConnected = !!networkState.isConnected;

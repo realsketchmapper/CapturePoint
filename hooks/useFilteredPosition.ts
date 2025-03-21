@@ -20,32 +20,9 @@ const getSimpleDistance = (
   return Math.sqrt(latDistance * latDistance + lonDistance * lonDistance);
 };
 
-export const useFilteredPosition = (minDistanceThreshold = DEFAULT_MIN_DISTANCE): [number, number] | null => {
+export const useFilteredPosition = (minDistanceThreshold = 0): [number, number] | null => {
   const { currentLocation } = useLocationContext();
-  const [filteredPosition, setFilteredPosition] = useState<[number, number] | null>(null);
-  const lastPositionRef = useRef<[number, number] | null>(null);
-
-  useEffect(() => {
-    if (!currentLocation) return;
-    
-    if (!lastPositionRef.current) {
-      setFilteredPosition(currentLocation);
-      lastPositionRef.current = currentLocation;
-      return;
-    }
-    
-    const distance = getSimpleDistance(
-      lastPositionRef.current[0], 
-      lastPositionRef.current[1],
-      currentLocation[0], 
-      currentLocation[1]
-    );
-    
-    if (distance > minDistanceThreshold) {
-      setFilteredPosition(currentLocation);
-      lastPositionRef.current = currentLocation;
-    }
-  }, [currentLocation, minDistanceThreshold]);
-
-  return filteredPosition;
+  
+  // Simply return the current location without filtering
+  return currentLocation;
 };

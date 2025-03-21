@@ -4,7 +4,6 @@ export interface PointCollected {
   id: string;
   created_at: string;
   projectId: number;
-  description: string;
   name: string,
   featureTypeId: number;
   featureType: string; // 'Point', 'Line', or 'Polygon'
@@ -20,4 +19,5 @@ export interface PointCollected {
   attributes?: {
     [key: string]: any;  // Additional custom attributes that can be added dynamically
   };
+  updated_at?: string;  // Add optional updated_at field
 }

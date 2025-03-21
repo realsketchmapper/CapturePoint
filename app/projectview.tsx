@@ -47,9 +47,17 @@ const ProjectView = () => {
 
   const openProject = async (project: Project) => {
     try {
+      console.log('Opening project:', project.id);
       clearFeatures();
       setActiveProject(project);
+      
+    
+      
+      // Then fetch and sync with server
+      console.log('Fetching server features...');
       await fetchFeatures(project.id);
+      
+      console.log('All features loaded, navigating to map view...');
       router.replace('../mapview');
     } catch (error) {
       console.error('Error loading project features:', error);

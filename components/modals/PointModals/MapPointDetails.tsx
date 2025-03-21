@@ -63,6 +63,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) return 'N/A';
@@ -231,6 +232,42 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
     );
   }, [point, activeProject, isDeleting, onClose, clearFeatures, renderFeature]);
 
+  const handleClearAllPoints = useCallback(async () => {
+    if (!activeProject) {
+      Alert.alert("Error", "No active project selected");
+      return;
+    }
+
+    Alert.alert(
+      "Clear All Points",
+      "Are you sure you want to clear all points from local storage? This cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel"
+        },
+        {
+          text: "Clear All",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setIsClearing(true);
+              await storageService.clearAllPoints(activeProject.id, point?.id);
+              clearFeatures(); // Clear the map
+              onClose(); // Close the modal
+              Alert.alert("Success", "All points have been cleared from local storage.");
+            } catch (error) {
+              console.error('Error clearing points:', error);
+              Alert.alert("Error", "Failed to clear points from storage.");
+            } finally {
+              setIsClearing(false);
+            }
+          }
+        }
+      ]
+    );
+  }, [clearFeatures, onClose, activeProject, point]);
+
   return (
     <Modal
       visible={isVisible}
@@ -243,6 +280,15 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
           <View style={styles.header}>
             <Text style={styles.title}>Point Details</Text>
             <View style={styles.headerButtons}>
+              <TouchableOpacity 
+                onPress={handleClearAllPoints}
+                style={[styles.headerButton, styles.clearButton]}
+                disabled={isClearing}
+              >
+                <Text style={styles.clearButtonText}>
+                  {isClearing ? 'Clearing...' : 'Clear All Points'}
+                </Text>
+              </TouchableOpacity>
               <TouchableOpacity 
                 onPress={handleDelete}
                 style={[styles.headerButton, styles.deleteButton]}
@@ -548,6 +594,14 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '500',
+  },
+  clearButton: {
+    backgroundColor: '#ff6b6b',
+    marginRight: 8,
+  },
+  clearButtonText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
   },
 });
 

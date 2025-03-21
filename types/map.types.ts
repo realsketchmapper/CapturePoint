@@ -21,4 +21,7 @@ export interface MapContextType {
   // Feature rendering
   renderFeature: (feature: FeatureToRender) => string | null;
   previewFeature: (coordinates: Coordinate | Coordinate[], type: FeatureType) => string | null;
+  
+  // Feature loading
+  refreshFeatures: () => Promise<void>;
 }

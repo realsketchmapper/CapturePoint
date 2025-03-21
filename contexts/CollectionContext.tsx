@@ -7,6 +7,7 @@ import { useLocationContext } from '@/contexts/LocationContext';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { AuthContext } from '@/contexts/AuthContext';
 import { ProjectContext } from '@/contexts/ProjectContext';
+import { useMapContext } from '@/contexts/MapDisplayContext';
 import { storageService } from '@/services/storage/storageService';
 import { syncService } from '@/services/sync/syncService';
 // Replace v4 import with a more React Native friendly approach
@@ -42,6 +43,7 @@ const CollectionContext = createContext<ExtendedCollectionContextType | undefine
 export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentLocation } = useLocationContext();
   const { ggaData, gstData } = useNMEAContext();
+  const { clearFeatures } = useMapContext();
   
   // Safely access auth context
   const authContext = useContext(AuthContext);
@@ -162,6 +164,12 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const activeFeature = state?.activeFeature || collectionState.activeFeature;
     const points = state?.points || collectionState.points;
 
+    console.log('\n=== Saving Point ===');
+    console.log('Points:', points);
+    console.log('Properties:', properties);
+    console.log('GGA Data:', ggaData);
+    console.log('GST Data:', gstData);
+
     if (!activeFeature || points.length === 0
       || !ggaData?.latitude || !ggaData?.longitude || !gstData?.rmsTotal) {
       console.warn('Missing required data to save point:', {
@@ -186,6 +194,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         ? points[0]
         : points[points.length - 1];
       
+      console.log('Creating point with coordinates:', coordinates);
+      
       const point: PointCollected = {
         id: properties.pointId,
         name: properties.name || activeFeature.name,
@@ -204,11 +214,26 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           featureType: activeFeature.type,
           featureName: activeFeature.name,
           userId: user?.id || 'unknown',
-          deviceInfo: `React Native / Expo`
+          deviceInfo: `React Native / Expo`,
+          image_url: activeFeature.image_url
+        },
+        attributes: {
+          description: properties.description || ''
         }
       };
       
+      console.log('Saving point to storage:', point);
       await storageService.savePoint(point);
+      
+      // Verify point was saved
+      const allPoints = await storageService.getAllPoints();
+      console.log(`After save: ${allPoints.length} points in storage`);
+      const savedPoint = allPoints.find(p => p.id === point.id);
+      if (savedPoint) {
+        console.log('Point successfully saved and retrieved');
+      } else {
+        console.error('Point not found in storage after save!');
+      }
       
       setSyncStatus(prev => ({
         ...prev,
@@ -239,8 +264,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // If we have an active project, sync points for that project
         result = await syncService.syncPoints(activeProject.id);
       } else {
-        // If no active project, sync all points across all projects
-        result = await syncService.syncAllPoints();
+        // If no active project, sync all points
+        result = await syncService.manualSync();
       }
       
       setSyncStatus({
