@@ -87,7 +87,6 @@ const AppInitializer: React.FC = () => {
   
   // Initial sync attempt when component mounts
   useEffect(() => {
-    // Skip if we've already tried once or auth isn't ready
     if (initialSyncAttempted || !isInitialized) return;
     
     const attemptInitialSync = async () => {
@@ -98,15 +97,10 @@ const AppInitializer: React.FC = () => {
       }
       
       try {
-        console.log('AppInitializer: Initial sync attempt');
         syncInProgress.current = true;
-        
         const online = await isOnline();
         if (online) {
-          const success = await syncPoints();
-          console.log('Initial sync result:', success ? 'successful' : 'failed');
-        } else {
-          console.log('Device offline, skipping initial sync');
+          await syncPoints();
         }
       } catch (error) {
         console.error('Error during initial sync:', error);
@@ -116,11 +110,7 @@ const AppInitializer: React.FC = () => {
       }
     };
     
-    // Add a short delay to ensure auth is fully established
-    const timeout = setTimeout(() => {
-      attemptInitialSync();
-    }, 1500);
-    
+    const timeout = setTimeout(attemptInitialSync, 1500);
     return () => clearTimeout(timeout);
   }, [isInitialized, initialSyncAttempted, syncPoints, unsyncedCount]);
   
@@ -142,14 +132,10 @@ const AppInitializer: React.FC = () => {
         if (!canSyncNow) return;
         
         try {
-          console.log('App has come to the foreground, attempting sync');
           syncInProgress.current = true;
-          
           const online = await isOnline();
           if (online) {
             await syncPoints();
-          } else {
-            console.log('Device offline, foreground sync skipped');
           }
         } catch (error) {
           console.error('Foreground sync error:', error);
@@ -162,15 +148,11 @@ const AppInitializer: React.FC = () => {
     };
     
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    
-    return () => {
-      subscription.remove();
-    };
+    return () => subscription.remove();
   }, [syncPoints, unsyncedCount]);
   
   // Periodic sync attempt (every 5 minutes if there are unsynced items)
   useEffect(() => {
-    // Don't set up timer if no user or no unsynced items
     if (!user?.id || unsyncedCount === 0) return;
     
     const interval = setInterval(async () => {
@@ -178,47 +160,35 @@ const AppInitializer: React.FC = () => {
       if (!canSyncNow) return;
       
       try {
-        console.log('Periodic sync attempt');
         syncInProgress.current = true;
-        
         const online = await isOnline();
         if (online) {
           await syncPoints();
-        } else {
-          console.log('Device offline, periodic sync skipped');
         }
       } catch (error) {
         console.error('Periodic sync error:', error);
       } finally {
         syncInProgress.current = false;
       }
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 5 * 60 * 1000);
     
-    return () => {
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [user?.id, syncPoints, unsyncedCount]);
   
   // Network status change listener
   useEffect(() => {
-    // Only set up listener if there are items to sync
     if (!user?.id || unsyncedCount === 0) return;
     
     const handleNetworkChange = async (state: any) => {
-      // Only care about transitions to connected state
       const isConnected = state.isConnected === true && state.isInternetReachable !== false;
       
       if (isConnected && isOffline) {
-        // We just came online but auth thinks we're offline
-        // Wait a moment for auth state to potentially update
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Check if we can sync now
         const canSyncNow = await canSync();
         if (!canSyncNow) return;
         
         try {
-          console.log('Network reconnected, attempting sync');
           syncInProgress.current = true;
           await syncPoints();
         } catch (error) {
@@ -230,10 +200,7 @@ const AppInitializer: React.FC = () => {
     };
     
     const unsubscribe = NetInfo.addEventListener(handleNetworkChange);
-    
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [user?.id, isOffline, syncPoints, unsyncedCount]);
   
   // This component doesn't render anything

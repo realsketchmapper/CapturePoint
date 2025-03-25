@@ -1,6 +1,6 @@
 // components/MapControls.tsx (simplified version)
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useRef, useEffect, useState, useCallback, useContext } from 'react';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import {
   MapView,
   ShapeSource,
@@ -14,18 +14,24 @@ import { RightSidebarContainer } from './RightSideBar/RightSidebarContainer';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useSettingsContext } from '@/contexts/SettingsContext';
+import { useProjectContext } from '@/contexts/ProjectContext';
 import { getMapStyle } from '@/services/maplibre/maplibre_helpers';
 import CurrentPositionMarker from './CurrentPositionMarker';
 import FeatureMarkers from './FeatureMarkers';
-import MapPointDetails from '@/components/modals/PointModals/MapPointDetails';
+import MapPointDetails from '../modals/PointModals/MapPointDetails';
 import { storageService } from '@/services/storage/storageService';
-import { PointCollected } from '@/types/pointCollected.types';
+import { PointCollected, CollectedFeature } from '@/types/pointCollected.types';
 import { Feature, GeoJsonProperties, Geometry, Point } from 'geojson';
+import { Colors } from '@/theme/colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '@/constants/storage';
+import { ProjectContext } from '@/contexts/ProjectContext';
 
 export const MapControls: React.FC = () => {
   const { features, isMapReady, setIsMapReady, refreshFeatures } = useMapContext();
   const { currentLocation } = useLocationContext();
   const { settings } = useSettingsContext();
+  const { activeProject } = useProjectContext();
   
   const mapRef = useRef<MapViewRef | null>(null);
   const cameraRef = useRef<CameraRef | null>(null);
@@ -35,6 +41,8 @@ export const MapControls: React.FC = () => {
   // State for point details modal
   const [selectedPoint, setSelectedPoint] = useState<PointCollected | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  
+  const [isClearing, setIsClearing] = useState(false);
   
   const handleMapReady = () => {
     setIsMapReady(true);
@@ -84,93 +92,88 @@ export const MapControls: React.FC = () => {
 
   // Handle point click
   const handleMapClick = useCallback(async (event: any) => {
-    console.log('\n=== Map Click Event ===');
-    console.log('Click event:', event);
-    
-    if (!mapRef.current) {
-      console.log('No map ref');
-      return;
-    }
-
     try {
-      // Use MapLibre's built-in feature detection at the clicked point
-      const queryResult = await mapRef.current.queryRenderedFeaturesAtPoint(
+      console.log('\n=== Map Click Event ===');
+      console.log('Click event:', event);
+
+      // Get features at click point
+      const queryResult = await mapRef.current?.queryRenderedFeaturesAtPoint(
         [event.properties.screenPointX, event.properties.screenPointY],
         undefined,
-        ['collectedData'] // Specify the source ID
-      );
-      
+        ['collectedData']
+      ) || { features: [] };
       console.log('Query result:', queryResult);
-      
-      if (!queryResult || !queryResult.features || queryResult.features.length === 0) {
-        // If no features found with queryRenderedFeaturesAtPoint, try a different approach
+
+      if (queryResult.features.length === 0) {
         console.log('No features found with queryRenderedFeaturesAtPoint, trying manual detection');
         
-        // Get click coordinates
-        const clickCoords = event.geometry.coordinates;
-        
-        // Find features near the click point
-        const pointFeatures = features.features.filter(feature => 
-          feature.geometry.type === 'Point' &&
-          (feature.properties?.featureId || feature.properties?.isLinePoint)
+        // Get all point features from the map
+        const pointFeatures = features.features.filter(f => 
+          f.geometry.type === 'Point' && 
+          (f.properties?.featureId || f.properties?.isLinePoint)
         );
-        
         console.log('Available point features:', pointFeatures);
-        
-        // Find the closest point feature to the click
+
+        // Find closest feature to click point
+        const clickCoords = event.geometry.coordinates;
         let closestFeature = null;
-        let minDistance = Number.MAX_VALUE;
-        
+        let minDistance = Infinity;
+
         for (const feature of pointFeatures) {
-          if (feature.geometry.type !== 'Point') continue;
-          
-          const coords = (feature.geometry as any).coordinates;
-          console.log('Checking feature coordinates:', coords);
-          
-          if (!Array.isArray(coords) || coords.length < 2) {
-            console.log('Invalid coordinates format:', coords);
-            continue;
-          }
+          const featureCoords = (feature.geometry as any).coordinates;
+          console.log('Checking feature coordinates:', featureCoords);
           
           const distance = Math.sqrt(
-            Math.pow(coords[0] - clickCoords[0], 2) + 
-            Math.pow(coords[1] - clickCoords[1], 2)
+            Math.pow(clickCoords[0] - featureCoords[0], 2) + 
+            Math.pow(clickCoords[1] - featureCoords[1], 2)
           );
-          
           console.log('Distance to feature:', distance);
-          
-          // Only consider points within a reasonable distance
-          if (distance < 0.0002 && distance < minDistance) {
+
+          if (distance < minDistance && distance < 0.0001) { // About 11 meters at equator
             minDistance = distance;
             closestFeature = feature;
           }
         }
-        
+
         if (!closestFeature) {
-          console.log('No features found near click point');
+          console.log('No features found within click radius');
           return;
         }
-        
+
         console.log('Found closest feature:', closestFeature);
-        
-        // Get all stored points
-        const allStoredPoints = await storageService.getAllPoints();
-        console.log(`Found ${allStoredPoints.length} stored points`);
-        
-        if (allStoredPoints.length === 0) {
-          console.log('No points in storage to match against');
+
+        if (!activeProject?.id) {
+          console.log('No active project');
           return;
         }
+
+        // Get features from storage
+        const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${activeProject.id}`;
+        const featuresJson = await AsyncStorage.getItem(featuresKey);
+        if (!featuresJson) {
+          console.log('No features found in storage');
+          return;
+        }
+
+        const storedFeatures: CollectedFeature[] = JSON.parse(featuresJson);
         
         // Get feature coordinates
         const featureCoords = (closestFeature.geometry as any).coordinates as [number, number];
         
-        // Find matching point in storage
-        const matchedPoint = allStoredPoints.find(p => 
-          Math.abs(p.coordinates[0] - featureCoords[0]) < 0.0000001 && 
-          Math.abs(p.coordinates[1] - featureCoords[1]) < 0.0000001
-        );
+        // Find the feature that contains this point
+        let matchedPoint: PointCollected | null = null;
         
+        for (const feature of storedFeatures) {
+          if (feature.points) {
+            matchedPoint = feature.points.find(p => 
+              Math.abs(p.coordinates[0] - featureCoords[0]) < 0.0000001 && 
+              Math.abs(p.coordinates[1] - featureCoords[1]) < 0.0000001
+            ) || null;
+            
+            if (matchedPoint) break;
+          }
+        }
+
         console.log('Matched point from storage:', matchedPoint);
         
         if (matchedPoint) {
@@ -183,72 +186,51 @@ export const MapControls: React.FC = () => {
         // Process features found by queryRenderedFeaturesAtPoint
         console.log('Features found by queryRenderedFeaturesAtPoint:', queryResult.features);
         
-        // Find a point feature (prioritize line points)
+        if (!activeProject?.id) {
+          console.log('No active project');
+          return;
+        }
+
+        // Get the clicked feature
         const clickedFeature = queryResult.features.find(f => 
-          f.geometry.type === 'Point' && f.properties?.isLinePoint
-        ) || queryResult.features.find(f => 
-          f.geometry.type === 'Point' && f.properties?.featureId
+          f.geometry.type === 'Point' && 
+          (f.properties?.featureId || f.properties?.isLinePoint)
         );
-        
+
         if (!clickedFeature) {
           console.log('No point features found');
           return;
         }
-        
+
         console.log('Selected feature:', clickedFeature);
-        
-        // Get all stored points
-        const allStoredPoints = await storageService.getAllPoints();
-        console.log(`Found ${allStoredPoints.length} stored points`);
-        
-        // Get feature properties
-        const featureProps = clickedFeature.properties || {};
-        const isLinePoint = featureProps.isLinePoint;
-        const pointIndex = featureProps.pointIndex;
-        const lineUniqueId = featureProps.lineUniqueId;
-        
-        console.log(`Selected ${isLinePoint ? 'line point' : 'regular point'} with index: ${pointIndex}, lineId: ${lineUniqueId}`);
+
+        // Get features from storage
+        const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${activeProject.id}`;
+        const featuresJson = await AsyncStorage.getItem(featuresKey);
+        if (!featuresJson) {
+          console.log('No features found in storage');
+          return;
+        }
+
+        const storedFeatures: CollectedFeature[] = JSON.parse(featuresJson);
         
         // Get feature coordinates
         const featureCoords = (clickedFeature.geometry as any).coordinates as [number, number];
         
-        // Find matching point in storage
-        let matchedPoint;
+        // Find the feature that contains this point
+        let matchedPoint: PointCollected | null = null;
         
-        if (isLinePoint) {
-          // For line points, match by coordinates, pointIndex, and lineUniqueId if available
-          matchedPoint = allStoredPoints.find(p => {
-            // Check if it's a line point
-            if (!p.properties?.isLinePoint) return false;
-            
-            // Check coordinates with small tolerance
-            const coordsMatch = 
+        for (const feature of storedFeatures) {
+          if (feature.points) {
+            matchedPoint = feature.points.find(p => 
               Math.abs(p.coordinates[0] - featureCoords[0]) < 0.0000001 && 
-              Math.abs(p.coordinates[1] - featureCoords[1]) < 0.0000001;
+              Math.abs(p.coordinates[1] - featureCoords[1]) < 0.0000001
+            ) || null;
             
-            // If we have lineUniqueId and pointIndex, use them for precise matching
-            if (lineUniqueId && pointIndex !== undefined && 
-                p.properties?.lineUniqueId && p.properties?.pointIndex !== undefined) {
-              return coordsMatch && 
-                     p.properties.lineUniqueId === lineUniqueId && 
-                     p.properties.pointIndex === pointIndex;
-            }
-            
-            // If we only have pointIndex, use that
-            if (pointIndex !== undefined && p.properties?.pointIndex !== undefined) {
-              return coordsMatch && p.properties.pointIndex === pointIndex;
-            }
-            
-            return coordsMatch;
-          });
-        } else {
-          // For regular points, match by coordinates
-          matchedPoint = allStoredPoints.find(p => 
-            Math.abs(p.coordinates[0] - featureCoords[0]) < 0.0000001 && 
-            Math.abs(p.coordinates[1] - featureCoords[1]) < 0.0000001
-          );
+            if (matchedPoint) break;
+          }
         }
-        
+
         console.log('Matched point from storage:', matchedPoint);
         
         if (matchedPoint) {
@@ -261,7 +243,7 @@ export const MapControls: React.FC = () => {
     } catch (error) {
       console.error('Error handling click:', error);
     }
-  }, [features.features]);
+  }, [features.features, activeProject?.id]);
 
   // Handle modal close
   const handleModalClose = () => {
@@ -269,15 +251,38 @@ export const MapControls: React.FC = () => {
     setSelectedPoint(null);
   };
 
+  const handleClearStorage = async () => {
+    if (!activeProject?.id) {
+      console.log('No active project to clear');
+      return;
+    }
+
+    try {
+      setIsClearing(true);
+      console.log('\n=== Starting Clear Storage ===');
+      
+      // Clear all points for the active project
+      await storageService.clearAllPoints(activeProject.id);
+      
+      // Refresh the map
+      refreshFeatures();
+      
+      console.log('=== Clear Storage Complete ===\n');
+    } catch (error) {
+      console.error('Error clearing storage:', error);
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   return (
-    <View style={mapStyles.mapContainer}>
+    <View style={styles.container}>
       <MapView
         ref={mapRef}
-        style={mapStyles.map}
+        style={styles.map}
         mapStyle={getMapStyle(settings.basemapStyle)}
-        onDidFinishLoadingMap={handleMapReady}
-        onRegionWillChange={handleRegionWillChange}
         onPress={handleMapClick}
+        onDidFinishLoadingMap={() => setIsMapReady(true)}
       >
         <Camera
           ref={cameraRef}
@@ -341,6 +346,18 @@ export const MapControls: React.FC = () => {
         </ShapeSource>
       </MapView>
       
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.button, isClearing && styles.buttonDisabled]}
+          onPress={handleClearStorage}
+          disabled={isClearing}
+        >
+          <Text style={styles.buttonText}>
+            {isClearing ? 'Clearing...' : 'Clear Storage'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <RightSidebarContainer />
 
       <MapPointDetails
@@ -352,11 +369,36 @@ export const MapControls: React.FC = () => {
   );
 };
 
-const mapStyles = StyleSheet.create({
-  mapContainer: {
+const styles = StyleSheet.create({
+  container: {
     flex: 1,
   },
   map: {
     flex: 1,
+  },
+  buttonContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    zIndex: 1,
+  },
+  button: {
+    backgroundColor: Colors.DarkBlue,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 5,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

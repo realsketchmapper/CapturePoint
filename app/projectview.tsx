@@ -13,7 +13,7 @@ import { ProjectDistanceWarningModal } from '@/components/modals/ProjectModals/P
 const ProjectView = () => {
   const { projects, loading, error, fetchProjects } = useProjects();
   const { setActiveProject, activeProject } = useContext(ProjectContext);
-  const { fetchFeatures, clearFeatures } = useFeatureContext();
+  const { fetchFeatureTypes, clearFeatureTypes } = useFeatureContext();
   const { currentLocation } = useLocationContext();
   
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -48,14 +48,12 @@ const ProjectView = () => {
   const openProject = async (project: Project) => {
     try {
       console.log('Opening project:', project.id);
-      clearFeatures();
+      clearFeatureTypes();
       setActiveProject(project);
-      
-    
       
       // Then fetch and sync with server
       console.log('Fetching server features...');
-      await fetchFeatures(project.id);
+      await fetchFeatureTypes(project.id);
       
       console.log('All features loaded, navigating to map view...');
       router.replace('../mapview');

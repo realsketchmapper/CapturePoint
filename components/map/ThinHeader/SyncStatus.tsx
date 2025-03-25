@@ -23,8 +23,7 @@ export const SyncStatus: React.FC = () => {
   }, [syncStatus, activeProject]);
 
   const startSpinAnimation = () => {
-    console.log('Starting spin animation');
-    spinValue.setValue(0); // Reset the animation
+    spinValue.setValue(0);
     spinAnimation.current = Animated.loop(
       Animated.timing(spinValue, {
         toValue: 1,
@@ -37,7 +36,6 @@ export const SyncStatus: React.FC = () => {
   };
 
   const stopSpinAnimation = () => {
-    console.log('Stopping spin animation');
     if (spinAnimation.current) {
       spinAnimation.current.stop();
       spinAnimation.current = null;
@@ -46,24 +44,13 @@ export const SyncStatus: React.FC = () => {
   };
 
   const handleSync = async () => {
-    console.log('Sync icon clicked');
-    console.log('Current state:', { isSyncing, activeProject, unsyncedCount });
-    
-    if (!activeProject) {
-      console.log('No active project, cannot sync');
+    if (!activeProject || isSyncing) {
       return;
     }
     
-    if (isSyncing) {
-      console.log('Already syncing, ignoring click');
-      return;
-    }
-    
-    console.log('Starting sync for project:', activeProject.id);
     startSpinAnimation();
     try {
       const success = await syncPoints();
-      console.log('Sync completed with result:', success);
       if (!success) {
         console.error('Sync failed');
       }

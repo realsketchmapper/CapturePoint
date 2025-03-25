@@ -32,34 +32,26 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       // Convert stored points to GeoJSON features
       const features = storedPoints.map((point: PointCollected) => {
-        // Get the feature type properties
-        const featureType = point.featureType;
-        const featureName = point.name;
-        const isLinePoint = point.properties?.isLinePoint || false;
-        const color = point.properties?.style?.color || '#FF6B00';
-
-        // Log the point data for debugging
-        console.log('Loading point:', {
-          id: point.id,
-          featureType,
-          name: featureName,
-          properties: point.properties
-        });
+        // Get the feature properties from attributes
+        const featureType = point.attributes.featureType;
+        const featureName = point.attributes.name;
+        const color = point.attributes.style?.color || '#FF6B00';
 
         return {
           type: 'Feature' as const,
-          id: point.id,
           geometry: {
             type: 'Point' as const,
             coordinates: point.coordinates
           },
           properties: {
-            featureId: point.id,
+            id: point.id,
+            client_id: point.client_id,
+            fcode: point.fcode,
             name: featureName,
-            type: featureType, // Use type for consistency with feature types
+            featureType,
             color,
-            isLinePoint,
-            ...point.properties // Keep any other properties, but after our explicit ones
+            is_active: point.is_active,
+            ...point.attributes  // Include all other attributes
           }
         };
       });

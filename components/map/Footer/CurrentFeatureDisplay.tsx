@@ -9,21 +9,21 @@ import { SvgXml } from 'react-native-svg';
 export const CurrentFeatureDisplay: React.FC<CurrentFeatureDisplayProps> = ({
   style,
 }) => {
-  const { selectedFeature } = useFeatureContext();
+  const { selectedFeatureType } = useFeatureContext();
 
   // Function to render the appropriate image based on feature type
   const renderFeatureImage = useCallback(() => {
-    if (!selectedFeature) return null;
+    if (!selectedFeatureType) return null;
 
     // For line or polygon type features with SVG data
-    if ((selectedFeature.type === 'Line' || 
-         selectedFeature.type === 'Polygon') && selectedFeature.svg) {
+    if ((selectedFeatureType.geometryType === 'Line' || 
+         selectedFeatureType.geometryType === 'Polygon') && selectedFeatureType.svg) {
       try {
         // Check if the SVG content is valid
-        if (selectedFeature.svg.includes('<svg') && selectedFeature.svg.includes('</svg>')) {
+        if (selectedFeatureType.svg.includes('<svg') && selectedFeatureType.svg.includes('</svg>')) {
           return (
             <SvgXml 
-              xml={selectedFeature.svg} 
+              xml={selectedFeatureType.svg} 
               width={24} 
               height={24} 
             />
@@ -36,10 +36,10 @@ export const CurrentFeatureDisplay: React.FC<CurrentFeatureDisplayProps> = ({
       }
     } 
     // For point features with image URLs (PNGs)
-    else if ((selectedFeature.type === 'Point') && selectedFeature.image_url) {
+    else if ((selectedFeatureType.geometryType === 'Point') && selectedFeatureType.image_url) {
       return (
         <Image 
-          source={{ uri: selectedFeature.image_url }} 
+          source={{ uri: selectedFeatureType.image_url }} 
           style={styles.featureImage} 
           resizeMode="contain"
         />
@@ -49,7 +49,7 @@ export const CurrentFeatureDisplay: React.FC<CurrentFeatureDisplayProps> = ({
     else {
       return <MaterialIcons name="image" size={24} color="#ccc" />;
     }
-  }, [selectedFeature]);
+  }, [selectedFeatureType]);
   
   return (
     <View style={[styles.container, style]}>
@@ -57,7 +57,7 @@ export const CurrentFeatureDisplay: React.FC<CurrentFeatureDisplayProps> = ({
         {renderFeatureImage()}
       </View>
       <Text style={styles.text}>
-        {selectedFeature?.name || 'Select a Feature'}
+        {selectedFeatureType ?.name || 'Select a Feature'}
       </Text>
     </View>
   );

@@ -11,11 +11,8 @@ export const SyncButton: React.FC = () => {
 
   const handleSync = async () => {
     try {
-      console.log('Starting sync...');
       const success = await syncPoints();
-      
       if (success) {
-        console.log('Sync successful, refreshing map features...');
         await refreshFeatures();
       }
     } catch (error) {
