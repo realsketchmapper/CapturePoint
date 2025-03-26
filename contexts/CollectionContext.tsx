@@ -1,14 +1,16 @@
 // contexts/CollectionContext.tsx
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Position, CollectionContextType, CollectionState } from '@/types/collection.types';
-import { Feature } from '@/types/features.types';
-import { PointCollected } from '@/types/pointCollected.types';
+import { Feature, FeatureToRender } from '@/types/features.types';
+import { PointCollected, CollectedFeature } from '@/types/pointCollected.types';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { AuthContext } from '@/contexts/AuthContext';
 import { ProjectContext } from '@/contexts/ProjectContext';
+import { useMapContext } from '@/contexts/MapDisplayContext';
 import { storageService } from '@/services/storage/storageService';
 import { syncService } from '@/services/sync/syncService';
+import { generateClientId } from '@/utils/collections';
 // Replace v4 import with a more React Native friendly approach
 import 'react-native-get-random-values'; // Add this import at the top
 import { v4 as uuidv4 } from 'uuid';
@@ -42,6 +44,7 @@ const CollectionContext = createContext<ExtendedCollectionContextType | undefine
 export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentLocation } = useLocationContext();
   const { ggaData, gstData } = useNMEAContext();
+  const { clearFeatures, renderFeature } = useMapContext();
   
   // Safely access auth context
   const authContext = useContext(AuthContext);
@@ -162,6 +165,12 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const activeFeature = state?.activeFeature || collectionState.activeFeature;
     const points = state?.points || collectionState.points;
 
+    console.log('\n=== Saving Point ===');
+    console.log('Points:', points);
+    console.log('Properties:', properties);
+    console.log('GGA Data:', ggaData);
+    console.log('GST Data:', gstData);
+
     if (!activeFeature || points.length === 0
       || !ggaData?.latitude || !ggaData?.longitude || !gstData?.rmsTotal) {
       console.warn('Missing required data to save point:', {
@@ -186,33 +195,51 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         ? points[0]
         : points[points.length - 1];
       
+      console.log('Creating point with coordinates:', coordinates);
+      
       const point: PointCollected = {
-        id: properties.pointId,
-        name: properties.name || activeFeature.name,
-        featureType: activeFeature.type,
-        created_at: new Date().toISOString(),
-        projectId: activeProject?.id || 0,
-        featureTypeId: activeFeature.id,
+        id: null, // Mark as unsynced - will be set by server
+        client_id: generateClientId(),
+        fcode: 'PT', // Default feature code for points
         coordinates,
-        nmeaData: {
-          gga: ggaData,
-          gst: gstData
+        attributes: {
+          nmeaData: {
+            gga: ggaData,
+            gst: gstData
+          },
+          name: properties.name || activeFeature.name,
+          category: activeFeature.draw_layer,  // Required for collected_features table
+          type: activeFeature.type,           // Required for collected_features table
+          featureType: activeFeature.type,    // Keep for backwards compatibility
+          style: properties.style
         },
-        synced: false,
-        properties: {
-          ...properties,
-          featureType: activeFeature.type,
-          featureName: activeFeature.name,
-          userId: user?.id || 'unknown',
-          deviceInfo: `React Native / Expo`
-        }
+        project_id: activeProject?.id || 0,
+        feature_id: activeFeature.id,
+        is_active: true,
+        created_by: user?.id || null,
+        created_at: new Date().toISOString(),
+        updated_by: user?.id || null,
+        updated_at: new Date().toISOString()
       };
       
+      console.log('Saving point to storage:', point);
       await storageService.savePoint(point);
       
+      // Verify point was saved
+      const projectPoints = await storageService.getProjectPoints(point.project_id);
+      console.log(`After save: ${projectPoints.length} points in project storage`);
+      const savedPoint = projectPoints.find(p => p.client_id === point.client_id);
+      if (savedPoint) {
+        console.log('✅ Point successfully saved and retrieved from feature');
+      } else {
+        console.error('❌ Point not found in feature storage after save!');
+      }
+      
+      // Get actual count of unsynced points after save
+      const unsyncedPoints = await storageService.getUnsyncedPoints();
       setSyncStatus(prev => ({
         ...prev,
-        unsyncedCount: prev.unsyncedCount + 1
+        unsyncedCount: unsyncedPoints.length
       }));
       
       return true;
@@ -239,30 +266,96 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // If we have an active project, sync points for that project
         result = await syncService.syncPoints(activeProject.id);
       } else {
-        // If no active project, sync all points across all projects
-        result = await syncService.syncAllPoints();
+        // If no active project, sync all points
+        result = await syncService.syncPoints(0); // 0 indicates sync all projects
       }
+
+      // Update sync status based on the actual remaining unsynced count
+      const unsyncedCount = result.remainingUnsyncedCount ?? 0;
+      console.log('Setting unsynced count to:', unsyncedCount);
       
       setSyncStatus({
         isSyncing: false,
         lastSyncTime: new Date(),
-        unsyncedCount: result.success 
-          ? Math.max(0, syncStatus.unsyncedCount - result.syncedCount)
-          : syncStatus.unsyncedCount
+        unsyncedCount: unsyncedCount
       });
+
+      // After successful sync, refresh the map
+      if (result.success && clearFeatures && activeProject) {
+        console.log('Sync successful, refreshing map...');
+        clearFeatures();
+        const features = await storageService.getProjectFeatures(activeProject.id);
+        console.log(`Loaded ${features.length} features from storage after sync`);
+        
+        // Render each feature on the map
+        features.forEach(feature => {
+          if (!feature.points || feature.points.length === 0) {
+            console.log(`Skipping feature ${feature.id} - no points`);
+            return;
+          }
+
+          // For point features, we need to render each point individually
+          if (feature.type === 'Point') {
+            feature.points.forEach(point => {
+              if (!point.coordinates || point.coordinates.length < 2) {
+                console.log(`Skipping point ${point.client_id} - invalid coordinates`);
+                return;
+              }
+              
+              const featureToRender: FeatureToRender = {
+                type: feature.type,
+                coordinates: point.coordinates as [number, number],
+                properties: {
+                  featureId: feature.id,
+                  name: feature.name,
+                  draw_layer: feature.attributes?.draw_layer,
+                  style: feature.attributes?.style
+                }
+              };
+              renderFeature(featureToRender);
+            });
+          } else {
+            // For lines/polygons, use all point coordinates
+            const coordinates = feature.points
+              .filter(point => point.coordinates && point.coordinates.length === 2)
+              .map(point => point.coordinates as [number, number]);
+            
+            if (coordinates.length < 2) {
+              console.log(`Skipping feature ${feature.id} - not enough valid points`);
+              return;
+            }
+            
+            const featureToRender: FeatureToRender = {
+              type: feature.type,
+              coordinates: coordinates,
+              properties: {
+                featureId: feature.id,
+                name: feature.name,
+                draw_layer: feature.attributes?.draw_layer,
+                style: feature.attributes?.style
+              }
+            };
+            renderFeature(featureToRender);
+          }
+        });
+      }
       
       return result.success;
     } catch (error) {
       console.error('Error syncing points:', error);
       
+      // On error, verify the actual unsynced count
+      const unsyncedPoints = await storageService.getUnsyncedPoints();
+      
       setSyncStatus(prev => ({
         ...prev,
-        isSyncing: false
+        isSyncing: false,
+        unsyncedCount: unsyncedPoints.length
       }));
       
       return false;
     }
-  }, [syncStatus.isSyncing, syncStatus.unsyncedCount, activeProject]);
+  }, [syncStatus.isSyncing, activeProject, clearFeatures, renderFeature]);
 
   return (
     <CollectionContext.Provider

@@ -3,6 +3,10 @@ import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties }
 import { FeatureToRender } from '@/types/features.types';
 import { MapContextType, Coordinate, FeatureType } from '@/types/map.types';
 import { generateId } from '@/utils/collections';
+import { LINE_POINT_FEATURE } from '@/constants/features';
+import { storageService } from '@/services/storage/storageService';
+import { PointCollected } from '@/types/pointCollected.types';
+
 const MapContext = createContext<MapContextType | undefined>(undefined);
 
 export const useMapContext = () => {
@@ -20,6 +24,61 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     features: []
   });
 
+  // Load features from storage
+  const loadFeaturesFromStorage = useCallback(async () => {
+    try {
+      const storedPoints = await storageService.getAllPoints();
+      console.log('Loading features from storage:', storedPoints.length);
+      
+      // Convert stored points to GeoJSON features
+      const features = storedPoints.map((point: PointCollected) => {
+        // Get the feature properties from attributes
+        const featureType = point.attributes.featureType;
+        const featureName = point.attributes.name;
+        const color = point.attributes.style?.color || '#FF6B00';
+
+        return {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Point' as const,
+            coordinates: point.coordinates
+          },
+          properties: {
+            id: point.id,
+            client_id: point.client_id,
+            fcode: point.fcode,
+            name: featureName,
+            featureType,
+            color,
+            is_active: point.is_active,
+            ...point.attributes  // Include all other attributes
+          }
+        };
+      });
+
+      // Log the final features for debugging
+      console.log('Loaded features:', features.map(f => ({
+        id: f.id,
+        type: f.properties?.type,
+        name: f.properties?.name,
+        isLinePoint: f.properties?.isLinePoint
+      })));
+      
+      setFeatures({
+        type: 'FeatureCollection',
+        features
+      });
+    } catch (error) {
+      console.error('Error loading features from storage:', error);
+    }
+  }, []);
+
+  // Expose the load function
+  const refreshFeatures = useCallback(async () => {
+    console.log('Refreshing features from storage...');
+    await loadFeaturesFromStorage();
+    console.log('Features refreshed from storage');
+  }, [loadFeaturesFromStorage]);
 
   // Validate coordinates for both points and lines
   const isValidCoords = useCallback((coords: any): boolean => {
@@ -52,6 +111,15 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const id = generateId();
     
+    // Ensure we have a color property for rendering
+    const pointProperties = {
+      color: '#FF6B00', // Default color
+      featureId: id,
+      name: 'Point',
+      draw_layer: 'default',
+      ...(properties || {}) // Spread properties if they exist, otherwise empty object
+    };
+    
     const pointFeature: Feature<Point> = {
       type: 'Feature',
       id,
@@ -59,7 +127,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         type: 'Point',
         coordinates
       },
-      properties
+      properties: pointProperties
     };
     
     setFeatures((prev) => {
@@ -82,6 +150,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const id = generateId();
     
+    // Create the line feature without auto-closing it
     const lineFeature: Feature<LineString> = {
       type: 'Feature',
       id,
@@ -194,7 +263,8 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isMapReady,
       setIsMapReady,
       renderFeature,
-      previewFeature
+      previewFeature,
+      refreshFeatures
     }}>
       {children}
     </MapContext.Provider>

@@ -2,12 +2,17 @@ import React, { useMemo, useCallback } from 'react';
 import { StyleSheet, Modal, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { useFeatureContext } from '@/FeatureContext';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Feature, FeatureListModalProps } from '@/types/features.types';
+import { UtilityFeatureType } from '@/types/features.types';
 import { SvgXml } from 'react-native-svg';
 import { Colors } from '@/theme/colors';
 
+interface FeatureListModalProps {
+  isVisible: boolean;
+  onClose: () => void;
+}
+
 type GroupedFeatures = {
-  [key: string]: Feature[];
+  [key: string]: UtilityFeatureType[];
 }
 
 export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({ 
@@ -15,11 +20,11 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
   onClose
 }) => {
   const { 
-    selectedFeature, 
-    setSelectedFeature, 
+    selectedFeatureType, 
+    setSelectedFeatureType, 
     expandedLayers, 
     toggleLayer,
-    features,
+    featureTypes,
     isLoading,
     error,
     featuresLoaded,
@@ -27,11 +32,11 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
 
   const groupedFeatures = useMemo<GroupedFeatures>(() => {
     console.log('Recalculating groupedFeatures');
-    const groups = features.reduce<GroupedFeatures>((acc, feature) => {
-      if (!acc[feature.draw_layer]) {
-        acc[feature.draw_layer] = [];
+    const groups = featureTypes.reduce<GroupedFeatures>((acc, featureType) => {
+      if (!acc[featureType.draw_layer]) {
+        acc[featureType.draw_layer] = [];
       }
-      acc[feature.draw_layer].push(feature);
+      acc[featureType.draw_layer].push(featureType);
       return acc;
     }, {});
 
@@ -47,24 +52,24 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
         acc[key] = groups[key];
         return acc;
       }, {});
-  }, [features]);
+  }, [featureTypes]);
 
-  const handleFeatureSelect = useCallback((feature: Feature) => {
-    setSelectedFeature(feature);
+  const handleFeatureSelect = useCallback((featureType: UtilityFeatureType) => {
+    setSelectedFeatureType(featureType);
     onClose();
-  }, [setSelectedFeature, onClose]);
+  }, [setSelectedFeatureType, onClose]);
 
   // Function to render the appropriate image based on feature type
-  const renderFeatureImage = useCallback((feature: Feature) => {
+  const renderFeatureImage = useCallback((featureType: UtilityFeatureType) => {
     // For line or polygon type features with SVG data
-    if ((feature.type === 'Line' || 
-         feature.type === 'Polygon') && feature.svg) {
+    if ((featureType.geometryType === 'Line' || 
+         featureType.geometryType === 'Polygon') && featureType.svg) {
       try {
         // Check if the SVG content is valid
-        if (feature.svg.includes('<svg') && feature.svg.includes('</svg>')) {
+        if (featureType.svg.includes('<svg') && featureType.svg.includes('</svg>')) {
           return (
             <SvgXml 
-              xml={feature.svg} 
+              xml={featureType.svg} 
               width="100%" 
               height="100%" 
             />
@@ -77,10 +82,10 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
       }
     } 
     // For point features with image URLs (PNGs)
-    else if ((feature.type === 'Point') && feature.image_url) {
+    else if ((featureType.geometryType === 'Point') && featureType.image_url) {
       return (
         <Image 
-          source={{ uri: feature.image_url }} 
+          source={{ uri: featureType.image_url }} 
           style={styles.featureImage} 
           resizeMode="contain"
         />
@@ -110,20 +115,20 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
         
         {expandedLayers.has(layer) && (
           <View style={styles.featureGroup}>
-            {layerFeatures.map(feature => (
+            {layerFeatures.map(featureType => (
               <TouchableOpacity
-                key={feature.id}
+                key={featureType.id}
                 style={[
                   styles.featureItem,
-                  selectedFeature?.id === feature.id && styles.selectedFeature
+                  selectedFeatureType?.id === featureType.id && styles.selectedFeature
                 ]}
-                onPress={() => handleFeatureSelect(feature)}
+                onPress={() => handleFeatureSelect(featureType)}
               >
                 <View style={styles.featureItemContent}>
                   <View style={styles.imageContainer}>
-                    {renderFeatureImage(feature)}
+                    {renderFeatureImage(featureType)}
                   </View>
-                  <Text style={styles.featureName}>{feature.name}</Text>
+                  <Text style={styles.featureName}>{featureType.name}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -131,7 +136,7 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
         )}
       </View>
     ));
-  }, [groupedFeatures, expandedLayers, toggleLayer, selectedFeature, handleFeatureSelect, renderFeatureImage]);
+  }, [groupedFeatures, expandedLayers, toggleLayer, selectedFeatureType, handleFeatureSelect, renderFeatureImage]);
 
   return (
     <Modal
@@ -143,7 +148,7 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
           <View style={styles.header}>
-            <Text style={styles.title}>Select Feature</Text>
+            <Text style={styles.title}>Select Feature Type</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
@@ -160,7 +165,7 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
           ) : !featuresLoaded ? (
             <View style={styles.centerContent}>
               <Text style={styles.errorText}>
-                No features loaded. Please select a project first.
+                No feature types loaded. Please select a project first.
               </Text>
             </View>
           ) : (

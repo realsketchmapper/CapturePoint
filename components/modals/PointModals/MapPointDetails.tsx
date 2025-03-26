@@ -59,7 +59,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   const { user } = useContext(AuthContext) as AuthContextState;
   const { activeProject } = useContext(ProjectContext);
   const { clearFeatures, renderFeature } = useMapContext();
-  const [description, setDescription] = useState(point.properties?.description || '');
+  const [description, setDescription] = useState(point.attributes.description || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -86,8 +86,8 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
       // Update the point with new description
       const updatedPoint = {
         ...point,
-        properties: {
-          ...point.properties,
+        attributes: {
+          ...point.attributes,
           description
         }
       };
@@ -122,7 +122,9 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
               
               // Try to inactivate the feature - this might succeed or fail if already inactive
               try {
-                await featureService.inactivateFeature(activeProject.id, point.id.toString());
+                if (point.id !== null) {
+                  await featureService.inactivateFeature(activeProject.id, point.id.toString());
+                }
               } catch (error) {
                 console.log('Error inactivating feature:', error);
                 // Continue with refresh even if inactivation failed - the feature might already be inactive
@@ -208,7 +210,6 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                         featureId: feature.id,
                         name: feature.name,
                         draw_layer: feature.draw_layer,
-                        ...feature.properties
                       }
                     };
                     renderFeature(featureToRender);
@@ -263,76 +264,101 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
 
           <ScrollView style={styles.scrollView}>
             <View style={styles.detailsContainer}>
-              {/* Basic Info */}
+              {/* Basic Info Section */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Basic Information</Text>
-                <View style={styles.detailRow}>
+                
+                {/* Name */}
+                <View style={styles.row}>
                   <Text style={styles.label}>Name:</Text>
-                  <Text style={styles.value}>{point.name}</Text>
+                  <Text style={styles.value}>{point.attributes.name || 'Unnamed Point'}</Text>
                 </View>
-                <View style={styles.detailRow}>
+                
+                {/* Type */}
+                <View style={styles.row}>
                   <Text style={styles.label}>Type:</Text>
-                  <Text style={styles.value}>{point.featureType}</Text>
+                  <Text style={styles.value}>{point.attributes.type || 'Point'}</Text>
                 </View>
+                
+                {/* Category */}
+                <View style={styles.row}>
+                  <Text style={styles.label}>Category:</Text>
+                  <Text style={styles.value}>{point.attributes.category || 'Uncategorized'}</Text>
+                </View>
+
+                {/* Coordinates */}
+                <View style={styles.row}>
+                  <Text style={styles.label}>Coordinates:</Text>
+                  <Text style={styles.value}>{`${point.coordinates[1]}, ${point.coordinates[0]}`}</Text>
+                </View>
+              </View>
+
+              {/* Collected By */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Collected By</Text>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Collected By:</Text>
                   <Text style={styles.value}>{user?.name || 'Unknown'}</Text>
                 </View>
-                
-                {/* Description Field */}
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>Description:</Text>
-                  <View style={styles.descriptionContainer}>
-                    {isEditing ? (
-                      <View style={styles.editingContainer}>
-                        <TextInput
-                          style={styles.descriptionInput}
-                          value={description}
-                          onChangeText={setDescription}
-                          maxLength={MAX_DESCRIPTION_LENGTH}
-                          placeholder="Enter description..."
-                          placeholderTextColor={Colors.Grey}
-                        />
-                        <View style={styles.descriptionButtons}>
-                          <TouchableOpacity 
-                            style={[styles.descriptionButton, styles.cancelButton]}
-                            onPress={() => {
-                              setDescription(point.properties?.description || '');
-                              setIsEditing(false);
-                            }}
-                          >
-                            <Text style={styles.buttonText}>Cancel</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity 
-                            style={[styles.descriptionButton, styles.saveButton]}
-                            onPress={handleSaveDescription}
-                            disabled={isSaving}
-                          >
-                            <Text style={styles.buttonText}>
-                              {isSaving ? 'Saving...' : 'Save'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                        <Text style={styles.characterCount}>
-                          {description.length}/{MAX_DESCRIPTION_LENGTH}
-                        </Text>
-                      </View>
-                    ) : (
-                      <View style={styles.viewContainer}>
-                        <Text style={styles.value}>
-                          {description || 'No description'}
-                        </Text>
+              </View>
+
+              {/* Description Field */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Description</Text>
+                <View style={styles.descriptionContainer}>
+                  {isEditing ? (
+                    <View style={styles.editingContainer}>
+                      <TextInput
+                        style={styles.descriptionInput}
+                        value={description}
+                        onChangeText={setDescription}
+                        maxLength={MAX_DESCRIPTION_LENGTH}
+                        placeholder="Enter description..."
+                        placeholderTextColor={Colors.Grey}
+                      />
+                      <View style={styles.descriptionButtons}>
                         <TouchableOpacity 
-                          style={styles.editButton}
-                          onPress={() => setIsEditing(true)}
+                          style={[styles.descriptionButton, styles.cancelButton]}
+                          onPress={() => {
+                            setDescription(point.attributes.description || '');
+                            setIsEditing(false);
+                          }}
                         >
-                          <Text style={styles.editButtonText}>Edit</Text>
+                          <Text style={styles.buttonText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={[styles.descriptionButton, styles.saveButton]}
+                          onPress={handleSaveDescription}
+                          disabled={isSaving}
+                        >
+                          <Text style={styles.buttonText}>
+                            {isSaving ? 'Saving...' : 'Save'}
+                          </Text>
                         </TouchableOpacity>
                       </View>
-                    )}
-                  </View>
+                      <Text style={styles.characterCount}>
+                        {description.length}/{MAX_DESCRIPTION_LENGTH}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.viewContainer}>
+                      <Text style={styles.value}>
+                        {description || 'No description'}
+                      </Text>
+                      <TouchableOpacity 
+                        style={styles.editButton}
+                        onPress={() => setIsEditing(true)}
+                      >
+                        <Text style={styles.editButtonText}>Edit</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
+              </View>
 
+              {/* Timestamp */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Timestamp</Text>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Timestamp:</Text>
                   <Text style={styles.value}>{formatDate(point.created_at)}</Text>
@@ -353,43 +379,43 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Altitude:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.altitude)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.attributes.nmeaData?.gga?.altitude)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Geoid Height:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.geoidHeight)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.attributes.nmeaData?.gga?.geoidHeight)} m</Text>
                 </View>
 
                 {/* Quality Indicators */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Fix Quality:</Text>
-                  <Text style={styles.value}>{getFixQualityText(point.nmeaData.gga.quality)}</Text>
+                  <Text style={styles.value}>{point.attributes.nmeaData?.gga ? getFixQualityText(point.attributes.nmeaData.gga.quality) : 'N/A'}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Satellites:</Text>
-                  <Text style={styles.value}>{point.nmeaData.gga.satellites}</Text>
+                  <Text style={styles.value}>{point.attributes.nmeaData?.gga?.satellites || 'N/A'}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>HDOP:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.hdop)}</Text>
+                  <Text style={styles.value}>{formatValue(point.attributes.nmeaData?.gga?.hdop)}</Text>
                 </View>
 
                 {/* Error Estimates */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>RMS Total:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.rmsTotal)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.attributes.nmeaData?.gst?.rmsTotal)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Lat Error:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.latitudeError)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.attributes.nmeaData?.gst?.latitudeError)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Lon Error:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.longitudeError)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.attributes.nmeaData?.gst?.longitudeError)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Height Error:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.heightError)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.attributes.nmeaData?.gst?.heightError)} m</Text>
                 </View>
               </View>
             </View>
@@ -548,6 +574,12 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '500',
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 5,
   },
 });
 

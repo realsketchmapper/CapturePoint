@@ -2,8 +2,9 @@ export const API_ENDPOINTS = {
     BASE_URL: 'https://v2.sketchmapper.com',
     LOGIN: '/login',
     PROJECTS: '/projects',
-    SYNC_POINTS: '/:projectId/sync-points',
+    SYNC_POINTS: '/projects/:projectId/sync-points',
     VALIDATE_TOKEN: '/validate/',
     INACTIVATE_FEATURE: '/:projectId/inactivate-feature',
-    ACTIVE_FEATURES: '/:projectId/active-features'
+    ACTIVE_FEATURES: '/:projectId/active-features',
+    PROJECT_FEATURES: '/projects/:projectId/features'
 } as const;

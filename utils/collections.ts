@@ -1,14 +1,20 @@
 import { Position } from "@/types/collection.types";
+import { v4 as uuidv4 } from 'uuid';
 
-export const isValidPosition = (position: Position): position is { longitude: number; latitude: number } => {
-  return typeof position.longitude === 'number' && 
-         typeof position.latitude === 'number' &&
-         !isNaN(position.longitude) && 
-         !isNaN(position.latitude);
+export const isValidPosition = (position: Position): position is [number, number] => {
+  return Array.isArray(position) && 
+         position.length === 2 &&
+         typeof position[0] === 'number' && 
+         typeof position[1] === 'number' &&
+         !isNaN(position[0]) && 
+         !isNaN(position[1]);
 };
 
-export const generateId = (): string => {
-  const random = Math.random().toString(36).slice(2, 11);
-  const timestamp = Date.now().toString(36);
-  return `${random}-${timestamp}`;
+export const generateId = () => {
+  return uuidv4();
+};
+
+export const generateClientId = () => {
+  // Generate a shorter unique ID for client_id (20 chars max)
+  return uuidv4().replace(/-/g, '').substring(0, 20);
 };
