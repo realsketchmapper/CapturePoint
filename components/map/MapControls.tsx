@@ -17,7 +17,6 @@ import { useSettingsContext } from '@/contexts/SettingsContext';
 import { getMapStyle } from '@/services/maplibre/maplibre_helpers';
 import FilteredPositionMarker from './FilteredPositionMarker';
 import FeatureMarkers from './FeatureMarkers';
-import { useFilteredPosition } from '@/hooks/useFilteredPosition';
 import MapPointDetails from '@/components/modals/PointModals/MapPointDetails';
 import { storageService } from '@/services/storage/storageService';
 import { PointCollected } from '@/types/pointCollected.types';
@@ -37,9 +36,6 @@ export const MapControls: React.FC = () => {
   const [selectedPoint, setSelectedPoint] = useState<PointCollected | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   
-  // Get the filtered position from our hook
-  const filteredPosition = useFilteredPosition(1); // 5 meters threshold
-  
   const handleMapReady = () => {
     setIsMapReady(true);
   };
@@ -57,16 +53,15 @@ export const MapControls: React.FC = () => {
     }
   }, [isMapReady, currentLocation]);
 
-  // Position updates - using filtered position
+  // Position updates
   useEffect(() => {
-    if (isMapReady && initialCenterDone.current && filteredPosition && followGNSS && cameraRef.current) {
-      console.log("setting new position because filtered position changed");
+    if (isMapReady && initialCenterDone.current && currentLocation && followGNSS && cameraRef.current) {
       cameraRef.current.setCamera({
-        centerCoordinate: filteredPosition,
+        centerCoordinate: currentLocation,
         animationDuration: 300
       });
     }
-  }, [filteredPosition, isMapReady, followGNSS]);
+  }, [currentLocation, isMapReady, followGNSS]);
 
   // When user interacts with the map, temporarily stop following
   const handleRegionWillChange = (event?: any) => {
@@ -82,7 +77,6 @@ export const MapControls: React.FC = () => {
   // Handle point click
   const handleMapClick = useCallback(async (event: any) => {
     console.log('Map clicked:', event);
-    console.log('Current features:', features.features);
     
     if (!mapRef.current) {
       console.log('No map ref');
@@ -109,7 +103,7 @@ export const MapControls: React.FC = () => {
       });
 
       if (customPoint) {
-        console.log('Found custom point:', customPoint);
+        console.log('Found custom point');
         try {
           const points = await storageService.getAllPoints();
           // Match by coordinates since IDs might be different
@@ -120,7 +114,7 @@ export const MapControls: React.FC = () => {
                               p.coordinates[1] === coords[1];
             return coordsMatch;
           });
-          console.log('Matched point:', point);
+          console.log('Matched point');
           
           if (point) {
             setSelectedPoint(point);
@@ -185,14 +179,14 @@ export const MapControls: React.FC = () => {
         <Camera
           ref={cameraRef}
           defaultSettings={{
-            centerCoordinate: filteredPosition || [-122.4194, 37.7749],
+            centerCoordinate: currentLocation || [-122.4194, 37.7749],
             zoomLevel: 18,         
           }} 
         />
 
-        {filteredPosition && (
+        {currentLocation && (
           <FilteredPositionMarker 
-            position={filteredPosition}
+            position={currentLocation}
             color="#FF6B00"
             size={0.5}
             isLocationMarker={true}

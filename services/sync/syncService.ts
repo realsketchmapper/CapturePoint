@@ -16,7 +16,7 @@ export interface SyncResult {
 // Helper to format a stored point for the API
 const formatPointForAPI = (point: PointCollected) => {
   // Debug log the full point data
-  console.log("Formatting point for API:", JSON.stringify(point, null, 2));
+  console.log("Formatting point for API");
   
   // Extract coordinates properly based on feature type
   let longitude, latitude;
@@ -85,7 +85,7 @@ const formatPointForAPI = (point: PointCollected) => {
     }
   };
 
-  console.log("Formatted point for API:", JSON.stringify(formattedPoint, null, 2));
+  console.log("Point formatted for API");
   return formattedPoint;
 };
 
@@ -140,28 +140,43 @@ export const syncService = {
       console.log("🔄 Formatting points for API...");
       const formattedPoints = unsyncedPoints.map(formatPointForAPI);
       
-      // Log the first formatted point for debugging
-      if (formattedPoints.length > 0) {
-        console.log('📝 First formatted point:', JSON.stringify(formattedPoints[0], null, 2));
-      }
-      
       // Construct the endpoint URL with the project ID
       const endpoint = API_ENDPOINTS.SYNC_POINTS.replace(':projectId', projectId.toString());
       console.log(`🌐 Making API call to: ${endpoint}`);
       
       // Send points to server with explicit error handling
       try {
-        // IMPORTANT: Structure the payload exactly as your backend expects it
-        // This field naming and structure is critical
+        // Structure the payload to match server expectations
         const payload = {
-          points: formattedPoints
+          features: formattedPoints.map(point => ({
+            client_id: point.client_id,
+            category: point.category,
+            type: point.type,
+            name: point.name,
+            project_id: point.project_id,
+            attributes: {
+              ...point.properties,
+              description: point.description
+            },
+            created_by: point.created_by,
+            created_at: point.created_at,
+            points: [{
+              client_id: point.client_id,
+              coords: point.coords,
+              attributes: {
+                nmea_data: point.nmea_data
+              },
+              created_by: point.created_by,
+              created_at: point.created_at
+            }]
+          }))
         };
         
-        console.log('📦 Request payload:', JSON.stringify(payload, null, 2));
+        console.log('📦 Request payload sent');
         
         const response = await api.post(endpoint, payload);
         
-        console.log('📥 API response:', JSON.stringify(response.data, null, 2));
+        console.log('📥 API response received');
         
         if (response.data && response.data.success) {
           const syncedIds = response.data.syncedIds || 
@@ -170,10 +185,12 @@ export const syncService = {
           
           console.log(`✅ Successfully synced ${syncedIds.length} points`);
           
-          // Mark as synced in local storage
-          if (syncedIds.length > 0) {
+          // Mark as synced in local storage if we have synced IDs
+          if (syncedIds && syncedIds.length > 0) {
             await storageService.markPointsAsSynced(syncedIds);
             console.log(`📝 Marked ${syncedIds.length} points as synced in local storage`);
+          } else {
+            console.log("⚠️ No points were synced, but API returned success");
           }
           
           return {

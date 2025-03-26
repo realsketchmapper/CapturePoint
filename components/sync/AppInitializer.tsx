@@ -51,30 +51,10 @@ const AppInitializer: React.FC = () => {
       return false;
     }
     
-    // Check if user is offline
+    // Check if user is offline - rely on AuthContext state
     if (isOffline) {
-      // Verify if we're actually online - might need to update auth state
-      const online = await isOnline();
-      if (online) {
-        // We appear to be online but auth thinks we're offline
-        // Validate token to potentially update auth state
-        try {
-          const isValid = await AuthService.validateToken();
-          if (!isValid) {
-            console.log('AppInitializer: Token invalid despite network being available');
-            return false;
-          }
-          // Token is valid, but context hasn't updated yet - give it time
-          console.log('AppInitializer: Network available but auth state is offline');
-          return false;
-        } catch (error) {
-          console.log('AppInitializer: Token validation failed, cannot sync');
-          return false;
-        }
-      } else {
-        console.log('AppInitializer: Cannot sync - device is offline');
-        return false;
-      }
+      console.log('AppInitializer: Cannot sync - user is offline');
+      return false;
     }
     
     if (unsyncedCount === 0) {

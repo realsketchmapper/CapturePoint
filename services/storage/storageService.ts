@@ -140,12 +140,39 @@ export const storageService = {
     }
   },
   
-  // Clear all points (for testing/debugging)
+  // Clear all points from storage
   clearAllPoints: async (): Promise<void> => {
     try {
       await AsyncStorage.removeItem(STORAGE_KEYS.COLLECTED_POINTS);
+      console.log('All points cleared from storage');
     } catch (error) {
       console.error('Error clearing points:', error);
+      throw error;
+    }
+  },
+
+  // Clear all data from AsyncStorage except location and token data
+  clearAllData: async (): Promise<void> => {
+    try {
+      // Get all keys from AsyncStorage
+      const allKeys = await AsyncStorage.getAllKeys();
+      
+      // Keys to preserve
+      const preserveKeys = [
+        '@user_credentials',  // Token data
+        'locationPermission', // Location permission
+        'locationHighAccuracy' // Location accuracy setting
+      ];
+      
+      // Filter out keys to preserve
+      const keysToRemove = allKeys.filter(key => !preserveKeys.includes(key));
+      
+      // Remove all other keys
+      await AsyncStorage.multiRemove(keysToRemove);
+      
+      console.log('All data cleared from AsyncStorage except location and token data');
+    } catch (error) {
+      console.error('Error clearing data:', error);
       throw error;
     }
   }
