@@ -6,7 +6,7 @@ import { formatDate } from '@/utils/date';
 import { storageService } from '@/services/storage/storageService';
 import { AuthContext } from '@/contexts/AuthContext';
 import { AuthContextState } from '@/types/auth.types';
-import { featureService } from '@/services/features/featuresService';
+import { featureTypeService } from '@/services/features/featureTypeService';
 import { ProjectContext } from '@/contexts/ProjectContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 import { Feature, FeatureToRender } from '@/types/features.types';
@@ -122,7 +122,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
               
               // Try to inactivate the feature - this might succeed or fail if already inactive
               try {
-                await featureService.inactivateFeature(activeProject.id, point.id.toString());
+                await featureTypeService.inactivateFeature(activeProject.id, point.id.toString());
               } catch (error) {
                 console.log('Error inactivating feature:', error);
                 // Continue with refresh even if inactivation failed - the feature might already be inactive
@@ -133,7 +133,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 // Clear existing features first
                 clearFeatures();
                 // Fetch and update with active features
-                const activeFeatures = await featureService.fetchActiveFeatures(activeProject.id);
+                const activeFeatures = await featureTypeService.fetchActiveFeatures(activeProject.id);
                 // Render each active feature on the map
                 activeFeatures.forEach((feature: Feature) => {
                   // Skip features without valid coordinates

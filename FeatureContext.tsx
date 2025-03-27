@@ -1,6 +1,6 @@
 import React, { createContext, useState, ReactNode, useContext, useCallback, useEffect, useMemo } from 'react';
 import { Feature, FeatureContextType } from '@/types/features.types';
-import { featureService } from '@/services/features/featuresService';
+import { featureTypeService } from '@/services/features/featureTypeService';
 import { Image } from 'react-native';
 import { FeatureProviderProps } from '@/types/features.types';
 
@@ -71,7 +71,7 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
     setImagesPreloaded(false); // Reset preload flag when fetching new features
     
     try {
-      const data = await featureService.fetchProjectFeatures(projectId);
+      const data = await featureTypeService.fetchProjectFeatures(projectId);
       setFeatures(data);
       setFeaturesLoaded(true);
     } catch (err) {
