@@ -1,8 +1,8 @@
-import { UtilityFeatureType } from "@/types/features.types";
+import { FeatureType } from "@/types/features.types";
 import { CollectedFeature, PointCollected } from "@/types/pointCollected.types";
 import { ServerFeature, ServerFeatureType, ServerPoint } from "@/types/server.types";
 
-export const convertServerFeatureType = (serverFeatureType: ServerFeatureType): UtilityFeatureType => {
+export const convertServerFeatureType = (serverFeatureType: ServerFeatureType): FeatureType => {
   return {
     id: serverFeatureType.id,
     name: serverFeatureType.name,
@@ -20,7 +20,7 @@ export const convertServerFeatureType = (serverFeatureType: ServerFeatureType): 
   };
 };
 
-export const convertServerFeature = (serverFeature: ServerFeature, featureType: UtilityFeatureType): CollectedFeature => {
+export const convertServerFeature = (serverFeature: ServerFeature, featureType: FeatureType): CollectedFeature => {
   const points = serverFeature.points || [];
   const convertedPoints = points.map(point => ({
     id: point.id,

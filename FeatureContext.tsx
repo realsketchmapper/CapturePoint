@@ -1,5 +1,5 @@
 import React, { createContext, useState, ReactNode, useContext, useCallback, useEffect, useMemo } from 'react';
-import { UtilityFeatureType, FeatureContextType } from '@/types/features.types';
+import { FeatureType, FeatureContextType } from '@/types/features.types';
 import { featureTypeService } from '@/services/features/featureTypeService';
 import { Image } from 'react-native';
 import { FeatureProviderProps } from '@/types/features.types';
@@ -15,9 +15,9 @@ export const useFeatureContext = () => {
 };
 
 export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) => {
-  const [selectedFeatureType, setSelectedFeatureType] = useState<UtilityFeatureType | null>(null);
+  const [selectedFeatureType, setSelectedFeatureType] = useState<FeatureType | null>(null);
   const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
-  const [featureTypes, setFeatureTypes] = useState<UtilityFeatureType[]>([]);
+  const [featureTypes, setFeatureTypes] = useState<FeatureType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [featuresLoaded, setFeaturesLoaded] = useState(false);
@@ -45,6 +45,8 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
         .filter(featureType => featureType.geometryType === 'Point' && featureType.image_url)
         .map(featureType => featureType.image_url as string);
       
+      console.log('Found image URLs:', imageUrls);
+      
       // Preload all images
       if (imageUrls.length > 0) {
         Promise.all(
@@ -52,11 +54,10 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
             new Promise((resolve) => {
               Image.prefetch(url)
                 .then(() => {
-                  console.log(`Preloaded image: ${url.substring(0, 30)}...`);
                   resolve(true);
                 })
                 .catch(err => {
-                  console.warn(`Failed to preload image ${url.substring(0, 30)}...`, err);
+                  console.warn(`Failed to preload image ${url}:`, err);
                   resolve(false);
                 });
             })
@@ -66,6 +67,7 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
           setImagesPreloaded(true);
         });
       } else {
+        console.log('No images to preload');
         setImagesPreloaded(true);
       }
     }
@@ -76,6 +78,7 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
       setIsLoading(true);
       setError(null);
       const fetchedFeatureTypes = await featureTypeService.fetchFeatureTypes(projectId);
+      console.log('Fetched feature types:', fetchedFeatureTypes);
       setFeatureTypes(fetchedFeatureTypes);
       setFeaturesLoaded(true);
     } catch (err) {

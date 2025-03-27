@@ -9,7 +9,7 @@ import { AuthContextState } from '@/types/auth.types';
 import { featureTypeService } from '@/services/features/featureTypeService';
 import { ProjectContext } from '@/contexts/ProjectContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
-import { UtilityFeatureType, FeatureToRender } from '@/types/features.types';
+import { FeatureType, FeatureToRender } from '@/types/features.types';
 import { CollectedFeature } from '@/types/pointCollected.types';
 
 interface MapPointDetailsProps {
@@ -138,7 +138,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 // Fetch and update with active features
                 const activeFeatures = await featureTypeService.fetchActiveFeatures(activeProject.id);
                 // Render each active feature on the map
-                activeFeatures.forEach((feature: UtilityFeatureType) => {
+                activeFeatures.forEach((feature: FeatureType) => {
                   // Skip features without valid coordinates
                   if (!feature.attributes.coordinates || 
                       (Array.isArray(feature.attributes.coordinates) && feature.attributes.coordinates.length < 2)) {

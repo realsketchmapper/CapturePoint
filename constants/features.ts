@@ -1,5 +1,5 @@
 // constants/features.ts
-import { UtilityFeatureType } from '@/types/features.types';
+import { FeatureType } from '@/types/features.types';
 
 // Small circle SVG for line points - using a template string to allow dynamic color
 export const getLinePointSvg = (color = '#FF6B00') => {
@@ -18,7 +18,7 @@ export const getLinePointSvg = (color = '#FF6B00') => {
 const DEFAULT_DOT_SVG = getLinePointSvg('#FF6B00');
 
 // Internal feature type definition for line vertex points
-export const LINE_POINT_FEATURE: UtilityFeatureType = {
+export const LINE_POINT_FEATURE: FeatureType = {
   id: -1, // Internal feature type ID
   name: 'Line Point',
   category: 'Other',

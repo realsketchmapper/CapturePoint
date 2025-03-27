@@ -7,7 +7,7 @@ import { useMapContext } from '@/contexts/MapDisplayContext';
 import { LINE_POINT_FEATURE } from '@/constants/features';
 import { Position } from '@/types/collection.types';
 import { Coordinate } from '@/types/map.types';
-import { UtilityFeatureType } from '@/types/features.types';
+import { FeatureType } from '@/types/features.types';
 
 export const useLineCollection = () => {
   const { startCollection, saveCurrentPoint } = useCollectionContext();

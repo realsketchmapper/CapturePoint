@@ -1,7 +1,7 @@
 // services/storage/storageService.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PointCollected, CollectedFeature } from '@/types/pointCollected.types';
-import { UtilityFeatureType } from '@/types/features.types';
+import { FeatureType } from '@/types/features.types';
 import { STORAGE_KEYS } from '@/constants/storage';
 
 interface SyncMetadata {
@@ -704,11 +704,11 @@ export const storageService = {
   },
 
   // Feature type management
-  saveFeatureType: async (featureType: UtilityFeatureType, projectId: number): Promise<void> => {
+  saveFeatureType: async (featureType: FeatureType, projectId: number): Promise<void> => {
     try {
       const featureTypesKey = `${STORAGE_KEYS.PROJECT_FEATURE_TYPES_PREFIX}${projectId}`;
       const featureTypesJson = await AsyncStorage.getItem(featureTypesKey);
-      const featureTypes: UtilityFeatureType[] = featureTypesJson ? JSON.parse(featureTypesJson) : [];
+      const featureTypes: FeatureType[] = featureTypesJson ? JSON.parse(featureTypesJson) : [];
       
       // Find existing feature type index
       const existingIndex = featureTypes.findIndex(ft => ft.id === featureType.id);
@@ -728,7 +728,7 @@ export const storageService = {
     }
   },
 
-  getFeatureTypes: async (projectId: number): Promise<UtilityFeatureType[]> => {
+  getFeatureTypes: async (projectId: number): Promise<FeatureType[]> => {
     try {
       const featureTypesKey = `${STORAGE_KEYS.PROJECT_FEATURE_TYPES_PREFIX}${projectId}`;
       const featureTypesJson = await AsyncStorage.getItem(featureTypesKey);
@@ -739,7 +739,7 @@ export const storageService = {
     }
   },
 
-  getFeatureType: async (featureTypeId: number, projectId: number): Promise<UtilityFeatureType | null> => {
+  getFeatureType: async (featureTypeId: number, projectId: number): Promise<FeatureType | null> => {
     try {
       const featureTypes = await storageService.getFeatureTypes(projectId);
       return featureTypes.find(ft => ft.id === featureTypeId) || null;
@@ -753,7 +753,7 @@ export const storageService = {
     try {
       const featureTypesKey = `${STORAGE_KEYS.PROJECT_FEATURE_TYPES_PREFIX}${projectId}`;
       const featureTypesJson = await AsyncStorage.getItem(featureTypesKey);
-      const featureTypes: UtilityFeatureType[] = featureTypesJson ? JSON.parse(featureTypesJson) : [];
+      const featureTypes: FeatureType[] = featureTypesJson ? JSON.parse(featureTypesJson) : [];
       
       const updatedFeatureTypes = featureTypes.filter(ft => ft.id !== featureTypeId);
       await AsyncStorage.setItem(featureTypesKey, JSON.stringify(updatedFeatureTypes));

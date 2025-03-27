@@ -2,7 +2,7 @@ import React, { useMemo, useCallback } from 'react';
 import { StyleSheet, Modal, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { useFeatureContext } from '@/FeatureContext';
 import { MaterialIcons } from '@expo/vector-icons';
-import { UtilityFeatureType } from '@/types/features.types';
+import { FeatureType } from '@/types/features.types';
 import { SvgXml } from 'react-native-svg';
 import { Colors } from '@/theme/colors';
 
@@ -12,7 +12,7 @@ interface FeatureListModalProps {
 }
 
 type GroupedFeatures = {
-  [key: string]: UtilityFeatureType[];
+  [key: string]: FeatureType[];
 }
 
 export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({ 
@@ -54,13 +54,13 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
       }, {});
   }, [featureTypes]);
 
-  const handleFeatureSelect = useCallback((featureType: UtilityFeatureType) => {
+  const handleFeatureSelect = useCallback((featureType: FeatureType) => {
     setSelectedFeatureType(featureType);
     onClose();
   }, [setSelectedFeatureType, onClose]);
 
   // Function to render the appropriate image based on feature type
-  const renderFeatureImage = useCallback((featureType: UtilityFeatureType) => {
+  const renderFeatureImage = useCallback((featureType: FeatureType) => {
     // For line or polygon type features with SVG data
     if ((featureType.geometryType === 'Line' || 
          featureType.geometryType === 'Polygon') && featureType.svg) {

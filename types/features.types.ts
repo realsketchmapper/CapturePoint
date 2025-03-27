@@ -9,7 +9,7 @@ export type GeometryType = 'Point' | 'Line' | 'Polygon';
 export type UtilityCategory = 'Water' | 'Electric' | 'Com' | 'Gas' | 'Other';
 
 // Definition of a type of feature that can be collected
-export interface UtilityFeatureType {
+export interface FeatureType {
     id: number;                // Database ID for this feature type
     name: string;             // e.g. "Water Manhole", "Electric Line"
     category: UtilityCategory;// e.g. "Water", "Electric", "Com"
@@ -31,8 +31,8 @@ export interface UtilityFeatureType {
 export interface CollectedFeature {
     id: number;               // Database ID for this specific collected feature
     client_id: string;        // Local ID for sync
-    featureTypeId: number;    // References the UtilityFeatureType
-    featureType: UtilityFeatureType; // The full feature type object
+    featureTypeId: number;    // References the FeatureType
+    featureType: FeatureType; // The full feature type object
     project_id: number;
     points: PointCollected[];
     attributes: {             // Instance-specific attributes
@@ -60,11 +60,11 @@ export interface FeatureToRender {
 }
 
 export interface FeatureContextType {
-    selectedFeatureType: UtilityFeatureType | null;
-    setSelectedFeatureType: (feature: UtilityFeatureType | null) => void;
+    selectedFeatureType: FeatureType | null;
+    setSelectedFeatureType: (feature: FeatureType | null) => void;
     expandedLayers: Set<string>;
     toggleLayer: (layerName: string) => void;
-    featureTypes: UtilityFeatureType[];
+    featureTypes: FeatureType[];
     isLoading: boolean;
     error: string | null;
     fetchFeatureTypes: (projectId: number) => Promise<void>;

@@ -4,7 +4,7 @@ import { API_ENDPOINTS } from "@/api/endpoints";
 import { storageService } from '../storage/storageService';
 import NetInfo from '@react-native-community/netinfo';
 import { PointCollected, CollectedFeature } from "@/types/pointCollected.types";
-import { UtilityFeatureType } from "@/types/features.types";
+import { FeatureType } from "@/types/features.types";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@/constants/storage';
 import { AppState, AppStateStatus } from 'react-native';
@@ -299,7 +299,7 @@ export const syncService = {
   },
 
   // Convert server feature type to local format
-  convertServerFeatureType: (serverFeatureType: ServerFeatureType): UtilityFeatureType => {
+  convertServerFeatureType: (serverFeatureType: ServerFeatureType): FeatureType => {
     return {
       id: serverFeatureType.id,
       name: serverFeatureType.name,
@@ -318,7 +318,7 @@ export const syncService = {
   },
 
   // Convert server feature to local format
-  convertServerFeature: (serverFeature: ServerFeature, featureType: UtilityFeatureType): CollectedFeature => {
+  convertServerFeature: (serverFeature: ServerFeature, featureType: FeatureType): CollectedFeature => {
     const points: ServerPoint[] = serverFeature.points || [];
     const convertedPoints = points.map(point => ({
       id: point.id,

@@ -4,7 +4,7 @@ import { MarkerView } from '@maplibre/maplibre-react-native';
 import { FeatureMarkersProps } from '@/types/featureMarker.types';
 import { useFeatureContext } from '@/FeatureContext';
 import { CollectedFeature } from '@/types/pointCollected.types';
-import { UtilityFeatureType } from '@/types/features.types';
+import { FeatureType } from '@/types/features.types';
 
 interface ExtendedFeatureMarkersProps {
   features: (CollectedFeature | GeoJSON.Feature)[];
@@ -15,7 +15,7 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = ({ features }) => 
 
   // Create a map of feature types for faster lookup
   const featureTypeMap = useMemo(() => {
-    const map = new Map<number, UtilityFeatureType>();
+    const map = new Map<number, FeatureType>();
     featureTypes.forEach(f => map.set(f.id, f));
     console.log('FeatureMarkers - Feature type map keys:', Array.from(map.keys()));
     return map;
