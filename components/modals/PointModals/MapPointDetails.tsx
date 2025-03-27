@@ -9,7 +9,8 @@ import { AuthContextState } from '@/types/auth.types';
 import { featureTypeService } from '@/services/features/featureTypeService';
 import { ProjectContext } from '@/contexts/ProjectContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
-import { Feature, FeatureToRender } from '@/types/features.types';
+import { UtilityFeatureType, FeatureToRender } from '@/types/features.types';
+import { CollectedFeature } from '@/types/pointCollected.types';
 
 interface MapPointDetailsProps {
   isVisible: boolean;
@@ -92,8 +93,8 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
         }
       };
       
-      // Save back to storage using updatePoint
-      await storageService.updatePoint(updatedPoint);
+      // Save back to storage
+      await storageService.savePoint(updatedPoint);
       setIsEditing(false);
     } catch (error) {
       console.error('Error saving description:', error);
@@ -137,10 +138,10 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 // Fetch and update with active features
                 const activeFeatures = await featureTypeService.fetchActiveFeatures(activeProject.id);
                 // Render each active feature on the map
-                activeFeatures.forEach((feature: Feature) => {
+                activeFeatures.forEach((feature: UtilityFeatureType) => {
                   // Skip features without valid coordinates
-                  if (!feature.coordinates || 
-                      (Array.isArray(feature.coordinates) && feature.coordinates.length < 2)) {
+                  if (!feature.attributes.coordinates || 
+                      (Array.isArray(feature.attributes.coordinates) && feature.attributes.coordinates.length < 2)) {
                     console.warn('Skipping feature with invalid coordinates:', feature.id);
                     return;
                   }
@@ -149,16 +150,16 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                     // Ensure coordinates are in the correct format
                     let formattedCoordinates: [number, number] | [number, number][];
                     
-                    if (feature.type === 'Point') {
+                    if (feature.geometryType === 'Point') {
                       // For points, ensure we have a single coordinate pair
-                      if (!Array.isArray(feature.coordinates)) {
+                      if (!Array.isArray(feature.attributes.coordinates)) {
                         console.warn('Invalid coordinates format for point:', feature.id);
                         return;
                       }
 
-                      if (Array.isArray(feature.coordinates[0])) {
+                      if (Array.isArray(feature.attributes.coordinates[0])) {
                         // Handle nested array format: [[lon, lat]]
-                        const coord = feature.coordinates[0];
+                        const coord = feature.attributes.coordinates[0] as number[];
                         if (!Array.isArray(coord) || coord.length < 2) {
                           console.warn('Invalid nested coordinates for point:', feature.id);
                           return;
@@ -166,25 +167,25 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                         formattedCoordinates = [Number(coord[0]), Number(coord[1])] as [number, number];
                       } else {
                         // Handle flat array format: [lon, lat]
-                        if (feature.coordinates.length < 2) {
+                        if (feature.attributes.coordinates.length < 2) {
                           console.warn('Invalid flat coordinates for point:', feature.id);
                           return;
                         }
                         formattedCoordinates = [
-                          Number(feature.coordinates[0]),
-                          Number(feature.coordinates[1])
+                          Number(feature.attributes.coordinates[0]),
+                          Number(feature.attributes.coordinates[1])
                         ] as [number, number];
                       }
                     } else {
                       // For lines/polygons, ensure we have an array of coordinate pairs
-                      if (!Array.isArray(feature.coordinates)) {
+                      if (!Array.isArray(feature.attributes.coordinates)) {
                         console.warn('Invalid coordinates format for line/polygon:', feature.id);
                         return;
                       }
 
-                      if (Array.isArray(feature.coordinates[0])) {
+                      if (Array.isArray(feature.attributes.coordinates[0])) {
                         // Already in correct format: [[lon, lat], [lon, lat], ...]
-                        formattedCoordinates = feature.coordinates.map(coord => {
+                        formattedCoordinates = feature.attributes.coordinates.map((coord: number[]) => {
                           if (!Array.isArray(coord) || coord.length < 2) {
                             throw new Error('Invalid coordinate pair in line/polygon');
                           }
@@ -192,24 +193,25 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                         });
                       } else {
                         // Convert single pair to array: [lon, lat] -> [[lon, lat]]
-                        if (feature.coordinates.length < 2) {
+                        if (feature.attributes.coordinates.length < 2) {
                           console.warn('Invalid coordinates for line/polygon:', feature.id);
                           return;
                         }
                         formattedCoordinates = [[
-                          Number(feature.coordinates[0]),
-                          Number(feature.coordinates[1])
+                          Number(feature.attributes.coordinates[0]),
+                          Number(feature.attributes.coordinates[1])
                         ] as [number, number]];
                       }
                     }
 
                     const featureToRender: FeatureToRender = {
-                      type: feature.type,
+                      type: feature.geometryType,
                       coordinates: formattedCoordinates,
                       properties: {
                         featureId: feature.id,
+                        featureTypeId: feature.id,
                         name: feature.name,
-                        draw_layer: feature.draw_layer,
+                        category: feature.category
                       }
                     };
                     renderFeature(featureToRender);
