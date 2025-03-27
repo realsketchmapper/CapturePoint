@@ -199,21 +199,56 @@ export const storageService = {
         features[existingFeatureIndex].points = existingPoints;
         features[existingFeatureIndex].updated_at = new Date().toISOString();
       } else {
-        // Add new feature with point
-        featureToSave.points = [{
-          ...point,
-          feature_id: featureToSave.id,
+        // Add new feature with this point
+        features.push({
+          ...featureToSave,
+          points: [point],
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        }];
-        features.push(featureToSave);
+        });
+      }
+      
+      // Save features with verification
+      let saveAttempts = 0;
+      const maxAttempts = 3;
+      let savedSuccessfully = false;
+
+      while (saveAttempts < maxAttempts && !savedSuccessfully) {
+        try {
+          await AsyncStorage.setItem(featuresKey, JSON.stringify(features));
+          
+          // Verify save
+          const verifyJson = await AsyncStorage.getItem(featuresKey);
+          const verifyFeatures = verifyJson ? JSON.parse(verifyJson) : [];
+          const savedFeature = verifyFeatures.find((f: CollectedFeature) => f.client_id === featureToSave.client_id);
+          
+          if (savedFeature) {
+            const savedPoint = savedFeature.points.find((p: PointCollected) => p.client_id === point.client_id);
+            if (savedPoint) {
+              console.log('Point verified in storage');
+              savedSuccessfully = true;
+            } else {
+              console.error('Point verification failed, retrying...');
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+          } else {
+            console.error('Feature verification failed, retrying...');
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        } catch (error) {
+          console.error(`Save attempt ${saveAttempts + 1} failed:`, error);
+        }
+        saveAttempts++;
       }
 
-      // Save features
-      await AsyncStorage.setItem(featuresKey, JSON.stringify(features));
-      console.log('Saved features to storage');
+      if (!savedSuccessfully) {
+        throw new Error('Failed to save point after multiple attempts');
+      }
+
+      console.log('✨ Successfully saved point to storage');
+      console.log('=== Save Point Complete ===\n');
     } catch (error) {
-      console.error('Error saving point:', error);
+      console.error('❌ Error saving point:', error);
       throw error;
     }
   },
@@ -259,7 +294,7 @@ export const storageService = {
       console.log(`Found ${features.length} features:`, features.map(f => ({
         id: f.id,
         client_id: f.client_id,
-        name: f.name,
+        name: f.featureType?.name || 'Unknown feature',
         pointCount: f.points?.length || 0
       })));
 
@@ -403,14 +438,6 @@ export const storageService = {
       return false;
     }
   },
-<<<<<<< HEAD
-  
-  // Clear all points from storage
-  clearAllPoints: async (): Promise<void> => {
-    try {
-      await AsyncStorage.removeItem(STORAGE_KEYS.COLLECTED_POINTS);
-      console.log('All points cleared from storage');
-=======
 
   // Sync metadata management
   getSyncMetadata: async (): Promise<SyncMetadata> => {
@@ -421,7 +448,6 @@ export const storageService = {
         activeProjects: [],
         projectSyncTimes: {}
       };
->>>>>>> 348a764b70443cc6c7b0062fec508b804d967804
     } catch (error) {
       console.error('Error getting sync metadata:', error);
       return {
@@ -447,8 +473,7 @@ export const storageService = {
     }
   },
 
-<<<<<<< HEAD
-  // Clear all data from AsyncStorage except location and token data
+  // Clear all data for testing/debugging
   clearAllData: async (): Promise<void> => {
     try {
       // Get all keys from AsyncStorage
@@ -470,114 +495,6 @@ export const storageService = {
       console.log('All data cleared from AsyncStorage except location and token data');
     } catch (error) {
       console.error('Error clearing data:', error);
-      throw error;
-    }
-  }
-=======
-  // Clear all data for testing/debugging
-  clearAllData: async (): Promise<void> => {
-    try {
-      console.log('\n=== Starting Clear All Data ===');
-      
-      // Get all keys from storage first
-      const allKeys = await AsyncStorage.getAllKeys();
-      console.log(`Found ${allKeys.length} total keys in storage:`, allKeys);
-      
-      // Get active projects
-      const activeProjects = await storageService.getActiveProjects();
-      console.log(`Found ${activeProjects.length} active projects to clear`);
-      
-      // Clear all project data
-      for (const projectId of activeProjects) {
-        console.log(`\nClearing data for project ${projectId}:`);
-        
-        // Clear features and their points
-        const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${projectId}`;
-        console.log(`- Clearing features from ${featuresKey}`);
-        await AsyncStorage.removeItem(featuresKey);
-        
-        // Clear project-specific sync time
-        const syncTimeKey = `${STORAGE_KEYS.LAST_SYNC_TIME}_${projectId}`;
-        console.log(`- Clearing sync time from ${syncTimeKey}`);
-        await AsyncStorage.removeItem(syncTimeKey);
-      }
-      
-      // Clear metadata
-      console.log('\nClearing global metadata:');
-      console.log(`- Clearing ${STORAGE_KEYS.ACTIVE_PROJECTS}`);
-      await AsyncStorage.removeItem(STORAGE_KEYS.ACTIVE_PROJECTS);
-      
-      console.log(`- Clearing ${STORAGE_KEYS.SYNC_METADATA}`);
-      await AsyncStorage.removeItem(STORAGE_KEYS.SYNC_METADATA);
-      
-      // Clear any legacy storage
-      console.log('\nClearing legacy storage keys:');
-      console.log('- Clearing "points"');
-      await AsyncStorage.removeItem('points');
-      
-      // Verify all data is cleared
-      console.log('\nVerifying storage is cleared:');
-      
-      // Check each project's features
-      for (const projectId of activeProjects) {
-        const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${projectId}`;
-        const features = await AsyncStorage.getItem(featuresKey);
-        if (features) {
-          console.error(`❌ Features still exist for project ${projectId}:`, features);
-          console.log('Forcing clear of features...');
-          await AsyncStorage.removeItem(featuresKey);
-          
-          // Double check
-          const checkFeatures = await AsyncStorage.getItem(featuresKey);
-          if (checkFeatures) {
-            throw new Error(`Failed to clear features for project ${projectId}`);
-          }
-        }
-      }
-      
-      // Final verification of all storage
-      const remainingKeys = await AsyncStorage.getAllKeys();
-      const projectKeys = remainingKeys.filter(key => 
-        key.startsWith(STORAGE_KEYS.PROJECT_FEATURES_PREFIX) ||
-        key === STORAGE_KEYS.ACTIVE_PROJECTS ||
-        key === STORAGE_KEYS.SYNC_METADATA ||
-        key === 'points'
-      );
-      
-      if (projectKeys.length > 0) {
-        console.error('\n❌ Some keys still exist after clearing:', projectKeys);
-        // One final attempt to clear everything
-        console.log('Making final attempt to clear remaining keys...');
-        await Promise.all(projectKeys.map(key => AsyncStorage.removeItem(key)));
-        
-        // Final verification
-        const finalKeys = await AsyncStorage.getAllKeys();
-        const finalProjectKeys = finalKeys.filter(key => 
-          key.startsWith(STORAGE_KEYS.PROJECT_FEATURES_PREFIX) ||
-          key === STORAGE_KEYS.ACTIVE_PROJECTS ||
-          key === STORAGE_KEYS.SYNC_METADATA ||
-          key === 'points'
-        );
-        
-        if (finalProjectKeys.length > 0) {
-          throw new Error('Failed to clear all storage keys after multiple attempts');
-        }
-      }
-      
-      // Verify features are gone
-      for (const projectId of activeProjects) {
-        const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${projectId}`;
-        const features = await AsyncStorage.getItem(featuresKey);
-        if (features) {
-          console.error(`❌ Features STILL exist after all clear attempts for project ${projectId}:`, features);
-          throw new Error('Failed to clear features after multiple attempts');
-        }
-      }
-      
-      console.log('\n✨ Successfully cleared all data from local storage');
-      console.log('=== Clear All Data Complete ===\n');
-    } catch (error) {
-      console.error('❌ Error clearing data:', error);
       throw error;
     }
   },
@@ -715,23 +632,8 @@ export const storageService = {
   // Update point in feature
   updatePointInFeature: async (point: PointCollected): Promise<boolean> => {
     try {
-      const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${point.project_id}`;
-      const featuresJson = await AsyncStorage.getItem(featuresKey);
-      if (!featuresJson) return false;
-
-      const features: CollectedFeature[] = JSON.parse(featuresJson);
-      const feature = features.find(f => f.id === point.feature_id);
-      if (!feature) return false;
-
-      const pointIndex = feature.points.findIndex(p => p.client_id === point.client_id);
-      if (pointIndex === -1) return false;
-
-      feature.points[pointIndex] = {
-        ...point,
-        updated_at: new Date().toISOString()
-      };
-
-      await AsyncStorage.setItem(featuresKey, JSON.stringify(features));
+      // Use savePoint instead as it handles all the necessary updates
+      await storageService.savePoint(point);
       return true;
     } catch (error) {
       console.error('Error updating point in feature:', error);
@@ -757,13 +659,14 @@ export const storageService = {
       console.log(`Found ${features.length} features`);
       
       // Find the feature to remove
-      const featureToRemove = features.find(f => f.id === featureId);
+      const featureToRemove: CollectedFeature | undefined = features.find(f => f.id === featureId);
       if (!featureToRemove) {
         console.log('Feature not found');
         return;
       }
       
-      console.log('Removing feature:', featureToRemove);
+      const featureName = featureToRemove.featureType?.name || 'Unknown feature';
+      console.log('Removing feature:', featureName);
       
       // Mark all points as inactive before removing
       if (featureToRemove.points && featureToRemove.points.length > 0) {
@@ -859,5 +762,4 @@ export const storageService = {
       throw error;
     }
   },
->>>>>>> 348a764b70443cc6c7b0062fec508b804d967804
 };

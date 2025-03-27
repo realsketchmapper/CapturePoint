@@ -25,43 +25,43 @@ export interface SyncResult {
   remainingUnsyncedCount?: number; // Number of remaining unsynced features
 }
 
-<<<<<<< HEAD
 // Helper to format a stored point for the API
 const formatPointForAPI = (point: PointCollected) => {
   // Debug log the full point data
-  console.log("Formatting point for API");
+  console.log('Formatting point for API:', JSON.stringify(point, null, 2));
   
-  // Extract coordinates properly based on feature type
-  let longitude, latitude;
+  // Extract coordinates from NMEA data if available
+  let coordinates = point.coordinates;
+  if (point.attributes?.nmeaData?.gga) {
+    const gga = point.attributes.nmeaData.gga;
+    if (typeof gga.longitude === 'number' && typeof gga.latitude === 'number') {
+      coordinates = [gga.longitude, gga.latitude];
+    }
+  }
   
-  try {
-    // For Point features - handle nested coordinate arrays correctly
-    if (point.featureType === 'Point') {
-      if (Array.isArray(point.coordinates)) {
-        if (Array.isArray(point.coordinates[0])) {
-          // Format [[-86.28, 39.76]]
-          longitude = Number(point.coordinates[0][0]);
-          latitude = Number(point.coordinates[0][1]);
-        } else {
-          // Format [-86.28, 39.76]
-          longitude = Number(point.coordinates[0]);
-          latitude = Number(point.coordinates[1]);
-        }
-      } else {
-        // Fallback to NMEA
-        longitude = point.nmeaData?.gga?.longitude || 0;
-        latitude = point.nmeaData?.gga?.latitude || 0;
-      }
-    } else {
-      // For Line/Polygon features - get first point
-      if (Array.isArray(point.coordinates) && Array.isArray(point.coordinates[0])) {
-        longitude = Number(point.coordinates[0][0]);
-        latitude = Number(point.coordinates[0][1]);
-      } else {
-        // Fallback to NMEA
-        longitude = point.nmeaData?.gga?.longitude || 0;
-        latitude = point.nmeaData?.gga?.latitude || 0;
-=======
+  // Create the API point object
+  const apiPoint = {
+    id: point.id,
+    client_id: point.client_id,
+    fcode: point.fcode,
+    coords: coordinates,
+    attributes: {
+      ...point.attributes,
+      nmeaData: point.attributes?.nmeaData || null
+    },
+    project_id: point.project_id,
+    feature_id: point.feature_id,
+    is_active: point.is_active,
+    created_by: point.created_by,
+    created_at: point.created_at,
+    updated_by: point.updated_by,
+    updated_at: point.updated_at
+  };
+  
+  console.log('Formatted point for API:', JSON.stringify(apiPoint, null, 2));
+  return apiPoint;
+};
+
 class SyncManager {
   private syncInterval: NodeJS.Timeout | null = null;
   private isCurrentlySyncing = false;
@@ -86,7 +86,6 @@ class SyncManager {
       if (hasUnsynced) {
         console.log('App has come to foreground and has unsynced changes, triggering sync');
         await this.syncAllProjects();
->>>>>>> 348a764b70443cc6c7b0062fec508b804d967804
       }
     }
     this.appState = nextAppState;
@@ -103,11 +102,6 @@ class SyncManager {
     }
   };
 
-<<<<<<< HEAD
-  console.log("Point formatted for API");
-  return formattedPoint;
-};
-=======
   private async hasUnsyncedChanges(): Promise<boolean> {
     try {
       const activeProjects = await storageService.getActiveProjects();
@@ -197,7 +191,6 @@ class SyncManager {
 
 // Create singleton instance
 export const syncManager = new SyncManager();
->>>>>>> 348a764b70443cc6c7b0062fec508b804d967804
 
 export const syncService = {
   // Check if device is online
@@ -218,7 +211,6 @@ export const syncService = {
           errorMessage: 'No stored credentials found'
         };
       }
-<<<<<<< HEAD
       
       // Check if online
       const online = await syncService.isOnline();
@@ -232,152 +224,69 @@ export const syncService = {
         };
       }
       
-      // Get unsynced points for this project from storageService
+      // Get unsynced points for this project
       const unsyncedPoints = await storageService.getUnsyncedPointsForProject(projectId);
-      console.log(`📊 Found ${unsyncedPoints.length} unsynced points for project ${projectId}`);
-      
+      console.log(`Found ${unsyncedPoints.length} unsynced points`);
+
       if (unsyncedPoints.length === 0) {
-        console.log("✅ No points to sync");
-        return { 
-          success: true, 
-          syncedCount: 0, 
-          failedCount: 0 
+        console.log('No unsynced points to sync');
+        return {
+          success: true,
+          syncedCount: 0,
+          failedCount: 0
         };
       }
-      
-      // Format points as expected by the backend
-      console.log("🔄 Formatting points for API...");
-      const formattedPoints = unsyncedPoints.map(formatPointForAPI);
-      
-      // Construct the endpoint URL with the project ID
-      const endpoint = API_ENDPOINTS.SYNC_POINTS.replace(':projectId', projectId.toString());
-      console.log(`🌐 Making API call to: ${endpoint}`);
-      
-      // Send points to server with explicit error handling
-      try {
-        // Structure the payload to match server expectations
-        const payload = {
-          features: formattedPoints.map(point => ({
-            client_id: point.client_id,
-            category: point.category,
-            type: point.type,
-            name: point.name,
-            project_id: point.project_id,
-            attributes: {
-              ...point.properties,
-              description: point.description
-            },
-            created_by: point.created_by,
-            created_at: point.created_at,
-            points: [{
-              client_id: point.client_id,
-              coords: point.coords,
-              attributes: {
-                nmea_data: point.nmea_data
-              },
-              created_by: point.created_by,
-              created_at: point.created_at
-            }]
-          }))
-        };
-        
-        console.log('📦 Request payload sent');
-        
-        const response = await api.post(endpoint, payload);
-        
-        console.log('📥 API response received');
-        
-        if (response.data && response.data.success) {
-          const syncedIds = response.data.syncedIds || 
-                           response.data.created_ids || 
-                           unsyncedPoints.map(p => p.id);
-          
-          console.log(`✅ Successfully synced ${syncedIds.length} points`);
-          
-          // Mark as synced in local storage if we have synced IDs
-          if (syncedIds && syncedIds.length > 0) {
-            await storageService.markPointsAsSynced(syncedIds);
-            console.log(`📝 Marked ${syncedIds.length} points as synced in local storage`);
-          } else {
-            console.log("⚠️ No points were synced, but API returned success");
-=======
 
-      // Get unsynced features from storage
-      const unsyncedFeatures = await storageService.getUnsyncedFeatures(projectId);
-      console.log(`Found ${unsyncedFeatures.length} unsynced features`);
-
-      // Get feature types for this project
-      const featureTypes = await storageService.getFeatureTypes(projectId);
-      const featureTypeMap = new Map(featureTypes.map(ft => [ft.id, ft]));
-
-      // Prepare data for sync
-      const syncData = unsyncedFeatures.map(feature => ({
-        id: feature.id,
-        client_id: feature.client_id,
-        featureTypeId: feature.featureTypeId,
-        project_id: feature.project_id,
-        attributes: feature.attributes,
-        is_active: feature.is_active,
-        points: feature.points.map(point => ({
-          id: point.id,
-          client_id: point.client_id,
-          fcode: point.fcode,
-          coords: point.coordinates,
-          attributes: point.attributes,
-          is_active: point.is_active
-        }))
+      // Format points for API
+      const formattedPoints = unsyncedPoints.map(point => ({
+        id: point.id,
+        client_id: point.client_id,
+        fcode: point.fcode,
+        coords: point.coordinates,
+        attributes: {
+          ...point.attributes,
+          category: point.attributes.category || '',
+          type: point.attributes.type || '',
+          name: point.attributes.name || '',
+          properties: point.attributes.properties || {},
+          description: point.attributes.description || '',
+          nmea_data: point.attributes.nmeaData || null
+        },
+        project_id: point.project_id,
+        feature_id: point.feature_id,
+        is_active: point.is_active,
+        created_by: point.created_by,
+        created_at: point.created_at,
+        updated_by: point.updated_by,
+        updated_at: point.updated_at
       }));
 
-      // Send data to server
+      // Send points to server
       const endpoint = API_ENDPOINTS.SYNC_POINTS.replace(':projectId', projectId.toString());
-      const response = await api.post(endpoint, { features: syncData });
+      const response = await api.post(endpoint, { points: formattedPoints });
 
       if (response.data.success) {
-        const serverFeatures = response.data.features as ServerFeature[];
-        console.log(`Received ${serverFeatures.length} features from server`);
-
-        // Process server features
-        for (const serverFeature of serverFeatures) {
-          const featureType = featureTypeMap.get(serverFeature.featureTypeId);
-          if (!featureType) {
-            console.warn(`No feature type found for ID ${serverFeature.featureTypeId}`);
-            continue;
->>>>>>> 348a764b70443cc6c7b0062fec508b804d967804
-          }
-
-          const localFeature = convertServerFeature(serverFeature, featureType);
-          await storageService.saveFeature(localFeature);
-        }
-
-        // Update last sync time
-        const serverTime = response.data.serverTime || new Date().toISOString();
-        await AsyncStorage.setItem(
-          `${STORAGE_KEYS.LAST_SYNC_TIME}_${projectId}`,
-          serverTime
-        );
-
-        // Update unsynced count
-        const remainingUnsynced = await storageService.getUnsyncedFeatures(projectId);
-        await AsyncStorage.setItem(
-          `${STORAGE_KEYS.UNSYNCED_COUNT}_${projectId}`,
-          remainingUnsynced.length.toString()
+        // Mark points as synced
+        await storageService.markPointsAsSynced(
+          response.data.syncedIds || [],
+          projectId
         );
 
         return {
           success: true,
-          syncedCount: serverFeatures.length,
-          failedCount: 0,
-          remainingUnsyncedCount: remainingUnsynced.length,
-          lastServerSync: serverTime
+          syncedCount: response.data.syncedIds ? response.data.syncedIds.length : 0,
+          failedCount: response.data.created_ids ? response.data.created_ids.length : 0,
+          errorMessage: response.data.error ? response.data.error : undefined
+        };
+      } else {
+        console.error('Error in syncPoints:', response.data.error);
+        return {
+          success: false,
+          syncedCount: 0,
+          failedCount: response.data.created_ids ? response.data.created_ids.length : 0,
+          errorMessage: response.data.error ? response.data.error : 'Unknown error'
         };
       }
-
-      return {
-        success: false,
-        syncedCount: 0,
-        failedCount: unsyncedFeatures.length,
-        errorMessage: response.data.error || 'Unknown error'
-      };
     } catch (error) {
       console.error('Error in syncPoints:', error);
       return {
