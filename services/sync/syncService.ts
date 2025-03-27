@@ -3,7 +3,8 @@ import { api } from "@/api/clients";
 import { API_ENDPOINTS } from "@/api/endpoints";
 import { storageService } from '../storage/storageService';
 import NetInfo from '@react-native-community/netinfo';
-import { PointCollected, CollectedFeature } from "@/types/pointCollected.types";
+import { PointCollected } from "@/types/pointCollected.types";
+import { CollectedFeature } from "@/types/features.types";
 import { FeatureType } from "@/types/features.types";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@/constants/storage';
@@ -23,13 +24,11 @@ export interface SyncResult {
   mergeCount?: number; // Number of records that required merging
   lastServerSync?: string; // Server's last sync timestamp
   remainingUnsyncedCount?: number; // Number of remaining unsynced features
+  featureUpdates?: number; // Number of features updated
 }
 
 // Helper to format a stored point for the API
 const formatPointForAPI = (point: PointCollected) => {
-  // Debug log the full point data
-  console.log('Formatting point for API:', JSON.stringify(point, null, 2));
-  
   // Extract coordinates from NMEA data if available
   let coordinates = point.coordinates;
   if (point.attributes?.nmeaData?.gga) {
@@ -58,7 +57,6 @@ const formatPointForAPI = (point: PointCollected) => {
     updated_at: point.updated_at
   };
   
-  console.log('Formatted point for API:', JSON.stringify(apiPoint, null, 2));
   return apiPoint;
 };
 
@@ -123,7 +121,7 @@ class SyncManager {
       clearInterval(this.syncInterval);
     }
     
-    // Sync every 15 minutes instead of 5
+    // Sync every 15 minutes
     this.syncInterval = setInterval(async () => {
       if (!this.isCurrentlySyncing) {
         const hasUnsynced = await this.hasUnsyncedChanges();
@@ -151,11 +149,13 @@ class SyncManager {
       let totalSynced = 0;
       let totalFailed = 0;
       let lastError = '';
+      let featureUpdates = 0;
 
       for (const projectId of activeProjects) {
-        const result = await syncService.syncPoints(projectId);
+        const result = await syncService.syncProject(projectId);
         if (result.success) {
           totalSynced += result.syncedCount;
+          featureUpdates += result.featureUpdates || 0;
         } else {
           totalFailed += result.failedCount;
           lastError = result.errorMessage || 'Unknown error';
@@ -166,7 +166,8 @@ class SyncManager {
         success: totalFailed === 0,
         syncedCount: totalSynced,
         failedCount: totalFailed,
-        errorMessage: totalFailed > 0 ? lastError : undefined
+        errorMessage: totalFailed > 0 ? lastError : undefined,
+        featureUpdates
       };
     } catch (error) {
       console.error('Error in syncAllProjects:', error);
@@ -198,9 +199,9 @@ export const syncService = {
     const state = await NetInfo.fetch();
     return !!state.isConnected;
   },
-  
-  // Sync points with the server for a specific project
-  syncPoints: async (projectId: number): Promise<SyncResult> => {
+
+  // Sync a single project
+  syncProject: async (projectId: number): Promise<SyncResult> => {
     try {
       const credentialsJson = await AsyncStorage.getItem(STORAGE_KEYS.USER_CREDENTIALS);
       if (!credentialsJson) {
@@ -223,7 +224,24 @@ export const syncService = {
           errorMessage: 'Device is offline' 
         };
       }
-      
+
+      // Sync points
+      const pointsResult = await syncService.syncPoints(projectId);
+      return pointsResult;
+    } catch (error) {
+      console.error('Error in syncProject:', error);
+      return {
+        success: false,
+        syncedCount: 0,
+        failedCount: 0,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  },
+  
+  // Sync points with the server for a specific project
+  syncPoints: async (projectId: number): Promise<SyncResult> => {
+    try {
       // Get unsynced points for this project
       const unsyncedPoints = await storageService.getUnsyncedPointsForProject(projectId);
       console.log(`Found ${unsyncedPoints.length} unsynced points`);
@@ -237,21 +255,12 @@ export const syncService = {
         };
       }
 
-      // Format points for API
+      // Format points for sync
       const formattedPoints = unsyncedPoints.map(point => ({
-        id: point.id,
         client_id: point.client_id,
         fcode: point.fcode,
         coords: point.coordinates,
-        attributes: {
-          ...point.attributes,
-          category: point.attributes.category || '',
-          type: point.attributes.type || '',
-          name: point.attributes.name || '',
-          properties: point.attributes.properties || {},
-          description: point.attributes.description || '',
-          nmea_data: point.attributes.nmeaData || null
-        },
+        attributes: point.attributes,
         project_id: point.project_id,
         feature_id: point.feature_id,
         is_active: point.is_active,
@@ -261,30 +270,120 @@ export const syncService = {
         updated_at: point.updated_at
       }));
 
+      // Group points by feature
+      const features = unsyncedPoints.reduce((acc, point) => {
+        const featureId = point.attributes?.featureTypeId || 0;
+        if (!acc[featureId]) {
+          acc[featureId] = {
+            client_id: `feature_${point.client_id}`,
+            category: point.attributes?.category || '',
+            type: point.attributes?.type || 'Point',
+            name: point.attributes?.name || '',
+            project_id: projectId,
+            attributes: point.attributes || {},
+            points: []
+          };
+        }
+        acc[featureId].points.push(formattedPoints.find(p => p.client_id === point.client_id));
+        return acc;
+      }, {} as Record<number, any>);
+
+      const requestPayload = {
+        features: Object.values(features),
+        last_sync: await storageService.getLastSyncTime(projectId)
+      };
+
       // Send points to server
-      const endpoint = API_ENDPOINTS.SYNC_POINTS.replace(':projectId', projectId.toString());
-      const response = await api.post(endpoint, { points: formattedPoints });
+      const endpoint = `${API_ENDPOINTS.BASE_URL}${API_ENDPOINTS.SYNC_POINTS.replace(':projectId', projectId.toString())}`;
+      console.log('Syncing points to endpoint:', endpoint);
+      console.log('Request payload:', requestPayload);
+      
+      try {
+        const response = await api.post(endpoint, requestPayload);
+        console.log('API Response:', response.data);
 
-      if (response.data.success) {
-        // Mark points as synced
-        await storageService.markPointsAsSynced(
-          response.data.syncedIds || [],
-          projectId
-        );
+        if (response.data.success) {
+          // Mark points as synced
+          await storageService.markPointsAsSynced(
+            response.data.syncedIds || [],
+            projectId
+          );
 
-        return {
-          success: true,
-          syncedCount: response.data.syncedIds ? response.data.syncedIds.length : 0,
-          failedCount: response.data.created_ids ? response.data.created_ids.length : 0,
-          errorMessage: response.data.error ? response.data.error : undefined
-        };
-      } else {
-        console.error('Error in syncPoints:', response.data.error);
+          // Handle server points if any were returned
+          if (response.data.serverPoints) {
+            const serverPoints = response.data.serverPoints;
+            let featureUpdates = 0;
+
+            console.log(`Processing ${serverPoints.length} server points`);
+
+            for (const serverPoint of serverPoints) {
+              // Get the feature type for this point
+              const featureType = await storageService.getFeatureType(
+                serverPoint.attributes.featureTypeId,
+                projectId
+              );
+
+              if (!featureType) {
+                console.error(`Feature type not found for point ${serverPoint.client_id}`);
+                continue;
+              }
+
+              // Convert and save the point
+              const point: PointCollected = {
+                id: serverPoint.id,
+                client_id: serverPoint.client_id,
+                fcode: serverPoint.fcode,
+                coordinates: serverPoint.coords,
+                attributes: {
+                  ...serverPoint.attributes,
+                  featureTypeId: featureType.id
+                },
+                project_id: projectId,
+                feature_id: serverPoint.feature_id,
+                is_active: serverPoint.is_active,
+                created_by: serverPoint.created_by,
+                created_at: serverPoint.created_at,
+                updated_by: serverPoint.updated_by,
+                updated_at: serverPoint.updated_at
+              };
+
+              await storageService.savePoint(point);
+              featureUpdates++;
+            }
+
+            return {
+              success: true,
+              syncedCount: response.data.syncedIds ? response.data.syncedIds.length : 0,
+              failedCount: response.data.created_ids ? response.data.created_ids.length : 0,
+              errorMessage: response.data.error ? response.data.error : undefined,
+              lastServerSync: response.data.serverTime,
+              featureUpdates
+            };
+          }
+
+          return {
+            success: true,
+            syncedCount: response.data.syncedIds ? response.data.syncedIds.length : 0,
+            failedCount: response.data.created_ids ? response.data.created_ids.length : 0,
+            errorMessage: response.data.error ? response.data.error : undefined,
+            lastServerSync: response.data.serverTime
+          };
+        } else {
+          console.error('Error in syncPoints:', response.data.error);
+          return {
+            success: false,
+            syncedCount: 0,
+            failedCount: response.data.created_ids ? response.data.created_ids.length : 0,
+            errorMessage: response.data.error ? response.data.error : 'Unknown error'
+          };
+        }
+      } catch (error) {
+        console.error('Error in syncPoints:', error);
         return {
           success: false,
           syncedCount: 0,
-          failedCount: response.data.created_ids ? response.data.created_ids.length : 0,
-          errorMessage: response.data.error ? response.data.error : 'Unknown error'
+          failedCount: 0,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
         };
       }
     } catch (error) {
@@ -296,61 +395,5 @@ export const syncService = {
         errorMessage: error instanceof Error ? error.message : 'Unknown error'
       };
     }
-  },
-
-  // Convert server feature type to local format
-  convertServerFeatureType: (serverFeatureType: ServerFeatureType): FeatureType => {
-    return {
-      id: serverFeatureType.id,
-      name: serverFeatureType.name,
-      category: serverFeatureType.category,
-      geometryType: serverFeatureType.geometryType,
-      image_url: serverFeatureType.image_url,
-      svg: serverFeatureType.svg,
-      color: serverFeatureType.color,
-      line_weight: serverFeatureType.line_weight,
-      dash_pattern: serverFeatureType.dash_pattern,
-      z_value: serverFeatureType.z_value,
-      draw_layer: serverFeatureType.draw_layer,
-      is_active: serverFeatureType.is_active,
-      attributes: serverFeatureType.attributes
-    };
-  },
-
-  // Convert server feature to local format
-  convertServerFeature: (serverFeature: ServerFeature, featureType: FeatureType): CollectedFeature => {
-    const points: ServerPoint[] = serverFeature.points || [];
-    const convertedPoints = points.map(point => ({
-      id: point.id,
-      client_id: point.client_id,
-      fcode: point.fcode,
-      coordinates: point.coords,
-      attributes: {
-        featureTypeId: serverFeature.featureTypeId,  // Required field first
-        ...point.attributes  // Additional attributes after
-      },
-      project_id: serverFeature.project_id,
-      feature_id: serverFeature.id,
-      is_active: point.is_active,
-      created_by: point.created_by,
-      created_at: point.created_at,
-      updated_by: point.updated_by,
-      updated_at: point.updated_at
-    }));
-
-    return {
-      id: serverFeature.id,
-      client_id: serverFeature.client_id,
-      featureTypeId: serverFeature.featureTypeId,
-      featureType: featureType,
-      project_id: serverFeature.project_id,
-      points: convertedPoints,
-      attributes: serverFeature.attributes,
-      is_active: serverFeature.is_active,
-      created_by: serverFeature.created_by,
-      created_at: serverFeature.created_at,
-      updated_by: serverFeature.updated_by,
-      updated_at: serverFeature.updated_at
-    };
   }
 };

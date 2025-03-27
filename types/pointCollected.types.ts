@@ -1,22 +1,5 @@
 import { GGAData, GSTData } from "./nmea.types";
-import { UtilityFeatureType } from "./features.types";
-
-export interface CollectedFeature {
-  id: number;               // Database ID for this specific collected feature
-  client_id: string;        // Local ID for sync
-  featureTypeId: number;    // References the UtilityFeatureType
-  featureType: UtilityFeatureType; // The full feature type object
-  project_id: number;
-  points: PointCollected[];
-  attributes: {             // Instance-specific attributes
-    [key: string]: any;
-  };
-  is_active: boolean;
-  created_by: number | null;
-  created_at: string;
-  updated_by: number | null;
-  updated_at: string;
-}
+import { FeatureType } from "./features.types";
 
 export interface PointCollected {
   id: number | null;  // null indicates unsynced point

@@ -1,8 +1,8 @@
 // contexts/CollectionContext.tsx
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Position, CollectionContextType, CollectionState } from '@/types/collection.types';
-import { Feature, FeatureToRender } from '@/types/features.types';
-import { PointCollected, CollectedFeature } from '@/types/pointCollected.types';
+import { CollectedFeature, FeatureToRender } from '@/types/features.types';
+import { PointCollected } from '@/types/pointCollected.types';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { AuthContext } from '@/contexts/AuthContext';
@@ -22,7 +22,7 @@ interface ExtendedCollectionContextType extends CollectionContextType {
   currentPoints: [number, number][];
   
   // Collection operations
-  startCollection: (initialPosition: Position, feature: Feature) => CollectionState;
+  startCollection: (initialPosition: Position, feature: CollectedFeature) => CollectionState;
   recordPoint: (position?: Position) => boolean;
   stopCollection: () => void;
   
@@ -104,7 +104,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [currentLocation]);
   
   // Start collecting points
-  const startCollection = useCallback((initialPosition: Position, feature: Feature): CollectionState => {
+  const startCollection = useCallback((initialPosition: Position, feature: CollectedFeature): CollectionState => {
     const pointCoordinates = getValidCoordinates(initialPosition);
     
     if (!pointCoordinates) {
@@ -166,10 +166,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const points = state?.points || collectionState.points;
 
     console.log('\n=== Saving Point ===');
-    console.log('Points:', points);
-    console.log('Properties:', properties);
-    console.log('GGA Data:', ggaData);
-    console.log('GST Data:', gstData);
+  
 
     if (!activeFeature || points.length === 0
       || !ggaData?.latitude || !ggaData?.longitude || !gstData?.rmsTotal) {
@@ -211,7 +208,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           category: activeFeature.draw_layer,  // Required for collected_features table
           type: activeFeature.type,           // Required for collected_features table
           featureType: activeFeature.type,    // Keep for backwards compatibility
-          style: properties.style
+          style: properties.style,
+          featureTypeId: activeFeature.id     // Add the feature type ID
         },
         project_id: activeProject?.id || 0,
         feature_id: activeFeature.id,
@@ -262,16 +260,23 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       let result;
       
-      if (activeProject) {
-        // If we have an active project, sync points for that project
-        result = await syncService.syncPoints(activeProject.id);
-      } else {
-        // If no active project, sync all points
-        result = await syncService.syncPoints(0); // 0 indicates sync all projects
+      // Get unsynced points to determine which project to sync
+      const unsyncedPoints = await storageService.getUnsyncedPoints();
+      if (unsyncedPoints.length === 0) {
+        console.log('No unsynced points to sync');
+        setSyncStatus(prev => ({ ...prev, isSyncing: false }));
+        return true;
       }
 
+      // Use the project ID from the first unsynced point
+      const projectId = unsyncedPoints[0].project_id;
+      console.log('Syncing points for project:', projectId);
+      
+      result = await syncService.syncPoints(projectId);
+
       // Update sync status based on the actual remaining unsynced count
-      const unsyncedCount = result.remainingUnsyncedCount ?? 0;
+      const remainingUnsynced = await storageService.getUnsyncedPoints();
+      const unsyncedCount = remainingUnsynced.length;
       console.log('Setting unsynced count to:', unsyncedCount);
       
       setSyncStatus({
@@ -295,7 +300,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
 
           // For point features, we need to render each point individually
-          if (feature.type === 'Point') {
+          if (feature.attributes?.featureType === 'Point') {
             feature.points.forEach(point => {
               if (!point.coordinates || point.coordinates.length < 2) {
                 console.log(`Skipping point ${point.client_id} - invalid coordinates`);
@@ -303,12 +308,13 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               }
               
               const featureToRender: FeatureToRender = {
-                type: feature.type,
+                type: feature.attributes?.featureType,
                 coordinates: point.coordinates as [number, number],
                 properties: {
                   featureId: feature.id,
-                  name: feature.name,
-                  draw_layer: feature.attributes?.draw_layer,
+                  featureTypeId: feature.attributes?.featureTypeId,
+                  name: feature.attributes?.name,
+                  category: feature.attributes?.category,
                   style: feature.attributes?.style
                 }
               };
@@ -326,12 +332,13 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
             
             const featureToRender: FeatureToRender = {
-              type: feature.type,
+              type: feature.attributes?.featureType,
               coordinates: coordinates,
               properties: {
                 featureId: feature.id,
-                name: feature.name,
-                draw_layer: feature.attributes?.draw_layer,
+                featureTypeId: feature.attributes?.featureTypeId,
+                name: feature.attributes?.name,
+                category: feature.attributes?.category,
                 style: feature.attributes?.style
               }
             };

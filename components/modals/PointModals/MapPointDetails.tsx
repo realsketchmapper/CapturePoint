@@ -9,8 +9,7 @@ import { AuthContextState } from '@/types/auth.types';
 import { featureTypeService } from '@/services/features/featureTypeService';
 import { ProjectContext } from '@/contexts/ProjectContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
-import { FeatureType, FeatureToRender } from '@/types/features.types';
-import { CollectedFeature } from '@/types/pointCollected.types';
+import { FeatureType, FeatureToRender, CollectedFeature } from '@/types/features.types';
 
 interface MapPointDetailsProps {
   isVisible: boolean;

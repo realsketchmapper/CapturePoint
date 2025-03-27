@@ -3,7 +3,7 @@ import { API_ENDPOINTS } from './endpoints';
 import { tokenStorage } from '@/services/auth/tokenStorage';
 
 const api = axios.create({
-  baseURL: API_ENDPOINTS.BASE_URL,
+  baseURL: API_ENDPOINTS.BASE_URL + '/',
   headers: {
     'Accept': 'application/json',
     'Content-Type': 'application/json',

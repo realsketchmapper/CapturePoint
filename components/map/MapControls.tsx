@@ -20,15 +20,15 @@ import CurrentPositionMarker from './CurrentPositionMarker';
 import FeatureMarkers from './FeatureMarkers';
 import MapPointDetails from '@/components/modals/PointModals/MapPointDetails';
 import { storageService } from '@/services/storage/storageService';
-import { PointCollected, CollectedFeature } from '@/types/pointCollected.types';
-import { Feature, GeoJsonProperties, Geometry, Point } from 'geojson';
+import { PointCollected } from '@/types/pointCollected.types';
+import { CollectedFeature } from '@/types/features.types';
 import { Colors } from '@/theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@/constants/storage';
-import { ProjectContext } from '@/contexts/ProjectContext';
+
 
 export const MapControls: React.FC = () => {
-  const { features, isMapReady, setIsMapReady, refreshFeatures } = useMapContext();
+  const { features, isMapReady, setIsMapReady, refreshFeatures, clearFeatures } = useMapContext();
   const { currentLocation } = useLocationContext();
   const { settings } = useSettingsContext();
   const { activeProject } = useProjectContext();
@@ -111,7 +111,6 @@ export const MapControls: React.FC = () => {
           f.geometry.type === 'Point' && 
           (f.properties?.featureId || f.properties?.isLinePoint)
         );
-        console.log('Available point features:', pointFeatures);
 
         // Find closest feature to click point
         const clickCoords = event.geometry.coordinates;
@@ -161,10 +160,9 @@ export const MapControls: React.FC = () => {
         
         // Find the feature that contains this point
         let matchedPoint: PointCollected | null = null;
-        
-        for (const feature of storedFeatures) {
-          if (feature.points) {
-            matchedPoint = feature.points.find(p => 
+        for (const storedFeature of storedFeatures) {
+          if (storedFeature.points) {
+            matchedPoint = storedFeature.points.find((p: PointCollected) => 
               Math.abs(p.coordinates[0] - featureCoords[0]) < 0.0000001 && 
               Math.abs(p.coordinates[1] - featureCoords[1]) < 0.0000001
             ) || null;
@@ -172,7 +170,7 @@ export const MapControls: React.FC = () => {
             if (matchedPoint) break;
           }
         }
-
+        
         console.log('Matched point from storage:', matchedPoint);
         
         if (matchedPoint) {
@@ -218,10 +216,9 @@ export const MapControls: React.FC = () => {
         
         // Find the feature that contains this point
         let matchedPoint: PointCollected | null = null;
-        
-        for (const feature of storedFeatures) {
-          if (feature.points) {
-            matchedPoint = feature.points.find(p => 
+        for (const storedFeature of storedFeatures) {
+          if (storedFeature.points) {
+            matchedPoint = storedFeature.points.find((p: PointCollected) => 
               Math.abs(p.coordinates[0] - featureCoords[0]) < 0.0000001 && 
               Math.abs(p.coordinates[1] - featureCoords[1]) < 0.0000001
             ) || null;
@@ -229,7 +226,7 @@ export const MapControls: React.FC = () => {
             if (matchedPoint) break;
           }
         }
-
+        
         console.log('Matched point from storage:', matchedPoint);
         
         if (matchedPoint) {
@@ -261,7 +258,7 @@ export const MapControls: React.FC = () => {
       console.log('\n=== Starting Clear Storage ===');
       
       // Clear all points for the active project
-      await storageService.clearAllPoints();
+      await storageService.clearAllPoints(activeProject.id);
       
       // Refresh the map
       refreshFeatures();

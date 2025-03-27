@@ -3,6 +3,7 @@ import { FeatureType, FeatureContextType } from '@/types/features.types';
 import { featureTypeService } from '@/services/features/featureTypeService';
 import { Image } from 'react-native';
 import { FeatureProviderProps } from '@/types/features.types';
+import { storageService } from '@/services/storage/storageService';
 
 export const FeatureContext = createContext<FeatureContextType | undefined>(undefined);
 
@@ -45,7 +46,7 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
         .filter(featureType => featureType.geometryType === 'Point' && featureType.image_url)
         .map(featureType => featureType.image_url as string);
       
-      console.log('Found image URLs:', imageUrls);
+      console.log(`Found ${imageUrls.length} image URLs to preload`);
       
       // Preload all images
       if (imageUrls.length > 0) {
@@ -78,7 +79,10 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
       setIsLoading(true);
       setError(null);
       const fetchedFeatureTypes = await featureTypeService.fetchFeatureTypes(projectId);
-      console.log('Fetched feature types:', fetchedFeatureTypes);
+      
+      // Save feature types to AsyncStorage
+      await storageService.saveFeatureTypes(fetchedFeatureTypes, projectId);
+      
       setFeatureTypes(fetchedFeatureTypes);
       setFeaturesLoaded(true);
     } catch (err) {
