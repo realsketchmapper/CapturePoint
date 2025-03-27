@@ -33,8 +33,8 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
-    // Only check for success field if it exists, otherwise just return the response
-    if (response.data && 'success' in response.data && !response.data.success) {
+    // Only check for success field if response.data is an object
+    if (response.data && typeof response.data === 'object' && 'success' in response.data && !response.data.success) {
       throw new Error(response.data.error || 'API request failed');
     }
     return response;
@@ -59,6 +59,5 @@ api.interceptors.response.use(
     
     return Promise.reject(error);
   }
-);
+);export { api };
 
-export { api };

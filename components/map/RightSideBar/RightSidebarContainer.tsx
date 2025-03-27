@@ -3,6 +3,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CollectionButton from './CollectionButton';
+import ClearDataButton from './ClearDataButton';
 
 export const RightSidebarContainer: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -19,6 +20,7 @@ export const RightSidebarContainer: React.FC = () => {
       ]}
     >
       <CollectionButton />
+      <ClearDataButton />
     </View>
   );
 };

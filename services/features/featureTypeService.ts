@@ -1,9 +1,9 @@
 import { api } from "@/api/clients";
-import { Feature } from "@/types/features.types";
+import { UtilityFeatureType } from "@/types/features.types";
 import { API_ENDPOINTS } from "@/api/endpoints";
 
 export const featureTypeService = {
-  fetchProjectFeatures: async (projectId: number): Promise<Feature[]> => {
+  fetchFeatureTypes: async (projectId: number): Promise<UtilityFeatureType[]> => {
     try {
       console.log("projectId in feature service:", projectId);
       const endpoint = API_ENDPOINTS.PROJECT_FEATURES.replace(':projectId', projectId.toString()).replace(/^\//, '');
@@ -33,12 +33,12 @@ export const featureTypeService = {
       }
       throw new Error('Failed to fetch features');
     } catch (error) {
-      console.error('Error in fetchProjectFeatures:', error);
+      console.error('Error in fetchFeatureTypes:', error);
       throw error;
     }
   },
 
-  fetchActiveFeatures: async (projectId: number): Promise<Feature[]> => {
+  fetchActiveFeatures: async (projectId: number): Promise<UtilityFeatureType[]> => {
     try {
       console.log("Fetching active features for project:", projectId);
       // Remove the leading slash since the base URL will include it

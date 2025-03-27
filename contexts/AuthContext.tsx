@@ -15,6 +15,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const initializationAttempted = useRef(false);
+  const isInitialAuthComplete = useRef(false);
 
   // Check auth state when the app loads
   useEffect(() => {
@@ -25,13 +26,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         setIsLoading(true);
         const userData = await AuthService.getCurrentUser();
+        // Combine state updates into a single batch
         setUser(userData);
+        setIsInitialized(true);
+        isInitialAuthComplete.current = true;
       } catch (error) {
         console.error('Auth state check failed:', error);
         setUser(null);
+        setIsInitialized(true);
+        isInitialAuthComplete.current = true;
       } finally {
         setIsLoading(false);
-        setIsInitialized(true);
       }
     };
 
@@ -42,11 +47,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     
-    // Skip if no user or already fully online
-    if (!user || (user && !user.isOffline)) return;
+    // Skip if initial auth isn't complete or no user
+    if (!isInitialAuthComplete.current || !user) return;
+    
+    // Skip if user is already online
+    if (!user.isOffline) return;
 
     const handleNetworkChange = async (isConnected: boolean) => {
-      if (isConnected && user?.isOffline) {
+      if (isConnected && user.isOffline) {
         // Clear any existing timeout
         if (timeoutId) clearTimeout(timeoutId);
         
