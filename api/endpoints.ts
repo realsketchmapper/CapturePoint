@@ -5,5 +5,6 @@ export const API_ENDPOINTS = {
     SYNC_POINTS: '/:projectId/sync-points',
     VALIDATE_TOKEN: '/validate/',
     INACTIVATE_FEATURE: '/:projectId/inactivate-feature',
-    ACTIVE_FEATURES: '/:projectId/active-features'
+    ACTIVE_PROJECT_COLLECTED_FEATURES: '/:projectId/active-features',
+    PROJECT_FEATURES: '/projects/:projectId/features'
 } as const;
