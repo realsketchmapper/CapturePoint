@@ -14,7 +14,20 @@ export const generateId = () => {
   return uuidv4();
 };
 
+// Validate if a string is a properly formatted client ID
+export const isValidClientId = (id: string): boolean => {
+  // Client IDs should be 20 characters long and contain only alphanumeric characters
+  return /^[a-zA-Z0-9]{20}$/.test(id);
+};
+
 export const generateClientId = () => {
   // Generate a shorter unique ID for client_id (20 chars max)
-  return uuidv4().replace(/-/g, '').substring(0, 20);
+  const id = uuidv4().replace(/-/g, '').substring(0, 20);
+  
+  // Validate the generated ID
+  if (!isValidClientId(id)) {
+    throw new Error('Generated client ID is invalid');
+  }
+  
+  return id;
 };

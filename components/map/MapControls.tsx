@@ -99,7 +99,7 @@ export const MapControls: React.FC = () => {
       const queryResult = await mapRef.current?.queryRenderedFeaturesAtPoint(
         [event.properties.screenPointX, event.properties.screenPointY],
         undefined,
-        ['collectedData']
+        ['point-features']
       ) || { features: [] };
       console.log('Query result:', queryResult);
 
@@ -109,7 +109,7 @@ export const MapControls: React.FC = () => {
         // Get all point features from the map
         const pointFeatures = features.features.filter(f => 
           f.geometry.type === 'Point' && 
-          (f.properties?.featureId || f.properties?.isLinePoint)
+          f.properties?.client_id
         );
 
         // Find closest feature to click point
@@ -163,8 +163,7 @@ export const MapControls: React.FC = () => {
         for (const storedFeature of storedFeatures) {
           if (storedFeature.points) {
             matchedPoint = storedFeature.points.find((p: PointCollected) => 
-              Math.abs(p.coordinates[0] - featureCoords[0]) < 0.0000001 && 
-              Math.abs(p.coordinates[1] - featureCoords[1]) < 0.0000001
+              p.client_id === closestFeature?.properties?.client_id
             ) || null;
             
             if (matchedPoint) break;
@@ -191,7 +190,7 @@ export const MapControls: React.FC = () => {
         // Get the clicked feature
         const clickedFeature = queryResult.features.find(f => 
           f.geometry.type === 'Point' && 
-          (f.properties?.featureId || f.properties?.isLinePoint)
+          f.properties?.client_id
         );
 
         if (!clickedFeature) {

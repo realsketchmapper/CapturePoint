@@ -58,10 +58,9 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // Log the final features for debugging
       console.log('Loaded features:', features.map(f => ({
-        id: f.id,
-        type: f.properties?.type,
+        id: f.properties?.id,
+        type: f.geometry.type,
         name: f.properties?.name,
-        isLinePoint: f.properties?.isLinePoint
       })));
       
       setFeatures({

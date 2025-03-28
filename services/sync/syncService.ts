@@ -275,7 +275,7 @@ export const syncService = {
         const featureId = point.attributes?.featureTypeId || 0;
         if (!acc[featureId]) {
           acc[featureId] = {
-            client_id: `feature_${point.client_id}`,
+            client_id: point.client_id,
             category: point.attributes?.category || '',
             type: point.attributes?.type || 'Point',
             name: point.attributes?.name || '',

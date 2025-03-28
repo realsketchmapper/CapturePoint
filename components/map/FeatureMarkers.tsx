@@ -28,6 +28,13 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
       } else {
         // It's a CollectedFeature, convert to GeoJSON
         const collectedFeature = feature as CollectedFeature;
+        
+        // Skip if no points or invalid data
+        if (!collectedFeature.points?.length || !collectedFeature.featureType) {
+          console.warn('Skipping invalid feature:', collectedFeature);
+          return null;
+        }
+
         return {
           type: 'Feature' as const,
           geometry: {
@@ -35,27 +42,27 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
             coordinates: collectedFeature.points[0].coordinates
           },
           properties: {
-            id: collectedFeature.id,
+            id: collectedFeature.id || 0,
+            client_id: collectedFeature.points[0].client_id,
             featureTypeId: collectedFeature.featureTypeId,
-            name: collectedFeature.featureType.name,
-            category: collectedFeature.featureType.category,
-            style: collectedFeature.attributes?.style,
-            client_id: collectedFeature.client_id,
+            name: collectedFeature.featureType?.name || 'Unknown',
+            category: collectedFeature.featureType?.category || '',
+            style: collectedFeature.attributes?.style || {},
             points: collectedFeature.points
           }
         };
       }
-    });
+    }).filter(Boolean); // Remove null features
 
     // Filter for point features
-    return convertedFeatures.filter(feature => 
-      feature.geometry.type === 'Point'
-    );
+    return convertedFeatures.filter(f => f?.geometry.type === 'Point');
   }, [features]);
 
   // Memoize the rendered markers
   const renderedMarkers = useMemo(() => {
     return pointFeatures.map(feature => {
+      if (!feature) return null;
+      
       const props = feature.properties || {};
       const coordinates = feature.geometry.type === 'Point' 
         ? (feature.geometry as GeoJSON.Point).coordinates as [number, number]
@@ -63,19 +70,22 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
       
       // Look up the feature type
       const featureType = featureTypeMap.get(props.featureTypeId);
-      if (!featureType) return null;
+      if (!featureType) {
+        console.warn('Feature type not found:', props.featureTypeId);
+        return null;
+      }
       
       const markerSize = 32; // Standard size for all markers
       
       // Get the color from the feature type or style
-      const color = props.style?.color || featureType.color;
+      const color = props.style?.color || featureType.color || '#FF6B00';
       const formattedColor = color.startsWith('#') ? color : `#${color}`;
       
       return (
         <MarkerView
-          key={`marker-${props.id}`}
+          key={`marker-${props.client_id}`}
           coordinate={coordinates}
-          id={`marker-${props.id}`}
+          id={`marker-${props.client_id}`}
         >
           {featureType.image_url ? (
             <Image 

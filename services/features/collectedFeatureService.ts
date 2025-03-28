@@ -1,6 +1,7 @@
 import { api } from "@/api/clients";
 import { API_ENDPOINTS } from "@/api/endpoints";
 import { FeatureType } from "@/types/features.types";
+import { generateClientId } from '@/utils/collections';
 
 export const collectedFeatureService = {
   inactivateFeature: async (projectId: number, featureId: string): Promise<void> => {
@@ -13,7 +14,7 @@ export const collectedFeatureService = {
       console.log('Inactivating feature with endpoint:', endpoint);
       const response = await api.post(endpoint, {
         feature_id: featureId,
-        client_id: featureId  // The client_id is the same as the feature_id for points
+        client_id: generateClientId()  // Generate a proper client ID
       });
       
       if (!response.data.success) {
