@@ -339,6 +339,7 @@ export const syncService = {
                 },
                 project_id: projectId,
                 is_active: serverPoint.is_active,
+                is_synced: true,
                 created_by: serverPoint.created_by,
                 created_at: serverPoint.created_at,
                 updated_by: serverPoint.updated_by,
