@@ -33,9 +33,9 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Convert stored points to GeoJSON features
       const features = await Promise.all(storedPoints.map(async (point: PointCollected) => {
         // Get the feature type
-        const featureType = await storageService.getFeatureType(point.attributes.featureTypeId, point.project_id);
+        const featureType = await storageService.getFeatureTypeByName(point.attributes.featureTypeName, point.project_id);
         if (!featureType) {
-          console.warn(`Feature type ${point.attributes.featureTypeId} not found for point ${point.client_id}`);
+          console.warn(`Feature type ${point.attributes.featureTypeName} not found for point ${point.client_id}`);
           return null;
         }
 
@@ -119,7 +119,8 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     }
 
-    const client_id = generateId();
+    // Use the provided client_id or generate a new one if not provided
+    const client_id = properties.client_id || generateId();
     
     // Ensure we have a color property for rendering
     const pointProperties = {

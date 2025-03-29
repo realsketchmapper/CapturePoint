@@ -14,8 +14,8 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
 
   // Create a map of feature types for faster lookup
   const featureTypeMap = useMemo(() => {
-    const map = new Map<number, FeatureType>();
-    featureTypes.forEach(f => map.set(f.id, f));
+    const map = new Map<string, FeatureType>();
+    featureTypes.forEach(f => map.set(f.name, f));
     return map;
   }, [featureTypes]);
 
@@ -30,8 +30,15 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
         const collectedFeature = feature as CollectedFeature;
         
         // Skip if no points or invalid data
-        if (!collectedFeature.points?.length || !collectedFeature.featureType) {
+        if (!collectedFeature.points?.length || !collectedFeature.attributes?.featureTypeName) {
           console.warn('Skipping invalid feature:', collectedFeature);
+          return null;
+        }
+
+        // Get feature type from map
+        const featureType = featureTypeMap.get(collectedFeature.attributes.featureTypeName);
+        if (!featureType) {
+          console.warn(`Feature type ${collectedFeature.attributes.featureTypeName} not found`);
           return null;
         }
 
@@ -43,10 +50,10 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
           },
           properties: {
             client_id: collectedFeature.points[0].client_id,
-            name: collectedFeature.featureType?.name || 'Unknown',
-            category: collectedFeature.featureType?.category || '',
+            name: collectedFeature.attributes.featureTypeName,
+            category: featureType.category,
             style: collectedFeature.attributes?.style || {},
-            featureType: collectedFeature.featureType,
+            featureType: featureType,
             points: collectedFeature.points
           }
         };
@@ -55,7 +62,7 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
 
     // Filter for point features
     return convertedFeatures.filter(f => f?.geometry.type === 'Point');
-  }, [features]);
+  }, [features, featureTypeMap]);
 
   // Memoize the rendered markers
   const renderedMarkers = useMemo(() => {

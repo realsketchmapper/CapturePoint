@@ -26,7 +26,7 @@ export const usePointCollection = () => {
     }
     
     // Start collection and wait for it to complete
-    const newState = startCollection(currentLocation, selectedFeatureType);
+    const newState = await startCollection(currentLocation, selectedFeatureType);
     if (!newState.isActive) {
       console.error('Failed to start collection');
       return;

@@ -2,7 +2,7 @@ import { GGAData, GSTData } from "./nmea.types";
 import { FeatureType } from "./features.types";
 
 export interface PointCollected {
-  id: number | null;  // null indicates unsynced point
+  feature_name: string;
   client_id: string;
   fcode: string;
   coordinates: [number, number];  // This represents the coords Geometry('Point') from the DB
@@ -11,12 +11,12 @@ export interface PointCollected {
       gga: GGAData;
       gst: GSTData;
     };
-    featureTypeId: number;  // Reference to the type of feature this point belongs to
     [key: string]: any;  // Allow for other dynamic attributes
   };
   project_id: number;
-  feature_id: number;  // References the CollectedFeature this point belongs to
+  feature_id: string;  // References the CollectedFeature this point belongs to (using client_id)
   is_active: boolean;
+  is_synced: boolean;  // Track sync status
   
   // Audit fields
   created_by: number | null;

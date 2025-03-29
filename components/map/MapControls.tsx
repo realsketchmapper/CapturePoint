@@ -212,7 +212,8 @@ export const MapControls: React.FC = () => {
         for (const storedFeature of storedFeatures) {
           if (storedFeature.points) {
             matchedPoint = storedFeature.points.find((p: PointCollected) => 
-              p.client_id === clickedFeature?.properties?.client_id
+              p.client_id === clickedFeature?.properties?.client_id &&
+              p.attributes?.featureTypeName === storedFeature.name
             ) || null;
             
             if (matchedPoint) break;

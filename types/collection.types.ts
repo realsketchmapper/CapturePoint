@@ -7,7 +7,7 @@ export type Coordinates = [number, number];
 export interface CollectionContextType {
   isCollecting: boolean;
   currentPoints: [number, number][]; // Store only valid positions as tuples
-  startCollection: (initialPosition: Position, feature: FeatureType) => CollectionState;
+  startCollection: (initialPosition: Position, feature: FeatureType) => Promise<CollectionState>;
   stopCollection: () => void;
   recordPoint: (position: Position) => boolean;
 }

@@ -10,8 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@/constants/storage';
 import { AppState, AppStateStatus } from 'react-native';
 import { generateClientId } from '@/utils/collections';
-import { ServerFeature, ServerFeatureType, ServerPoint } from "@/types/server.types";
-import { convertServerFeature, convertServerFeatureType } from "@/utils/featureConversion";
+import { ServerFeature, ServerFeatureType } from "@/types/server.types";
 
 export interface SyncResult {
   success: boolean;
@@ -25,6 +24,7 @@ export interface SyncResult {
   lastServerSync?: string; // Server's last sync timestamp
   remainingUnsyncedCount?: number; // Number of remaining unsynced features
   featureUpdates?: number; // Number of features updated
+  syncedIds?: string[]; // Array of client IDs that were successfully synced
 }
 
 // Helper to format a stored point for the API
@@ -40,7 +40,6 @@ const formatPointForAPI = (point: PointCollected) => {
   
   // Create the API point object
   const apiPoint = {
-    id: point.id,
     client_id: point.client_id,
     fcode: point.fcode,
     coords: coordinates,
@@ -330,7 +329,6 @@ export const syncService = {
 
               // Convert and save the point
               const point: PointCollected = {
-                id: serverPoint.id,
                 client_id: serverPoint.client_id,
                 fcode: serverPoint.fcode,
                 coordinates: serverPoint.coords,

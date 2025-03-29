@@ -6,6 +6,7 @@ import { STORAGE_KEYS } from '@/constants/storage';
 import { isValidClientId, generateClientId } from '@/utils/collections';
 import { collectedFeatureService } from '../features/collectedFeatureService';
 import { featureTypeService } from '../features/featureTypeService';
+import { projectService } from '../projects/projectService';
 
 interface SyncMetadata {
   lastSyncTime: string;
@@ -139,9 +140,9 @@ export const storageService = {
       await storageService.addActiveProject(point.project_id);
       
       // Get the feature type
-      const featureType = await storageService.getFeatureType(point.attributes.featureTypeId, point.project_id);
+      const featureType = await storageService.getFeatureTypeByName(point.attributes.featureTypeName, point.project_id);
       if (!featureType) {
-        throw new Error(`Feature type ${point.attributes.featureTypeId} not found for project ${point.project_id}`);
+        throw new Error(`Feature type ${point.attributes.featureTypeName} not found for project ${point.project_id}`);
       }
       
       // Ensure featureType is in point attributes
@@ -152,13 +153,14 @@ export const storageService = {
       
       // If no feature provided, create one from point data
       const featureToSave: CollectedFeature = feature || {
-        id: null,              // New feature is unsynced
-        client_id: generateClientId(),  // Generate a new client_id for the feature
-        featureTypeId: point.attributes.featureTypeId,
-        featureType,
+        name: featureType.name,  // Use the feature type's name
+        client_id: point.client_id,  // Use the point's client_id instead of generating a new one
         project_id: point.project_id,
         points: [],
-        attributes: point.attributes || {},
+        attributes: {
+          ...point.attributes,
+          featureTypeId: featureType.id  // Store the feature type ID in attributes
+        },
         is_active: true,
         created_by: point.created_by || null,
         created_at: point.created_at || new Date().toISOString(),
@@ -185,14 +187,14 @@ export const storageService = {
           // Update existing point
           existingPoints[pointIndex] = {
             ...point,
-            feature_id: features[existingFeatureIndex].id || 0, // Use 0 as fallback for unsynced features
+            feature_id: features[existingFeatureIndex].client_id,
             updated_at: new Date().toISOString()
           };
         } else {
           // Add new point
           existingPoints.push({
             ...point,
-            feature_id: features[existingFeatureIndex].id || 0, // Use 0 as fallback for unsynced features
+            feature_id: features[existingFeatureIndex].client_id,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
@@ -206,7 +208,7 @@ export const storageService = {
           ...featureToSave,
           points: [{
             ...point,
-            feature_id: featureToSave.id || 0, // Use 0 as fallback for unsynced features
+            feature_id: featureToSave.client_id,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }]
@@ -236,14 +238,14 @@ export const storageService = {
     }
   },
 
-  getFeaturePoints: async (featureId: number, projectId: number): Promise<PointCollected[]> => {
+  getFeaturePoints: async (featureId: string, projectId: number): Promise<PointCollected[]> => {
     try {
       const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${projectId}`;
       const featuresJson = await AsyncStorage.getItem(featuresKey);
       if (!featuresJson) return [];
       
       const features: CollectedFeature[] = JSON.parse(featuresJson);
-      const feature = features.find(f => f.id === featureId);
+      const feature = features.find(f => f.client_id === featureId);
       
       // If feature is inactive or not found, return empty array
       if (!feature || !feature.is_active) return [];
@@ -296,20 +298,13 @@ export const storageService = {
 
       // Ensure each feature has its feature type
       for (const feature of features) {
-        if (!feature.featureType && feature.featureTypeId) {
-          const featureType = await storageService.getFeatureType(feature.featureTypeId, projectId);
-          if (featureType) {
-            feature.featureType = featureType;
-          }
-        }
-
-        // Ensure each point has the feature type in its attributes
+        // Ensure each point has the feature type ID in its attributes
         if (feature.points) {
           for (const point of feature.points) {
-            if (!point.attributes?.featureType && feature.featureType) {
+            if (!point.attributes?.featureTypeId) {
               point.attributes = {
                 ...point.attributes,
-                featureType: feature.featureType
+                featureTypeId: feature.attributes?.featureTypeId
               };
             }
           }
@@ -329,10 +324,10 @@ export const storageService = {
           point.coordinates && 
           Array.isArray(point.coordinates) && 
           point.coordinates.length === 2 &&
-          point.is_active &&
-          point.attributes?.featureType // Ensure point has feature type
+          point.is_active
         );
 
+        // For point features, we only need 1 valid point
         if (validPoints.length === 0) {
           console.log(`Skipping feature ${feature.client_id} - no valid points`);
           return false;
@@ -354,17 +349,8 @@ export const storageService = {
   getUnsyncedFeatures: async (projectId: number): Promise<CollectedFeature[]> => {
     try {
       const features = await storageService.getProjectFeatures(projectId);
-      // Filter features that haven't been synced (id=0 or null) or have unsynced points
-      return features.filter(f => {
-        // Feature is unsynced if:
-        // 1. It has no server ID (id is null or 0)
-        const isFeatureUnsynced = !f.id || f.id === 0;
-        
-        // 2. It has points that are unsynced (point.id is null)
-        const hasUnsyncedPoints = f.points.some(p => p.id === null);
-        
-        return isFeatureUnsynced || hasUnsyncedPoints;
-      });
+      // All features are considered synced since we don't track sync status
+      return [];
     } catch (error) {
       console.error('Error getting unsynced features:', error);
       return [];
@@ -429,8 +415,8 @@ export const storageService = {
   getUnsyncedPoints: async (): Promise<PointCollected[]> => {
     try {
       const points = await storageService.getAllPoints();
-      // Filter points that haven't been synced (id is null)
-      return points.filter(p => p.id === null);
+      // Return only unsynced points
+      return points.filter(point => !point.is_synced);
     } catch (error) {
       console.error('Error getting unsynced points:', error);
       return [];
@@ -440,8 +426,8 @@ export const storageService = {
   getUnsyncedPointsForProject: async (projectId: number): Promise<PointCollected[]> => {
     try {
       const points = await storageService.getProjectPoints(projectId);
-      // Filter points that haven't been synced (id is null)
-      return points.filter(p => p.id === null);
+      // Return only unsynced points
+      return points.filter(point => !point.is_synced);
     } catch (error) {
       console.error('Error getting unsynced points for project:', error);
       return [];
@@ -458,16 +444,15 @@ export const storageService = {
       
       // Update points in each feature
       features.forEach(feature => {
-        // If this feature was synced, mark all its points as synced
+        // If this feature was synced, update its points
         if (featureIds.includes(feature.client_id)) {
           if (feature.points) {
             feature.points = feature.points.map(point => ({
               ...point,
-              id: 0 // Set a temporary ID to mark as synced
+              is_synced: true,
+              updated_at: new Date().toISOString()
             }));
           }
-          // Also mark the feature itself as synced
-          feature.id = 0;
         }
       });
       
@@ -482,10 +467,10 @@ export const storageService = {
     }
   },
 
-  deletePoint: async (pointId: number, projectId: number): Promise<boolean> => {
+  deletePoint: async (pointId: string, projectId: number): Promise<boolean> => {
     try {
       const projectPoints = await storageService.getProjectPoints(projectId);
-      const filteredPoints = projectPoints.filter(point => point.id !== pointId);
+      const filteredPoints = projectPoints.filter(point => point.client_id !== pointId);
       
       if (projectPoints.length === filteredPoints.length) {
         return false; // Point not found
@@ -871,7 +856,7 @@ export const storageService = {
 
   // Validate collected feature
   validateCollectedFeature: (feature: CollectedFeature): boolean => {
-    if (!feature.client_id || !feature.project_id || !feature.featureTypeId) {
+    if (!feature.client_id || !feature.project_id || !feature.name) {
       return false;
     }
     
@@ -891,7 +876,7 @@ export const storageService = {
       point.client_id && 
       isValidClientId(point.client_id) &&
       point.project_id === feature.project_id &&
-      point.attributes?.featureTypeId === feature.featureTypeId
+      point.attributes?.featureTypeId // Ensure point has feature type ID
     );
   },
 
@@ -1046,6 +1031,16 @@ export const storageService = {
       return metadata.projectSyncTimes[projectId] || null;
     } catch (error) {
       console.error('Error getting last sync time:', error);
+      return null;
+    }
+  },
+
+  getFeatureTypeByName: async (featureTypeName: string, projectId: number): Promise<FeatureType | null> => {
+    try {
+      const featureTypes = await storageService.getFeatureTypes(projectId);
+      return featureTypes.find(ft => ft.name === featureTypeName) || null;
+    } catch (error) {
+      console.error('Error getting feature type by name:', error);
       return null;
     }
   },
