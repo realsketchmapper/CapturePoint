@@ -3,7 +3,7 @@ import { FeatureToRender } from './features.types';
 
 // Simplified type definitions
 export type Coordinate = [number, number];
-export type FeatureType = 'point' | 'line' | 'polygon';
+export type FeatureType = 'Point' | 'Line' | 'Polygon';
 
 export interface MapContextType {
   // Feature management

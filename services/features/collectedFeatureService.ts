@@ -1,65 +1,49 @@
 import { api } from "@/api/clients";
+import { CollectedFeature } from "@/types/features.types";
 import { API_ENDPOINTS } from "@/api/endpoints";
-import { FeatureType } from "@/types/features.types";
-import { generateClientId } from '@/utils/collections';
+import { generateClientId } from "@/utils/collections";
 
 export const collectedFeatureService = {
   inactivateFeature: async (projectId: number, featureId: string): Promise<void> => {
     try {
-      // Remove the leading slash since the base URL will include it
-      const endpoint = API_ENDPOINTS.INACTIVATE_FEATURE
-        .replace(':projectId', projectId.toString())
+      const endpoint = API_ENDPOINTS.INACTIVATE_FEATURE.replace(':projectId', projectId.toString())
+        .replace(':featureId', featureId)
         .replace(/^\//, '');
       
-      console.log('Inactivating feature with endpoint:', endpoint);
-      const response = await api.post(endpoint, {
-        feature_id: featureId,
-        client_id: generateClientId()  // Generate a proper client ID
-      });
+      const response = await api.post(endpoint);
       
       if (!response.data.success) {
-        // If the error indicates the feature is already inactive, treat it as a success
-        if (response.data.error?.includes('already inactive') || response.data.error?.includes('not found')) {
-          console.log('Feature was already inactive or not found');
-          return;
-        }
-        throw new Error(response.data.error || 'Failed to inactivate feature');
+        throw new Error('Failed to inactivate feature');
       }
     } catch (error) {
-      console.error('Error in inactivateFeature:', error);
+      console.error('Error inactivating feature:', error);
       throw error;
     }
   },
 
-  fetchActiveFeatures: async (projectId: number): Promise<FeatureType[]> => {
+  fetchActiveFeatures: async (projectId: number): Promise<CollectedFeature[]> => {
     try {
       console.log("Fetching active features for project:", projectId);
-      // Remove the leading slash since the base URL will include it
-      const endpoint = API_ENDPOINTS.ACTIVE_PROJECT_COLLECTED_FEATURES.replace(':projectId', projectId.toString()).replace(/^\//, '');
+      const endpoint = API_ENDPOINTS.ACTIVE_PROJECT_COLLECTED_FEATURES.replace(':projectId', projectId.toString())
+        .replace(/^\//, '');
       
       const response = await api.get(endpoint);
       
       if (response.data.success) {
         console.log("Active features count:", response.data.features.length);
-        // Ensure all features have required properties
+        // Convert API response to CollectedFeature format
         const features = response.data.features.map((feature: any) => ({
-          id: feature.id,
-          type: feature.type,
-          name: feature.name,
-          draw_layer: feature.draw_layer,
-          coordinates: feature.coordinates || [],
-          properties: feature.properties || {},
-          image_url: feature.image_url || null,
-          svg: feature.svg || '',
-          color: feature.color || '#000000',
-          line_weight: feature.line_weight || 1,
-          dash_pattern: feature.dash_pattern || '',
-          label: feature.label || '',
-          z_value: feature.z_value || 0,
-          created_by: feature.created_by || '',
+          client_id: feature.properties?.client_id || generateClientId(),
+          featureTypeId: feature.featureTypeId || feature.id,
+          featureType: feature.featureType || feature, // The API might include the full feature type
+          project_id: projectId,
+          points: feature.properties?.points || [],
+          attributes: feature.properties || {},
+          is_active: feature.is_active !== false,
+          created_by: feature.created_by || null,
           created_at: feature.created_at || new Date().toISOString(),
-          updated_at: feature.updated_at || new Date().toISOString(),
-          is_active: feature.is_active !== false
+          updated_by: feature.updated_by || null,
+          updated_at: feature.updated_at || new Date().toISOString()
         }));
         return features;
       }

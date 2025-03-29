@@ -31,7 +31,6 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
   } = useFeatureContext();
 
   const groupedFeatures = useMemo<GroupedFeatures>(() => {
-    console.log('Recalculating groupedFeatures');
     const groups = featureTypes.reduce<GroupedFeatures>((acc, featureType) => {
       if (!acc[featureType.draw_layer]) {
         acc[featureType.draw_layer] = [];
@@ -70,8 +69,9 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
           return (
             <SvgXml 
               xml={featureType.svg} 
-              width="100%" 
-              height="100%" 
+              width={24} 
+              height={24}
+              style={{ transform: [{ scale: 0.8 }] }}
             />
           );
         } else {
@@ -82,7 +82,7 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
       }
     } 
     // For point features with image URLs (PNGs)
-    else if ((featureType.geometryType === 'Point') && featureType.image_url) {
+    else if (featureType.geometryType === 'Point' && featureType.image_url) {
       return (
         <Image 
           source={{ uri: featureType.image_url }} 
@@ -102,6 +102,7 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
     return Object.entries(groupedFeatures).map(([layer, layerFeatures]) => (
       <View key={layer}>
         <TouchableOpacity 
+          key={`layer-${layer}`}
           style={styles.layerHeader}
           onPress={() => toggleLayer(layer)}
         >
@@ -117,7 +118,7 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
           <View style={styles.featureGroup}>
             {layerFeatures.map(featureType => (
               <TouchableOpacity
-                key={featureType.id}
+                key={`${layer}-${featureType.name}`}
                 style={[
                   styles.featureItem,
                   selectedFeatureType?.id === featureType.id && styles.selectedFeature

@@ -152,18 +152,18 @@ export const storageService = {
       
       // If no feature provided, create one from point data
       const featureToSave: CollectedFeature = feature || {
-        id: 0,
+        id: null,              // New feature is unsynced
         client_id: generateClientId(),  // Generate a new client_id for the feature
         featureTypeId: point.attributes.featureTypeId,
         featureType,
         project_id: point.project_id,
         points: [],
-        attributes: point.attributes,
+        attributes: point.attributes || {},
         is_active: true,
-        created_by: point.created_by,
-        created_at: point.created_at,
-        updated_by: point.updated_by,
-        updated_at: point.updated_at
+        created_by: point.created_by || null,
+        created_at: point.created_at || new Date().toISOString(),
+        updated_by: point.updated_by || null,
+        updated_at: point.updated_at || new Date().toISOString()
       };
 
       // Get existing features
@@ -185,14 +185,14 @@ export const storageService = {
           // Update existing point
           existingPoints[pointIndex] = {
             ...point,
-            feature_id: features[existingFeatureIndex].id,
+            feature_id: features[existingFeatureIndex].id || 0, // Use 0 as fallback for unsynced features
             updated_at: new Date().toISOString()
           };
         } else {
           // Add new point
           existingPoints.push({
             ...point,
-            feature_id: features[existingFeatureIndex].id,
+            feature_id: features[existingFeatureIndex].id || 0, // Use 0 as fallback for unsynced features
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
@@ -206,7 +206,7 @@ export const storageService = {
           ...featureToSave,
           points: [{
             ...point,
-            feature_id: featureToSave.id,
+            feature_id: featureToSave.id || 0, // Use 0 as fallback for unsynced features
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }]
@@ -274,37 +274,21 @@ export const storageService = {
 
       // Process each active feature from database
       for (const dbFeature of activeFeatures) {
-        // Convert API response to CollectedFeature
-        const collectedFeature: CollectedFeature = {
-          id: dbFeature.id,
-          client_id: (dbFeature as any).properties?.client_id || generateClientId(),
-          featureTypeId: dbFeature.id,
-          featureType: dbFeature, // The API response is already a FeatureType
-          project_id: projectId,
-          points: (dbFeature as any).properties?.points || [],
-          attributes: (dbFeature as any).properties || {},
-          is_active: (dbFeature as any).is_active,
-          created_by: (dbFeature as any).created_by,
-          created_at: (dbFeature as any).created_at,
-          updated_by: (dbFeature as any).updated_by,
-          updated_at: (dbFeature as any).updated_at
-        };
-
-        const existingFeature = existingFeaturesMap.get(collectedFeature.client_id);
+        const existingFeature = existingFeaturesMap.get(dbFeature.client_id);
         
         if (!existingFeature) {
           // New feature from database - add it
-          features.push(collectedFeature);
+          features.push(dbFeature);
         } else {
           // Compare timestamps and update if database version is newer
-          const dbTimestamp = new Date(collectedFeature.updated_at).getTime();
+          const dbTimestamp = new Date(dbFeature.updated_at).getTime();
           const storageTimestamp = new Date(existingFeature.updated_at).getTime();
           
           if (dbTimestamp > storageTimestamp) {
             // Database version is newer - update the feature
-            const index = features.findIndex(f => f.client_id === collectedFeature.client_id);
+            const index = features.findIndex(f => f.client_id === dbFeature.client_id);
             if (index !== -1) {
-              features[index] = collectedFeature;
+              features[index] = dbFeature;
             }
           }
         }
@@ -336,7 +320,7 @@ export const storageService = {
       features = features.filter(feature => {
         // Skip features with no points
         if (!feature.points || feature.points.length === 0) {
-          console.log(`Skipping feature ${feature.id} - no points`);
+          console.log(`Skipping feature ${feature.client_id} - no points`);
           return false;
         }
 
@@ -350,7 +334,7 @@ export const storageService = {
         );
 
         if (validPoints.length === 0) {
-          console.log(`Skipping feature ${feature.id} - no valid points`);
+          console.log(`Skipping feature ${feature.client_id} - no valid points`);
           return false;
         }
 
@@ -711,50 +695,26 @@ export const storageService = {
     }
   },
 
-  removeFeature: async (featureId: number, projectId: number): Promise<void> => {
+  removeFeature: async (clientId: string, projectId: number): Promise<void> => {
     try {
-      console.log(`\n=== Removing Feature ${featureId} from Project ${projectId} ===`);
+      console.log(`\n=== Removing Feature ===`);
+      console.log(`Project ID: ${projectId}`);
+      console.log(`Feature Client ID: ${clientId}`);
+
+      // Get existing features
       const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${projectId}`;
-      
-      // Get current features
       const featuresJson = await AsyncStorage.getItem(featuresKey);
-      console.log('Current features:', featuresJson);
-      
-      if (!featuresJson) {
-        console.log('No features found in storage');
-        return;
-      }
-      
-      const features: CollectedFeature[] = JSON.parse(featuresJson);
-      console.log(`Found ${features.length} features`);
-      
-      // Find the feature to remove
-      const featureToRemove: CollectedFeature | undefined = features.find(f => f.id === featureId);
-      if (!featureToRemove) {
-        console.log('Feature not found');
-        return;
-      }
-      
-      const featureName = featureToRemove.featureType?.name || 'Unknown feature';
-      console.log('Removing feature:', featureName);
-      
-      // Mark all points as inactive before removing
-      if (featureToRemove.points && featureToRemove.points.length > 0) {
-        console.log(`Marking ${featureToRemove.points.length} points as inactive`);
-        for (const point of featureToRemove.points) {
-          await storageService.updatePointInFeature({
-            ...point,
-            is_active: false
-          });
-        }
-      }
-      
-      const updatedFeatures = features.filter(f => f.id !== featureId);
-      
-      // Save updated features
+      const features: CollectedFeature[] = featuresJson ? JSON.parse(featuresJson) : [];
+
+      console.log(`Found ${features.length} features in storage`);
+
+      // Remove the feature
+      const updatedFeatures = features.filter(f => f.client_id !== clientId);
+      console.log(`Removed feature, ${updatedFeatures.length} features remaining`);
+
+      // Save the updated features
       await AsyncStorage.setItem(featuresKey, JSON.stringify(updatedFeatures));
-      console.log(`Saved ${updatedFeatures.length} remaining features`);
-      
+
       // Verify the save
       const verifyJson = await AsyncStorage.getItem(featuresKey);
       const verifyFeatures = verifyJson ? JSON.parse(verifyJson) : [];
@@ -775,31 +735,7 @@ export const storageService = {
 
   // Feature type management
   validateFeatureType: (featureType: FeatureType): boolean => {
-    if (!featureType.id || !featureType.name || !featureType.geometryType) {
-      console.error('Invalid feature type: missing required fields', featureType);
-      return false;
-    }
-    
-    // Validate geometry type
-    const validGeometryTypes = ['Point', 'Line', 'Polygon'];
-    if (!validGeometryTypes.includes(featureType.geometryType)) {
-      console.error('Invalid geometry type:', featureType.geometryType);
-      return false;
-    }
-    
-    // Validate image_url for Point features
-    if (featureType.geometryType === 'Point' && !featureType.image_url) {
-      console.error('Point feature type missing image_url');
-      return false;
-    }
-    
-    // Validate svg for Line/Polygon features
-    if ((featureType.geometryType === 'Line' || featureType.geometryType === 'Polygon') && !featureType.svg) {
-      console.error('Line/Polygon feature type missing svg');
-      return false;
-    }
-    
-    return true;
+    return true; // We trust the server data
   },
 
   saveFeatureType: async (featureType: FeatureType, projectId: number): Promise<void> => {
@@ -807,11 +743,6 @@ export const storageService = {
       const featureTypesKey = `${STORAGE_KEYS.PROJECT_FEATURE_TYPES_PREFIX}${projectId}`;
       const featureTypesJson = await AsyncStorage.getItem(featureTypesKey);
       const featureTypes: FeatureType[] = featureTypesJson ? JSON.parse(featureTypesJson) : [];
-      
-      // Validate feature type
-      if (!storageService.validateFeatureType(featureType)) {
-        throw new Error('Invalid feature type');
-      }
       
       // Find existing feature type index
       const existingIndex = featureTypes.findIndex(ft => ft.id === featureType.id);

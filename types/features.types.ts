@@ -10,7 +10,7 @@ export type UtilityCategory = 'Water' | 'Electric' | 'Com' | 'Gas' | 'Other';
 
 // Definition of a type of feature that can be collected
 export interface FeatureType {
-    id: number;                // Database ID for this feature type
+    id: number;              // Server-side ID for the feature type
     name: string;             // e.g. "Water Manhole", "Electric Line"
     category: UtilityCategory;// e.g. "Water", "Electric", "Com"
     geometryType: GeometryType;// The type of geometry this feature uses
@@ -29,7 +29,7 @@ export interface FeatureType {
 
 // For features that have been collected
 export interface CollectedFeature {
-    id: number;               // Database ID for this specific collected feature
+    id: number | null;        // Server-side ID, null if unsynced
     client_id: string;        // Local ID for sync
     featureTypeId: number;    // References the FeatureType
     featureType: FeatureType; // The full feature type object

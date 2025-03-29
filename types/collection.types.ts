@@ -1,4 +1,4 @@
-import { Feature } from "./features.types";
+import { CollectedFeature, FeatureType } from "./features.types";   
 
 export type Position = { longitude: number; latitude: number } | [number, number];
 
@@ -7,7 +7,7 @@ export type Coordinates = [number, number];
 export interface CollectionContextType {
   isCollecting: boolean;
   currentPoints: [number, number][]; // Store only valid positions as tuples
-  startCollection: (initialPosition: Position, feature: Feature) => CollectionState;
+  startCollection: (initialPosition: Position, feature: FeatureType) => CollectionState;
   stopCollection: () => void;
   recordPoint: (position: Position) => boolean;
 }
@@ -15,6 +15,6 @@ export interface CollectionContextType {
 export interface CollectionState {
     points: [number, number][];
     isActive: boolean;
-    activeFeature: Feature | null;
-    //featureType: 'point' | 'line' | 'polygon';
+    activeFeature: FeatureType | null;  
+    //featureType: 'point' | 'line' | 'polygon';  
   }
