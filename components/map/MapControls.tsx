@@ -118,7 +118,7 @@ export const MapControls: React.FC = () => {
         let minDistance = Infinity;
 
         for (const feature of pointFeatures) {
-          const featureCoords = (feature.geometry as any).coordinates;
+          const featureCoords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
           console.log('Checking feature coordinates:', featureCoords);
           
           const distance = Math.sqrt(
@@ -140,94 +140,72 @@ export const MapControls: React.FC = () => {
 
         console.log('Found closest feature:', closestFeature);
 
-        if (!activeProject?.id) {
-          console.log('No active project');
-          return;
-        }
+        // Create a PointCollected object from the feature
+        const point: PointCollected = {
+          client_id: closestFeature.properties?.client_id || null,
+          fcode: closestFeature.properties?.name || '',
+          coordinates: (closestFeature.geometry as GeoJSON.Point).coordinates as [number, number],
+          attributes: {
+            name: closestFeature.properties?.name || '',
+            category: closestFeature.properties?.category || '',
+            style: closestFeature.properties?.style || {},
+            description: closestFeature.properties?.description || ''
+          },
+          project_id: activeProject?.id || 0,
+          is_active: true,
+          created_by: null,
+          created_at: new Date().toISOString(),
+          updated_by: null,
+          updated_at: new Date().toISOString()
+        };
 
-        // Get features from storage
-        const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${activeProject.id}`;
-        const featuresJson = await AsyncStorage.getItem(featuresKey);
-        if (!featuresJson) {
-          console.log('No features found in storage');
-          return;
-        }
-
-        const storedFeatures: CollectedFeature[] = JSON.parse(featuresJson);
-        
-        // Find the feature that contains this point
-        let matchedPoint: PointCollected | null = null;
-        for (const storedFeature of storedFeatures) {
-          if (storedFeature.points) {
-            matchedPoint = storedFeature.points.find((p: PointCollected) => 
-              p.client_id === closestFeature?.properties?.client_id
-            ) || null;
-            
-            if (matchedPoint) break;
-          }
-        }
-        
-        console.log('Matched point from storage:', matchedPoint);
-        
-        if (matchedPoint) {
-          setSelectedPoint(matchedPoint);
-          setIsModalVisible(true);
-        } else {
-          console.log('No matching point found in storage');
-        }
-      } else {
-        // Process features found by queryRenderedFeaturesAtPoint
-        console.log('Features found by queryRenderedFeaturesAtPoint:', queryResult.features);
-        
-        if (!activeProject?.id) {
-          console.log('No active project');
-          return;
-        }
-
-        // Get the clicked feature
-        const clickedFeature = queryResult.features.find(f => 
-          f.geometry.type === 'Point' && 
-          f.properties?.client_id
-        );
-
-        if (!clickedFeature) {
-          console.log('No point features found');
-          return;
-        }
-
-        console.log('Selected feature:', clickedFeature);
-
-        // Get features from storage
-        const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${activeProject.id}`;
-        const featuresJson = await AsyncStorage.getItem(featuresKey);
-        if (!featuresJson) {
-          console.log('No features found in storage');
-          return;
-        }
-
-        const storedFeatures: CollectedFeature[] = JSON.parse(featuresJson);
-        
-        // Find the feature that contains this point
-        let matchedPoint: PointCollected | null = null;
-        for (const storedFeature of storedFeatures) {
-          if (storedFeature.points) {
-            matchedPoint = storedFeature.points.find((p: PointCollected) => 
-              p.client_id === clickedFeature?.properties?.client_id
-            ) || null;
-            
-            if (matchedPoint) break;
-          }
-        }
-        
-        console.log('Matched point from storage:', matchedPoint);
-        
-        if (matchedPoint) {
-          setSelectedPoint(matchedPoint);
-          setIsModalVisible(true);
-        } else {
-          console.log('No matching point found in storage');
-        }
+        setSelectedPoint(point);
+        setIsModalVisible(true);
+        return;
       }
+
+      // Process features found by queryRenderedFeaturesAtPoint
+      console.log('Features found by queryRenderedFeaturesAtPoint:', queryResult.features);
+      
+      if (!activeProject?.id) {
+        console.log('No active project');
+        return;
+      }
+
+      // Get the clicked feature
+      const clickedFeature = queryResult.features.find(f => 
+        f.geometry.type === 'Point' && 
+        f.properties?.client_id
+      );
+
+      if (!clickedFeature) {
+        console.log('No point features found');
+        return;
+      }
+
+      console.log('Selected feature:', clickedFeature);
+
+      // Create a PointCollected object from the feature
+      const point: PointCollected = {
+        client_id: clickedFeature.properties?.client_id || null,
+        fcode: clickedFeature.properties?.name || '',
+        coordinates: (clickedFeature.geometry as GeoJSON.Point).coordinates as [number, number],
+        attributes: {
+          name: clickedFeature.properties?.name || '',
+          category: clickedFeature.properties?.category || '',
+          style: clickedFeature.properties?.style || {},
+          description: clickedFeature.properties?.description || ''
+        },
+        project_id: activeProject.id,
+        is_active: true,
+        created_by: null,
+        created_at: new Date().toISOString(),
+        updated_by: null,
+        updated_at: new Date().toISOString()
+      };
+
+      setSelectedPoint(point);
+      setIsModalVisible(true);
     } catch (error) {
       console.error('Error handling click:', error);
     }

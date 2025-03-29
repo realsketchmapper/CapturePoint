@@ -10,34 +10,29 @@ export type UtilityCategory = 'Water' | 'Electric' | 'Com' | 'Gas' | 'Other';
 
 // Definition of a type of feature that can be collected
 export interface FeatureType {
-    id: number;              // Server-side ID for the feature type
-    name: string;             // e.g. "Water Manhole", "Electric Line"
-    category: UtilityCategory;// e.g. "Water", "Electric", "Com"
-    geometryType: GeometryType;// The type of geometry this feature uses
-    image_url?: string;       // Icon for point features
-    svg?: string;             // Line/polygon styling
-    color: string;            // Default color for the feature
-    line_weight?: number;     // For line features
-    dash_pattern?: string;    // For line features
-    z_value: number;          // Drawing order
-    draw_layer: string;       // Layer for grouping in UI
-    is_active: boolean;       // Whether this feature type is available
-    attributes: {             // Additional attributes specific to this type
+    name: string;           // Primary identifier
+    geometryType: 'Point' | 'Line' | 'Polygon';
+    category: string;
+    image_url?: string;
+    svg?: string;
+    color?: string;
+    line_weight?: number;
+    dash_pattern?: string;
+    z_value?: number;
+    draw_layer?: string;
+    is_active?: boolean;
+    attributes?: {
         [key: string]: any;
     };
 }
 
 // For features that have been collected
 export interface CollectedFeature {
-    id: number | null;        // Server-side ID, null if unsynced
-    client_id: string;        // Local ID for sync
-    featureTypeId: number;    // References the FeatureType
-    featureType: FeatureType; // The full feature type object
+    client_id: string;
+    featureTypeName: string;  // Just store the name, not the whole object
     project_id: number;
     points: PointCollected[];
-    attributes: {             // Instance-specific attributes
-        [key: string]: any;
-    };
+    attributes: Record<string, any>;
     is_active: boolean;
     created_by: number | null;
     created_at: string;

@@ -1,7 +1,7 @@
 // contexts/CollectionContext.tsx
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Position, CollectionContextType, CollectionState } from '@/types/collection.types';
-import { CollectedFeature, FeatureToRender, FeatureType } from '@/types/features.types';
+import { CollectedFeature, FeatureToRender, FeatureType, UtilityCategory } from '@/types/features.types';
 import { PointCollected } from '@/types/pointCollected.types';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useNMEAContext } from '@/contexts/NMEAContext';
@@ -11,9 +11,7 @@ import { useMapContext } from '@/contexts/MapDisplayContext';
 import { storageService } from '@/services/storage/storageService';
 import { syncService } from '@/services/sync/syncService';
 import { generateClientId } from '@/utils/collections';
-// Replace v4 import with a more React Native friendly approach
-import 'react-native-get-random-values'; // Add this import at the top
-import { v4 as uuidv4 } from 'uuid';
+
 
 // Extended interface to include all functionality
 interface ExtendedCollectionContextType extends CollectionContextType {
@@ -103,171 +101,6 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return currentLocation;
   }, [currentLocation]);
   
-  // Start collecting points
-  const startCollection = useCallback((initialPosition: Position, feature: FeatureType): CollectionState => {
-    if (!activeProject) {
-      console.error('No active project');
-      return collectionState;
-    }
-
-    // Validate coordinates
-    const validCoords = getValidCoordinates(initialPosition);
-    if (!validCoords) {
-      console.error('No valid position available');
-      return collectionState;
-    }
-
-    // Set the active feature type
-    const newState: CollectionState = {
-      points: [validCoords],
-      isActive: true,
-      activeFeature: feature
-    };
-
-    setCollectionState(newState);
-
-    // For point features, we need to render immediately
-    if (feature.geometryType === 'Point') {
-      const featureToRender: FeatureToRender = {
-        type: feature.geometryType,
-        coordinates: validCoords,
-        properties: {
-          client_id: generateClientId(),
-          name: feature.name,
-          category: feature.category,
-          style: feature.attributes?.style,
-          featureType: feature
-        }
-      };
-      renderFeature(featureToRender);
-    }
-
-    return newState;
-  }, [activeProject, getValidCoordinates, renderFeature]);
-
-  // Record a new point
-  const recordPoint = useCallback((position?: Position): boolean => {
-    if (!collectionState.isActive) {
-      return false;
-    }
-    
-    const pointCoordinates = getValidCoordinates(position);
-    
-    if (!pointCoordinates) {
-      return false;
-    }
-    
-    setCollectionState(prev => ({
-      ...prev,
-      points: [...prev.points, pointCoordinates]
-    }));
-    
-    return true;
-  }, [collectionState.isActive, getValidCoordinates]);
-
-  // Stop collection
-  const stopCollection = useCallback(() => {
-    setCollectionState({
-      points: [],
-      isActive: false,
-      activeFeature: null
-    });
-  }, []);
-  
-  // Generate a simple ID if UUID fails as fallback
-  const generateSimpleId = () => {
-    return `manual-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-  };
-  
-  // Save the current point with all metadata
-  const saveCurrentPoint = useCallback(async (properties: Record<string, any> = {}, state?: CollectionState): Promise<boolean> => {
-    const activeFeature = state?.activeFeature || collectionState.activeFeature;
-    const points = state?.points || collectionState.points;
-
-    console.log('\n=== Saving Point ===');
-  
-
-    if (!activeFeature || points.length === 0
-      || !ggaData?.latitude || !ggaData?.longitude || !gstData?.rmsTotal) {
-      console.warn('Missing required data to save point:', {
-        hasFeature: !!activeFeature,
-        pointsLength: points.length,
-        hasGGA: !!ggaData?.latitude && !!ggaData?.longitude,
-        hasGST: !!gstData?.rmsTotal
-      });
-      return false;
-    }
-
-    // Require pointId to be provided
-    if (!properties.pointId) {
-      console.error('No pointId provided to saveCurrentPoint');
-      return false;
-    }
-    
-    setIsSaving(true);
-    
-    try {
-      const coordinates = activeFeature.geometryType === 'Point' 
-        ? points[0]
-        : points[points.length - 1];
-      
-      console.log('Creating point with coordinates:', coordinates);
-      
-      const point: PointCollected = {
-        id: null, // Mark as unsynced - will be set by server
-        client_id: generateClientId(),
-        fcode: 'PT', // Default feature code for points
-        coordinates,
-        attributes: {
-          nmeaData: {
-            gga: ggaData,
-            gst: gstData
-          },
-          name: properties.name || activeFeature.name,
-          category: activeFeature.draw_layer,  // Required for collected_features table
-          type: activeFeature.geometryType,           // Required for collected_features table
-          featureType: activeFeature.geometryType,    // Keep for backwards compatibility
-          style: properties.style,
-          featureTypeId: activeFeature.id     // Add the feature type ID
-        },
-        project_id: activeProject?.id || 0,
-        feature_id: activeFeature.id,
-        is_active: true,
-        created_by: user?.id || null,
-        created_at: new Date().toISOString(),
-        updated_by: user?.id || null,
-        updated_at: new Date().toISOString()
-      };
-      
-      console.log('Saving point to storage:', point);
-      await storageService.savePoint(point);
-      
-      // Verify point was saved
-      const projectPoints = await storageService.getProjectPoints(point.project_id);
-      console.log(`After save: ${projectPoints.length} points in project storage`);
-      const savedPoint = projectPoints.find(p => p.client_id === point.client_id);
-      if (savedPoint) {
-        console.log('✅ Point successfully saved and retrieved from feature');
-      } else {
-        console.error('❌ Point not found in feature storage after save!');
-      }
-      
-      // Get actual count of unsynced points after save
-      const unsyncedPoints = await storageService.getUnsyncedPoints();
-      setSyncStatus(prev => ({
-        ...prev,
-        unsyncedCount: unsyncedPoints.length
-      }));
-      
-      return true;
-    } catch (error) {
-      console.error('Error saving point:', error);
-      return false;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [collectionState.activeFeature, collectionState.points, ggaData, gstData, activeProject, user]);
-  
   // Sync points with the server
   const syncPoints = useCallback(async (): Promise<boolean> => {
     if (syncStatus.isSyncing) {
@@ -304,7 +137,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         unsyncedCount: unsyncedCount
       });
 
-      // After successful sync, refresh the map
+      // Refresh map if sync was successful
       if (result.success && clearFeatures && activeProject) {
         console.log('Sync successful, refreshing map...');
         clearFeatures();
@@ -319,7 +152,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
 
           // For point features, we need to render each point individually
-          if (feature.featureType.geometryType === 'Point') {
+          const featureName = feature.featureTypeName || 'Unknown';
+          if (feature.featureTypeName) {
             feature.points.forEach(point => {
               if (!point.coordinates || point.coordinates.length < 2) {
                 console.log(`Skipping point ${point.client_id} - invalid coordinates`);
@@ -327,14 +161,19 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               }
               
               const featureToRender: FeatureToRender = {
-                type: feature.featureType.geometryType,
+                type: 'Point',
                 coordinates: point.coordinates as [number, number],
                 properties: {
-                  client_id: point.client_id,
-                  name: feature.featureType.name,
-                  category: feature.featureType.category,
-                  style: feature.featureType.attributes?.style,
-                  featureType: feature.featureType
+                  client_id: point.client_id || 'unsynced',
+                  name: featureName,
+                  category: point.attributes.category as UtilityCategory,
+                  featureType: {
+                    name: featureName,
+                    category: feature.attributes.category as UtilityCategory,
+                    color: feature.attributes.style?.color || '#FF6B00',
+                    geometryType: 'Point',
+                    attributes: feature.attributes
+                  }
                 }
               };
               renderFeature(featureToRender);
@@ -351,14 +190,19 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             }
             
             const featureToRender: FeatureToRender = {
-              type: feature.featureType.geometryType,
+              type: 'Line',
               coordinates: coordinates,
               properties: {
-                client_id: feature.client_id,
-                name: feature.featureType.name,
-                category: feature.featureType.category,
-                style: feature.featureType.attributes?.style,
-                featureType: feature.featureType
+                client_id: feature.client_id || 'unsynced',
+                name: featureName,
+                category: feature.attributes.category as UtilityCategory,
+                featureType: {
+                  name: featureName,
+                  category: feature.attributes.category as UtilityCategory,
+                  color: feature.attributes.style?.color || '#FF6B00',
+                  geometryType: 'Line',
+                  attributes: feature.attributes
+                }
               }
             };
             renderFeature(featureToRender);
@@ -382,6 +226,182 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return false;
     }
   }, [syncStatus.isSyncing, activeProject, clearFeatures, renderFeature]);
+
+  // Save a point with given coordinates and feature
+  const savePointWithFeature = useCallback(async (
+    coordinates: [number, number],
+    feature: FeatureType,
+    properties?: Record<string, any>
+  ): Promise<boolean> => {
+    if (!activeProject) {
+      console.error('No active project');
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      console.log('Creating point with coordinates:', coordinates);
+      
+      const point: PointCollected = {
+        client_id: generateClientId(), // Generate client_id at creation time
+        fcode: 'PT', // Default feature code for points
+        coordinates,
+        attributes: {
+          nmeaData: {
+            gga: ggaData,
+            gst: gstData
+          },
+          name: feature.name,
+          category: feature.category,
+          type: feature.geometryType, // Add the feature type
+          ...properties
+        },
+        project_id: activeProject.id,
+        is_active: true,
+        is_synced: false, // Points start as unsynced
+        created_by: user?.id || null,
+        created_at: new Date().toISOString(),
+        updated_by: user?.id || null,
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('Saving point to storage:', point);
+      await storageService.savePoint(point);
+      
+      // Verify point was saved
+      const projectPoints = await storageService.getProjectPoints(point.project_id);
+      console.log(`After save: ${projectPoints.length} points in project storage`);
+      const savedPoint = projectPoints.find(p => p.client_id === point.client_id);
+      if (savedPoint) {
+        console.log('✅ Point successfully saved and retrieved from feature');
+      } else {
+        console.error('❌ Point not found in feature storage after save!');
+      }
+      
+      // Get actual count of unsynced points after save
+      const unsyncedPoints = await storageService.getUnsyncedPoints();
+      setSyncStatus(prev => ({
+        ...prev,
+        unsyncedCount: unsyncedPoints.length
+      }));
+
+      // Trigger sync after successful save
+      console.log('Triggering sync after point save...');
+      const syncResult = await syncPoints();
+      if (syncResult) {
+        console.log('✅ Point successfully synced with server');
+      } else {
+        console.error('❌ Failed to sync point with server');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error saving point:', error);
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [activeProject, ggaData, gstData, user, syncPoints]);
+
+  // Start collecting points
+  const startCollection = useCallback((initialPosition: Position, feature: FeatureType): CollectionState => {
+    if (!activeProject) {
+      console.error('No active project');
+      return collectionState;
+    }
+
+    // Validate coordinates
+    const validCoords = getValidCoordinates(initialPosition);
+    if (!validCoords) {
+      console.error('No valid position available');
+      return collectionState;
+    }
+
+    // Set the active feature type
+    const newState: CollectionState = {
+      points: [validCoords],
+      isActive: true,
+      activeFeature: feature
+    };
+
+    setCollectionState(newState);
+
+    // For point features, we need to render immediately
+    if (feature.geometryType === 'Point') {
+      const featureToRender: FeatureToRender = {
+        type: feature.geometryType,
+        coordinates: validCoords,
+        properties: {
+          client_id: generateClientId(),
+          name: feature.name,
+          category: feature.category as UtilityCategory,
+          style: feature.attributes?.style
+        }
+      };
+      renderFeature(featureToRender);
+      
+      // For point features, save immediately
+      savePointWithFeature(validCoords, feature);
+    }
+
+    return newState;
+  }, [activeProject, getValidCoordinates, renderFeature, savePointWithFeature]);
+
+  // Record a new point
+  const recordPoint = useCallback((position?: Position): boolean => {
+    if (!collectionState.isActive) {
+      return false;
+    }
+    
+    const pointCoordinates = getValidCoordinates(position);
+    
+    if (!pointCoordinates) {
+      return false;
+    }
+    
+    setCollectionState(prev => ({
+      ...prev,
+      points: [...prev.points, pointCoordinates]
+    }));
+    
+    return true;
+  }, [collectionState.isActive, getValidCoordinates]);
+
+  // Stop collection
+  const stopCollection = useCallback(() => {
+    setCollectionState({
+      points: [],
+      isActive: false,
+      activeFeature: null
+    });
+  }, []);
+  
+  // Generate a simple ID if UUID fails as fallback
+  const generateSimpleId = () => {
+    return `manual-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  };
+  
+  // Save the current point with all metadata
+  const saveCurrentPoint = useCallback(async (properties?: Record<string, any>, state?: CollectionState): Promise<boolean> => {
+    if (!collectionState.activeFeature || !activeProject) {
+      console.error('No active feature or project');
+      return false;
+    }
+
+    const activeFeature = collectionState.activeFeature;
+    const points = state?.points || collectionState.points;
+
+    if (points.length === 0) {
+      console.error('No points to save');
+      return false;
+    }
+
+    const coordinates = activeFeature.geometryType === 'Point' 
+      ? points[0]
+      : points[points.length - 1];
+
+    return savePointWithFeature(coordinates, activeFeature, properties);
+  }, [collectionState.activeFeature, collectionState.points, activeProject, savePointWithFeature]);
 
   return (
     <CollectionContext.Provider

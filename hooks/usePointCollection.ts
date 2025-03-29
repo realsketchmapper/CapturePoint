@@ -34,10 +34,8 @@ export const usePointCollection = () => {
     
     // Add point to map
     const pointId = addPoint(currentLocation, {
-      featureTypeId: selectedFeatureType.id,
       name: selectedFeatureType.name,
-      category: selectedFeatureType.category,
-      draw_layer: selectedFeatureType.draw_layer
+      category: selectedFeatureType.category
     });
     
     if (!pointId) {
@@ -46,31 +44,8 @@ export const usePointCollection = () => {
       return;
     }
     
-    // Try to save the point
-    try {
-      const success = await saveCurrentPoint({
-        name: selectedFeatureType.name,
-        featureTypeId: selectedFeatureType.id,
-        category: selectedFeatureType.category,
-        draw_layer: selectedFeatureType.draw_layer,
-        pointId,
-        style: {
-          color: selectedFeatureType.color
-        }
-      }, newState);
-      
-      if (!success) {
-        removeFeature(pointId);
-        console.error('Failed to save point');
-        Alert.alert("Error", "Failed to save point. Please try again.");
-      }
-    } catch (error) {
-      removeFeature(pointId);
-      console.error('Error saving point:', error);
-      Alert.alert("Error", "An error occurred while saving the point.");
-    } finally {
-      stopCollection();
-    }
+    // Stop collection since point is already saved in startCollection
+    stopCollection();
   };
 
   return { handlePointCollection };

@@ -12,6 +12,8 @@ import { useMapContext } from '@/contexts/MapDisplayContext';
 import { FeatureType, FeatureToRender, CollectedFeature } from '@/types/features.types';
 import { Feature } from 'geojson';
 import { MaterialIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '@/constants/storage';
 
 interface MapPointDetailsProps {
   isVisible: boolean;
@@ -122,109 +124,41 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
             try {
               setIsDeleting(true);
               
-              // Try to inactivate the feature - this might succeed or fail if already inactive
-              try {
-                if (point.id !== null) {
-                  await featureTypeService.inactivateFeature(activeProject.id, point.id.toString());
-                }
-              } catch (error) {
-                console.log('Error inactivating feature:', error);
-                // Continue with refresh even if inactivation failed - the feature might already be inactive
+              // Get all features for the project
+              const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${activeProject.id}`;
+              const featuresJson = await AsyncStorage.getItem(featuresKey);
+              if (!featuresJson) {
+                throw new Error('No features found in storage');
               }
+
+              const features: CollectedFeature[] = JSON.parse(featuresJson);
               
-              // Always refresh the features to ensure map is in sync with backend
-              try {
-                // Clear existing features first
-                clearFeatures();
-                // Fetch and update with active features
-                const activeFeatures = await featureTypeService.fetchActiveFeatures(activeProject.id);
-                // Render each active feature on the map
-                activeFeatures.forEach((feature: FeatureType) => {
-                  // Skip features without valid coordinates
-                  if (!feature.attributes.coordinates || 
-                      (Array.isArray(feature.attributes.coordinates) && feature.attributes.coordinates.length < 2)) {
-                    console.warn('Skipping feature with invalid coordinates:', feature.id);
-                    return;
+              // Find and update the feature containing this point
+              const updatedFeatures = features.map(feature => {
+                if (feature.points) {
+                  // Filter out the deleted point
+                  feature.points = feature.points.filter(p => p.client_id !== point.client_id);
+                  
+                  // If no points remain, mark the feature as inactive
+                  if (feature.points.length === 0) {
+                    feature.is_active = false;
                   }
+                }
+                return feature;
+              });
 
-                  try {
-                    // Ensure coordinates are in the correct format
-                    let formattedCoordinates: [number, number] | [number, number][];
-                    
-                    if (feature.geometryType === 'Point') {
-                      // For points, ensure we have a single coordinate pair
-                      if (!Array.isArray(feature.attributes.coordinates)) {
-                        console.warn('Invalid coordinates format for point:', feature.id);
-                        return;
-                      }
-
-                      if (Array.isArray(feature.attributes.coordinates[0])) {
-                        // Handle nested array format: [[lon, lat]]
-                        const coord = feature.attributes.coordinates[0] as number[];
-                        if (!Array.isArray(coord) || coord.length < 2) {
-                          console.warn('Invalid nested coordinates for point:', feature.id);
-                          return;
-                        }
-                        formattedCoordinates = [Number(coord[0]), Number(coord[1])] as [number, number];
-                      } else {
-                        // Handle flat array format: [lon, lat]
-                        if (feature.attributes.coordinates.length < 2) {
-                          console.warn('Invalid flat coordinates for point:', feature.id);
-                          return;
-                        }
-                        formattedCoordinates = [
-                          Number(feature.attributes.coordinates[0]),
-                          Number(feature.attributes.coordinates[1])
-                        ] as [number, number];
-                      }
-                    } else {
-                      // For lines/polygons, ensure we have an array of coordinate pairs
-                      if (!Array.isArray(feature.attributes.coordinates)) {
-                        console.warn('Invalid coordinates format for line/polygon:', feature.id);
-                        return;
-                      }
-
-                      if (Array.isArray(feature.attributes.coordinates[0])) {
-                        // Already in correct format: [[lon, lat], [lon, lat], ...]
-                        formattedCoordinates = feature.attributes.coordinates.map((coord: number[]) => {
-                          if (!Array.isArray(coord) || coord.length < 2) {
-                            throw new Error('Invalid coordinate pair in line/polygon');
-                          }
-                          return [Number(coord[0]), Number(coord[1])] as [number, number];
-                        });
-                      } else {
-                        // Convert single pair to array: [lon, lat] -> [[lon, lat]]
-                        if (feature.attributes.coordinates.length < 2) {
-                          console.warn('Invalid coordinates for line/polygon:', feature.id);
-                          return;
-                        }
-                        formattedCoordinates = [[
-                          Number(feature.attributes.coordinates[0]),
-                          Number(feature.attributes.coordinates[1])
-                        ] as [number, number]];
-                      }
-                    }
-
-                    const featureToRender: FeatureToRender = {
-                      type: feature.geometryType,
-                      coordinates: formattedCoordinates,
-                      properties: {
-                        client_id: feature.id,
-                        name: feature.name,
-                        category: feature.category
-                      }
-                    };
-                    renderFeature(featureToRender);
-                  } catch (error) {
-                    console.error('Error formatting coordinates for feature:', feature.id, error);
-                  }
-                });
-                
-                onClose();
-              } catch (error) {
-                console.error('Error refreshing features:', error);
-                Alert.alert('Warning', 'The map may need to be refreshed manually.');
-              }
+              // Save the updated features
+              await AsyncStorage.setItem(featuresKey, JSON.stringify(updatedFeatures));
+              
+              // Clear and refresh the map
+              clearFeatures();
+              const { refreshFeatures } = useMapContext();
+              await refreshFeatures();
+              
+              onClose();
+            } catch (error) {
+              console.error('Error deleting point:', error);
+              Alert.alert('Error', 'Failed to delete point. Please try again.');
             } finally {
               setIsDeleting(false);
             }
@@ -232,7 +166,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
         }
       ]
     );
-  }, [point, activeProject, isDeleting, onClose, clearFeatures, renderFeature]);
+  }, [point, activeProject, isDeleting, onClose, clearFeatures]);
 
   // Find the matching point in storage
   const findMatchingPoint = useCallback(async (feature: Feature) => {

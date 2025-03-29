@@ -40,7 +40,6 @@ const formatPointForAPI = (point: PointCollected) => {
   
   // Create the API point object
   const apiPoint = {
-    id: point.id,
     client_id: point.client_id,
     fcode: point.fcode,
     coords: coordinates,
@@ -49,7 +48,6 @@ const formatPointForAPI = (point: PointCollected) => {
       nmeaData: point.attributes?.nmeaData || null
     },
     project_id: point.project_id,
-    feature_id: point.feature_id,
     is_active: point.is_active,
     created_by: point.created_by,
     created_at: point.created_at,
@@ -262,7 +260,6 @@ export const syncService = {
         coords: point.coordinates,
         attributes: point.attributes,
         project_id: point.project_id,
-        feature_id: point.feature_id,
         is_active: point.is_active,
         created_by: point.created_by,
         created_at: point.created_at,
@@ -272,9 +269,9 @@ export const syncService = {
 
       // Group points by feature
       const features = unsyncedPoints.reduce((acc, point) => {
-        const featureId = point.attributes?.featureTypeId || 0;
-        if (!acc[featureId]) {
-          acc[featureId] = {
+        const featureName = point.attributes?.name || '';
+        if (!acc[featureName]) {
+          acc[featureName] = {
             client_id: point.client_id,
             category: point.attributes?.category || '',
             type: point.attributes?.type || 'Point',
@@ -284,9 +281,9 @@ export const syncService = {
             points: []
           };
         }
-        acc[featureId].points.push(formattedPoints.find(p => p.client_id === point.client_id));
+        acc[featureName].points.push(formattedPoints.find(p => p.client_id === point.client_id));
         return acc;
-      }, {} as Record<number, any>);
+      }, {} as Record<string, any>);
 
       const requestPayload = {
         features: Object.values(features),
@@ -303,9 +300,12 @@ export const syncService = {
         console.log('API Response:', response.data);
 
         if (response.data.success) {
+          // Get all feature IDs from the request
+          const featureIds = Object.values(features).map((f: any) => f.client_id);
+          
           // Mark points as synced
           await storageService.markPointsAsSynced(
-            response.data.syncedIds || [],
+            featureIds,
             projectId
           );
 
@@ -318,8 +318,8 @@ export const syncService = {
 
             for (const serverPoint of serverPoints) {
               // Get the feature type for this point
-              const featureType = await storageService.getFeatureType(
-                serverPoint.attributes.featureTypeId,
+              const featureType = await storageService.getFeatureTypeByName(
+                serverPoint.attributes.name,
                 projectId
               );
 
@@ -330,16 +330,14 @@ export const syncService = {
 
               // Convert and save the point
               const point: PointCollected = {
-                id: serverPoint.id,
                 client_id: serverPoint.client_id,
                 fcode: serverPoint.fcode,
                 coordinates: serverPoint.coords,
                 attributes: {
                   ...serverPoint.attributes,
-                  featureTypeId: featureType.id
+                  name: featureType.name
                 },
                 project_id: projectId,
-                feature_id: serverPoint.feature_id,
                 is_active: serverPoint.is_active,
                 created_by: serverPoint.created_by,
                 created_at: serverPoint.created_at,
@@ -353,8 +351,8 @@ export const syncService = {
 
             return {
               success: true,
-              syncedCount: response.data.syncedIds ? response.data.syncedIds.length : 0,
-              failedCount: response.data.created_ids ? response.data.created_ids.length : 0,
+              syncedCount: featureIds.length,
+              failedCount: 0,
               errorMessage: response.data.error ? response.data.error : undefined,
               lastServerSync: response.data.serverTime,
               featureUpdates
@@ -363,8 +361,8 @@ export const syncService = {
 
           return {
             success: true,
-            syncedCount: response.data.syncedIds ? response.data.syncedIds.length : 0,
-            failedCount: response.data.created_ids ? response.data.created_ids.length : 0,
+            syncedCount: featureIds.length,
+            failedCount: 0,
             errorMessage: response.data.error ? response.data.error : undefined,
             lastServerSync: response.data.serverTime
           };
@@ -373,7 +371,7 @@ export const syncService = {
           return {
             success: false,
             syncedCount: 0,
-            failedCount: response.data.created_ids ? response.data.created_ids.length : 0,
+            failedCount: 0,
             errorMessage: response.data.error ? response.data.error : 'Unknown error'
           };
         }

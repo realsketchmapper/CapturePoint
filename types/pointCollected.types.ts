@@ -2,21 +2,24 @@ import { GGAData, GSTData } from "./nmea.types";
 import { FeatureType } from "./features.types";
 
 export interface PointCollected {
-  id: number | null;  // null indicates unsynced point
-  client_id: string;
+  client_id: string | null;  // Allow null for unsynced points
   fcode: string;
   coordinates: [number, number];  // This represents the coords Geometry('Point') from the DB
   attributes: {
     nmeaData?: {  // Moving NMEA data under attributes
-      gga: GGAData;
-      gst: GSTData;
+      gga: any;
+      gst: any;
     };
-    featureTypeId: number;  // Reference to the type of feature this point belongs to
-    [key: string]: any;  // Allow for other dynamic attributes
+    name: string;
+    category: string;
+    type?: string;  // Optional type property
+    style?: any;
+    description?: string;  // Optional description field
+    [key: string]: any;  // Allow additional properties
   };
   project_id: number;
-  feature_id: number;  // References the CollectedFeature this point belongs to
   is_active: boolean;
+  is_synced: boolean;  // Track sync status
   
   // Audit fields
   created_by: number | null;
