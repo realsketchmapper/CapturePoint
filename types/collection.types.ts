@@ -16,5 +16,4 @@ export interface CollectionState {
     points: [number, number][];
     isActive: boolean;
     activeFeature: FeatureType | null;  
-    //featureType: 'point' | 'line' | 'polygon';  
-  }
+}

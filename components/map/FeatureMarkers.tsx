@@ -42,12 +42,11 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
             coordinates: collectedFeature.points[0].coordinates
           },
           properties: {
-            id: collectedFeature.id || 0,
             client_id: collectedFeature.points[0].client_id,
-            featureTypeId: collectedFeature.featureTypeId,
             name: collectedFeature.featureType?.name || 'Unknown',
             category: collectedFeature.featureType?.category || '',
             style: collectedFeature.attributes?.style || {},
+            featureType: collectedFeature.featureType,
             points: collectedFeature.points
           }
         };
@@ -68,10 +67,10 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
         ? (feature.geometry as GeoJSON.Point).coordinates as [number, number]
         : [0, 0];
       
-      // Look up the feature type
-      const featureType = featureTypeMap.get(props.featureTypeId);
+      // Get the feature type from properties
+      const featureType = props.featureType;
       if (!featureType) {
-        console.warn('Feature type not found:', props.featureTypeId);
+        console.warn('Feature type not found in properties');
         return null;
       }
       
@@ -95,9 +94,9 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
             />
           ) : (
             <View style={{
-              width: 20,
-              height: 20,
-              borderRadius: 10,
+              width: markerSize,
+              height: markerSize,
+              borderRadius: markerSize/2,
               backgroundColor: formattedColor,
               borderWidth: 2,
               borderColor: 'white',
@@ -106,8 +105,10 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
         </MarkerView>
       );
     });
-  }, [pointFeatures, featureTypeMap]);
+  }, [pointFeatures]);
 
   return <>{renderedMarkers}</>;
-});export default FeatureMarkers;
+});
+
+export default FeatureMarkers;
 

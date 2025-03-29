@@ -50,12 +50,12 @@ export interface FeatureToRender {
     type: GeometryType;
     coordinates: [number, number] | [number, number][];
     properties: {
-        featureId: number;
-        featureTypeId: number;
+        client_id: string;
         name: string;
         category: UtilityCategory;
         color?: string;
         style?: any;
+        featureType?: FeatureType;
     };
 }
 

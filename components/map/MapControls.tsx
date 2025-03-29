@@ -155,9 +155,6 @@ export const MapControls: React.FC = () => {
 
         const storedFeatures: CollectedFeature[] = JSON.parse(featuresJson);
         
-        // Get feature coordinates
-        const featureCoords = (closestFeature.geometry as any).coordinates as [number, number];
-        
         // Find the feature that contains this point
         let matchedPoint: PointCollected | null = null;
         for (const storedFeature of storedFeatures) {
@@ -210,16 +207,12 @@ export const MapControls: React.FC = () => {
 
         const storedFeatures: CollectedFeature[] = JSON.parse(featuresJson);
         
-        // Get feature coordinates
-        const featureCoords = (clickedFeature.geometry as any).coordinates as [number, number];
-        
         // Find the feature that contains this point
         let matchedPoint: PointCollected | null = null;
         for (const storedFeature of storedFeatures) {
           if (storedFeature.points) {
             matchedPoint = storedFeature.points.find((p: PointCollected) => 
-              Math.abs(p.coordinates[0] - featureCoords[0]) < 0.0000001 && 
-              Math.abs(p.coordinates[1] - featureCoords[1]) < 0.0000001
+              p.client_id === clickedFeature?.properties?.client_id
             ) || null;
             
             if (matchedPoint) break;

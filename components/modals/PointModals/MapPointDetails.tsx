@@ -10,6 +10,8 @@ import { featureTypeService } from '@/services/features/featureTypeService';
 import { ProjectContext } from '@/contexts/ProjectContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 import { FeatureType, FeatureToRender, CollectedFeature } from '@/types/features.types';
+import { Feature } from 'geojson';
+import { MaterialIcons } from '@expo/vector-icons';
 
 interface MapPointDetailsProps {
   isVisible: boolean;
@@ -207,8 +209,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                       type: feature.geometryType,
                       coordinates: formattedCoordinates,
                       properties: {
-                        featureId: feature.id,
-                        featureTypeId: feature.id,
+                        client_id: feature.id,
                         name: feature.name,
                         category: feature.category
                       }
@@ -232,6 +233,44 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
       ]
     );
   }, [point, activeProject, isDeleting, onClose, clearFeatures, renderFeature]);
+
+  // Find the matching point in storage
+  const findMatchingPoint = useCallback(async (feature: Feature) => {
+    if (!activeProject) return null;
+
+    try {
+      console.log('Finding matching point for feature:', feature);
+      
+      // Get all points for the project
+      const projectPoints = await storageService.getProjectPoints(activeProject.id);
+      console.log('Project points:', projectPoints.map(p => ({
+        client_id: p.client_id,
+        coordinates: p.coordinates
+      })));
+
+      // Find the point that matches the feature's coordinates and client_id
+      const matchingPoint = projectPoints.find(point => {
+        const isMatch = point.client_id === feature.properties?.client_id;
+        console.log('Checking point:', {
+          pointClientId: point.client_id,
+          featureClientId: feature.properties?.client_id,
+          isMatch
+        });
+        return isMatch;
+      });
+
+      if (matchingPoint) {
+        console.log('Found matching point:', matchingPoint);
+        return matchingPoint;
+      }
+
+      console.log('No matching point found');
+      return null;
+    } catch (error) {
+      console.error('Error finding matching point:', error);
+      return null;
+    }
+  }, [activeProject]);
 
   return (
     <Modal

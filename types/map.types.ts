@@ -1,9 +1,8 @@
 import type { FeatureCollection, GeoJsonProperties } from 'geojson';
-import { FeatureToRender } from './features.types';
+import { FeatureToRender, FeatureType } from './features.types';
 
 // Simplified type definitions
 export type Coordinate = [number, number];
-export type FeatureType = 'Point' | 'Line' | 'Polygon';
 
 export interface MapContextType {
   // Feature management

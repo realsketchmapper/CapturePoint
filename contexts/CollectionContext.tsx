@@ -1,7 +1,7 @@
 // contexts/CollectionContext.tsx
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Position, CollectionContextType, CollectionState } from '@/types/collection.types';
-import { CollectedFeature, FeatureToRender } from '@/types/features.types';
+import { CollectedFeature, FeatureToRender, FeatureType } from '@/types/features.types';
 import { PointCollected } from '@/types/pointCollected.types';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useNMEAContext } from '@/contexts/NMEAContext';
@@ -22,7 +22,7 @@ interface ExtendedCollectionContextType extends CollectionContextType {
   currentPoints: [number, number][];
   
   // Collection operations
-  startCollection: (initialPosition: Position, feature: CollectedFeature) => CollectionState;
+  startCollection: (initialPosition: Position, feature: FeatureType) => CollectionState;
   recordPoint: (position?: Position) => boolean;
   stopCollection: () => void;
   
@@ -104,27 +104,46 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [currentLocation]);
   
   // Start collecting points
-  const startCollection = useCallback((initialPosition: Position, feature: CollectedFeature): CollectionState => {
-    const pointCoordinates = getValidCoordinates(initialPosition);
-    
-    if (!pointCoordinates) {
-      console.warn("Could not start collection: Invalid coordinates");
-      return {
-        points: [],
-        isActive: false,
-        activeFeature: null
-      };
+  const startCollection = useCallback((initialPosition: Position, feature: FeatureType): CollectionState => {
+    if (!activeProject) {
+      console.error('No active project');
+      return collectionState;
     }
-    
-    const newState = {
-      points: [pointCoordinates],
+
+    // Validate coordinates
+    const validCoords = getValidCoordinates(initialPosition);
+    if (!validCoords) {
+      console.error('No valid position available');
+      return collectionState;
+    }
+
+    // Set the active feature type
+    const newState: CollectionState = {
+      points: [validCoords],
       isActive: true,
       activeFeature: feature
     };
-    
+
     setCollectionState(newState);
+
+    // For point features, we need to render immediately
+    if (feature.geometryType === 'Point') {
+      const featureToRender: FeatureToRender = {
+        type: feature.geometryType,
+        coordinates: validCoords,
+        properties: {
+          client_id: generateClientId(),
+          name: feature.name,
+          category: feature.category,
+          style: feature.attributes?.style,
+          featureType: feature
+        }
+      };
+      renderFeature(featureToRender);
+    }
+
     return newState;
-  }, [getValidCoordinates]);
+  }, [activeProject, getValidCoordinates, renderFeature]);
 
   // Record a new point
   const recordPoint = useCallback((position?: Position): boolean => {
@@ -188,7 +207,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setIsSaving(true);
     
     try {
-      const coordinates = activeFeature.type === 'Point' 
+      const coordinates = activeFeature.geometryType === 'Point' 
         ? points[0]
         : points[points.length - 1];
       
@@ -206,8 +225,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           },
           name: properties.name || activeFeature.name,
           category: activeFeature.draw_layer,  // Required for collected_features table
-          type: activeFeature.type,           // Required for collected_features table
-          featureType: activeFeature.type,    // Keep for backwards compatibility
+          type: activeFeature.geometryType,           // Required for collected_features table
+          featureType: activeFeature.geometryType,    // Keep for backwards compatibility
           style: properties.style,
           featureTypeId: activeFeature.id     // Add the feature type ID
         },
@@ -295,12 +314,12 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Render each feature on the map
         features.forEach(feature => {
           if (!feature.points || feature.points.length === 0) {
-            console.log(`Skipping feature ${feature.id} - no points`);
+            console.log(`Skipping feature ${feature.client_id} - no points`);
             return;
           }
 
           // For point features, we need to render each point individually
-          if (feature.attributes?.featureType === 'Point') {
+          if (feature.featureType.geometryType === 'Point') {
             feature.points.forEach(point => {
               if (!point.coordinates || point.coordinates.length < 2) {
                 console.log(`Skipping point ${point.client_id} - invalid coordinates`);
@@ -308,14 +327,14 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               }
               
               const featureToRender: FeatureToRender = {
-                type: feature.attributes?.featureType,
+                type: feature.featureType.geometryType,
                 coordinates: point.coordinates as [number, number],
                 properties: {
-                  featureId: feature.id,
-                  featureTypeId: feature.attributes?.featureTypeId,
-                  name: feature.attributes?.name,
-                  category: feature.attributes?.category,
-                  style: feature.attributes?.style
+                  client_id: point.client_id,
+                  name: feature.featureType.name,
+                  category: feature.featureType.category,
+                  style: feature.featureType.attributes?.style,
+                  featureType: feature.featureType
                 }
               };
               renderFeature(featureToRender);
@@ -327,19 +346,19 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               .map(point => point.coordinates as [number, number]);
             
             if (coordinates.length < 2) {
-              console.log(`Skipping feature ${feature.id} - not enough valid points`);
+              console.log(`Skipping feature ${feature.client_id} - not enough valid points`);
               return;
             }
             
             const featureToRender: FeatureToRender = {
-              type: feature.attributes?.featureType,
+              type: feature.featureType.geometryType,
               coordinates: coordinates,
               properties: {
-                featureId: feature.id,
-                featureTypeId: feature.attributes?.featureTypeId,
-                name: feature.attributes?.name,
-                category: feature.attributes?.category,
-                style: feature.attributes?.style
+                client_id: feature.client_id,
+                name: feature.featureType.name,
+                category: feature.featureType.category,
+                style: feature.featureType.attributes?.style,
+                featureType: feature.featureType
               }
             };
             renderFeature(featureToRender);
