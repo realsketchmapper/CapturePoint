@@ -137,7 +137,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           name: feature.name,
           category: feature.category,
           style: feature.attributes?.style,
-          featureType: feature
+          featureType: feature  // Add the feature type to properties
         }
       };
       renderFeature(featureToRender);
@@ -213,91 +213,116 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Save the current point with all metadata
   const saveCurrentPoint = useCallback(async (properties: Record<string, any> = {}, state?: CollectionState): Promise<boolean> => {
     const activeFeature = state?.activeFeature || collectionState.activeFeature;
-    const points = state?.points || collectionState.points;
 
-    console.log('\n=== Saving Point ===');
-  
-
-    if (!activeFeature || points.length === 0
-      || !ggaData?.latitude || !ggaData?.longitude || !gstData?.rmsTotal) {
-      console.warn('Missing required data to save point:', {
-        hasFeature: !!activeFeature,
-        pointsLength: points.length,
-        hasGGA: !!ggaData?.latitude && !!ggaData?.longitude,
-        hasGST: !!gstData?.rmsTotal
-      });
+    if (!activeFeature || !activeProject) {
+      console.error('No active feature or project');
       return false;
     }
 
-    // Require pointId to be provided
-    if (!properties.pointId) {
-      console.error('No pointId provided to saveCurrentPoint');
-      return false;
-    }
-    
-    setIsSaving(true);
-    
     try {
-      const coordinates = activeFeature.geometryType === 'Point' 
-        ? points[0]
-        : points[points.length - 1];
-      
-      console.log('Creating point with coordinates:', coordinates);
-      
+      // Create the point with feature type information
       const point: PointCollected = {
-        client_id: generateClientId(),
         feature_name: activeFeature.name,
+        client_id: generateClientId(),
         fcode: 'PT',
-        coordinates,
+        coordinates: collectionState.points[0],
         attributes: {
-          nmeaData: {
-            gga: ggaData,
-            gst: gstData
-          },
-          name: properties.name || activeFeature.name,
-          category: activeFeature.draw_layer,
           type: activeFeature.geometryType,
           featureTypeName: activeFeature.name,
-          featureTypeId: activeFeature.id
+          featureTypeId: activeFeature.id,
+          category: activeFeature.category,
+          name: activeFeature.name,
+          style: activeFeature.attributes?.style || {},
+          ...properties
         },
-        project_id: activeProject?.id || 0,
-        feature_id: properties.pointId,  // Use the provided pointId as feature_id
+        project_id: activeProject.id,
+        feature_id: generateClientId(),
         is_active: true,
-        is_synced: false,  // Initialize as unsynced
-        created_by: user?.id || null,
+        is_synced: false,
+        created_by: 1, // TODO: Get from auth context
         created_at: new Date().toISOString(),
-        updated_by: user?.id || null,
+        updated_by: 1, // TODO: Get from auth context
         updated_at: new Date().toISOString()
       };
-      
-      console.log('Saving point to storage:', point);
+
+      // Save the point
       await storageService.savePoint(point);
+      console.log('Point added locally with ID:', point.client_id, 'for project:', activeProject.id);
+
+      // Stop collection
+      stopCollection();
+
+      // Sync with server
+      const result = await syncService.syncPoints(activeProject.id);
       
-      // Verify point was saved
-      const projectPoints = await storageService.getProjectPoints(point.project_id);
-      console.log(`After save: ${projectPoints.length} points in project storage`);
-      const savedPoint = projectPoints.find(p => p.client_id === point.client_id);
-      if (savedPoint) {
-        console.log('✅ Point successfully saved and retrieved from feature');
-      } else {
-        console.error('❌ Point not found in feature storage after save!');
+      // After successful sync, refresh the map
+      if (result.success && activeProject) {
+        console.log('Sync successful, updating map...');
+        const features = await storageService.getProjectFeatures(activeProject.id);
+        console.log(`Loaded ${features.length} features from storage after sync`);
+        
+        // Get the list of synced feature IDs
+        const syncedFeatureIds = result.syncedIds || [];
+        console.log('Synced feature IDs:', syncedFeatureIds);
+        
+        // Render each feature on the map
+        for (const feature of features) {
+          if (!feature.points || feature.points.length === 0) {
+            console.log(`Skipping feature ${feature.client_id} - no points`);
+            continue;
+          }
+
+          // For point features, we need to render each point individually
+          if (feature.points[0].attributes?.type === 'Point') {
+            // Get the feature type from storage using the name
+            const featureType = await storageService.getFeatureTypeByName(
+              feature.points[0].attributes?.featureTypeName,
+              activeProject.id
+            );
+
+            if (!featureType) {
+              console.warn(`Feature type ${feature.points[0].attributes?.featureTypeName} not found for point ${feature.points[0].client_id}`);
+              continue;
+            }
+
+            feature.points.forEach(point => {
+              // Only update if this point was synced
+              if (syncedFeatureIds.includes(point.client_id)) {
+                console.log(`Updating synced point: ${point.client_id}`);
+                const featureToRender: FeatureToRender = {
+                  type: point.attributes?.type || 'Point',
+                  coordinates: point.coordinates,
+                  properties: {
+                    client_id: point.client_id,
+                    name: point.attributes?.name || feature.name,
+                    category: point.attributes?.category || feature.attributes?.category,
+                    style: point.attributes?.style || {},
+                    featureType // Add the feature type to properties
+                  }
+                };
+                renderFeature(featureToRender);
+              }
+            });
+          }
+        }
       }
       
-      // Get actual count of unsynced points after save
+      return result.success;
+    } catch (error) {
+      console.error('Error syncing points:', error);
+      
+      // On error, verify the actual unsynced count
       const unsyncedPoints = await storageService.getUnsyncedPoints();
+      
       setSyncStatus(prev => ({
         ...prev,
+        isSyncing: false,
         unsyncedCount: unsyncedPoints.length
       }));
       
-      return true;
-    } catch (error) {
-      console.error('Error saving point:', error);
       return false;
-    } finally {
-      setIsSaving(false);
     }
-  }, [collectionState.activeFeature, collectionState.points, ggaData, gstData, activeProject, user]);
+  }, [syncStatus.isSyncing, activeProject, clearFeatures, renderFeature]);
   
   // Sync points with the server
   const syncPoints = useCallback(async (): Promise<boolean> => {
@@ -354,14 +379,14 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
           // For point features, we need to render each point individually
           if (feature.points[0].attributes?.type === 'Point') {
-            // Get the feature type from storage
-            const featureType = await storageService.getFeatureType(
-              feature.points[0].attributes?.featureTypeId,
+            // Get the feature type from storage using the name
+            const featureType = await storageService.getFeatureTypeByName(
+              feature.points[0].attributes?.featureTypeName,
               activeProject.id
             );
 
             if (!featureType) {
-              console.warn(`Feature type not found for point ${feature.points[0].client_id}`);
+              console.warn(`Feature type ${feature.points[0].attributes?.featureTypeName} not found for point ${feature.points[0].client_id}`);
               continue;
             }
 
@@ -377,7 +402,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     name: point.attributes?.name || feature.name,
                     category: point.attributes?.category || feature.attributes?.category,
                     style: point.attributes?.style || {},
-                    featureType: featureType
+                    featureType // Add the feature type to properties
                   }
                 };
                 renderFeature(featureToRender);

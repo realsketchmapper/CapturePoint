@@ -35,9 +35,11 @@ export const usePointCollection = () => {
     // Add point to map
     const pointId = addPoint(currentLocation, {
       featureTypeId: selectedFeatureType.id,
+      featureTypeName: selectedFeatureType.name,
       name: selectedFeatureType.name,
       category: selectedFeatureType.category,
-      draw_layer: selectedFeatureType.draw_layer
+      draw_layer: selectedFeatureType.draw_layer,
+      featureType: selectedFeatureType
     });
     
     if (!pointId) {
@@ -51,6 +53,7 @@ export const usePointCollection = () => {
       const success = await saveCurrentPoint({
         name: selectedFeatureType.name,
         featureTypeId: selectedFeatureType.id,
+        featureTypeName: selectedFeatureType.name,
         category: selectedFeatureType.category,
         draw_layer: selectedFeatureType.draw_layer,
         pointId,

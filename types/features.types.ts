@@ -29,6 +29,7 @@ export interface FeatureType {
 
 // For features that have been collected
 export interface CollectedFeature {
+    name: string;
     client_id: string;        // Local ID for sync
     project_id: number;
     points: PointCollected[];

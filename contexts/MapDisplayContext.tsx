@@ -113,41 +113,30 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Add a point to the map
-  const addPoint = useCallback((coordinates: Coordinate, properties: GeoJsonProperties = {}) => {
+  const addPoint = useCallback((coordinates: Coordinate, properties?: GeoJsonProperties) => {
     if (!isValidCoords(coordinates)) {
-      console.warn('Invalid coordinates provided to addPoint');
+      console.warn('Invalid coordinates:', coordinates);
       return null;
     }
 
-    // Use the provided client_id or generate a new one if not provided
-    const client_id = properties.client_id || generateId();
-    
-    // Ensure we have a color property for rendering
-    const pointProperties = {
-      client_id,
-      color: '#FF6B00', // Default color
-      name: 'Point',
-      category: 'default',
-      draw_layer: 'default',
-      ...(properties || {}) // Spread properties if they exist, otherwise empty object
-    };
-    
-    const pointFeature: Feature<Point> = {
+    const client_id = generateId();
+    const feature: Feature<Point, GeoJsonProperties> = {
       type: 'Feature',
       geometry: {
         type: 'Point',
         coordinates
       },
-      properties: pointProperties
+      properties: {
+        client_id,
+        ...properties,
+        featureType: properties?.featureType || null
+      }
     };
-    
-    setFeatures((prev) => {
-      const newFeatures = [...prev.features, pointFeature];
-      return {
-        type: 'FeatureCollection',
-        features: newFeatures
-      } as FeatureCollection;
-    });
+
+    setFeatures(prev => ({
+      type: 'FeatureCollection',
+      features: [...prev.features, feature]
+    }));
 
     return client_id;
   }, [isValidCoords]);

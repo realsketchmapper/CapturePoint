@@ -210,6 +210,7 @@ export const storageService = {
             ...point,
             feature_id: featureToSave.client_id,
             created_at: new Date().toISOString(),
+
             updated_at: new Date().toISOString()
           }]
         });
