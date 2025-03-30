@@ -148,7 +148,7 @@ export const storageService = {
       // Ensure featureType is in point attributes
       point.attributes = {
         ...point.attributes,
-        featureType
+        //featureType  // we dont want this whole object saved we can access it anytime
       };
       
       // If no feature provided, create one from point data
