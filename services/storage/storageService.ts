@@ -828,10 +828,9 @@ export const storageService = {
   // Batch save feature types
   saveFeatureTypes: async (featureTypes: FeatureType[], projectId: number): Promise<void> => {
     try {
-      // Save feature types sequentially
-      for (const featureType of featureTypes) {
-        await storageService.saveFeatureType(featureType, projectId);
-      }
+      const key = `${STORAGE_KEYS.PROJECT_FEATURE_TYPES_PREFIX}${projectId}`;
+      await AsyncStorage.setItem(key, JSON.stringify(featureTypes));
+      console.log(`Saved ${featureTypes.length} feature types to storage for project ${projectId}`);
     } catch (error) {
       console.error('Error saving feature types:', error);
       throw error;
@@ -996,11 +995,17 @@ export const storageService = {
 
   getFeatureTypes: async (projectId: number): Promise<FeatureType[]> => {
     try {
-      const featureTypesKey = `${STORAGE_KEYS.PROJECT_FEATURE_TYPES_PREFIX}${projectId}`;
-      const featureTypesJson = await AsyncStorage.getItem(featureTypesKey);
-      return featureTypesJson ? JSON.parse(featureTypesJson) : [];
+      const key = `${STORAGE_KEYS.PROJECT_FEATURE_TYPES_PREFIX}${projectId}`;
+      const json = await AsyncStorage.getItem(key);
+      if (!json) {
+        console.log(`No feature types found in storage for project ${projectId}`);
+        return [];
+      }
+      const featureTypes = JSON.parse(json);
+      console.log(`Loaded ${featureTypes.length} feature types from storage for project ${projectId}`);
+      return featureTypes;
     } catch (error) {
-      console.error('Error getting feature types:', error);
+      console.error('Error loading feature types from storage:', error);
       return [];
     }
   },

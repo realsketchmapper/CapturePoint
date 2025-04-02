@@ -5,6 +5,8 @@ import { useSettings } from '@/hooks/useSettings';
 import { useSettingsContext } from '@/contexts/SettingsContext';
 import { DeviceTypeModal } from '@/components/modals/BluetoothModals/DeviceTypeModal';
 import { DeviceSelectionModal } from '@/components/modals/BluetoothModals/DeviceSelectionModal';
+import { FeatureListModal } from '@/components/modals/FeatureModals/FeatureListModal';
+import { useFeatureListModal } from '@/hooks/useFeatureListModal';
 import SettingsMainModal from '@/components/modals/SettingsModal';
 import { Colors } from '@/theme/colors';
 import { BluetoothButton } from './BluetoothButton';
@@ -12,7 +14,6 @@ import { SettingsButton } from './SettingsButton';
 import { FeatureButton } from './FeatureButton';
 import { BackButton } from './BackButton';
 import { ThinHeaderContainer } from '../ThinHeader/ThinHeaderContainer';
-import { useFeatureModal } from '@/hooks/useFeatureModal';
 
 export const HeaderContainer: React.FC = () => {
   const {
@@ -33,10 +34,10 @@ export const HeaderContainer: React.FC = () => {
   } = useSettings();
 
   const {
-    isFeatureModalVisible,
-    handleFeaturePress,
-    handleCloseFeatureModal,
-  } = useFeatureModal();
+    isFeatureListModalVisible,
+    showFeatureListModal,
+    hideFeatureListModal
+  } = useFeatureListModal();
 
   const { settings, handleSettingsChange } = useSettingsContext();
 
@@ -47,7 +48,7 @@ export const HeaderContainer: React.FC = () => {
         <View style={styles.headerContent}>
           <BackButton />
           <View style={styles.buttonContainer}>
-            <FeatureButton onPress={handleFeaturePress} />
+            <FeatureButton onPress={showFeatureListModal} />
             <BluetoothButton onPress={handleBluetoothPress} />
             <SettingsButton onPress={handleSettingsPress} />
           </View>
@@ -68,6 +69,11 @@ export const HeaderContainer: React.FC = () => {
           deviceType={selectedDeviceType}
         />
       )}
+
+      <FeatureListModal
+        isVisible={isFeatureListModalVisible}
+        onClose={hideFeatureListModal}
+      />
 
       <SettingsMainModal
         visible={isVisible}

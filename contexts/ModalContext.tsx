@@ -1,10 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { FeatureListModal } from '@/components/modals/FeatureModals/FeatureListModal';
 import { ProjectDistanceWarningModal } from '@/components/modals/ProjectModals/ProjectDistanceWarningModal';
 
 interface ModalContextType {
-  showFeatureModal: () => void;
-  hideFeatureModal: () => void;
   showProjectWarningModal: (props: ProjectWarningModalProps) => void;
   hideProjectWarningModal: () => void;
 }
@@ -28,12 +25,8 @@ export const useModal = () => {
 };
 
 export const ModalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isFeatureModalVisible, setIsFeatureModalVisible] = useState(false);
   const [isWarningModalVisible, setIsWarningModalVisible] = useState(false);
   const [warningModalProps, setWarningModalProps] = useState<ProjectWarningModalProps | null>(null);
-
-  const showFeatureModal = () => setIsFeatureModalVisible(true);
-  const hideFeatureModal = () => setIsFeatureModalVisible(false);
 
   const showProjectWarningModal = (props: ProjectWarningModalProps) => {
     console.log('ModalContext: Showing project warning modal');
@@ -57,19 +50,11 @@ export const ModalProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ModalContext.Provider
       value={{
-        showFeatureModal,
-        hideFeatureModal,
         showProjectWarningModal,
         hideProjectWarningModal,
       }}
     >
       {children}
-
-      {/* Render modals at root level */}
-      <FeatureListModal
-        isVisible={isFeatureModalVisible}
-        onClose={hideFeatureModal}
-      />
 
       {warningModalProps && (
         <ProjectDistanceWarningModal

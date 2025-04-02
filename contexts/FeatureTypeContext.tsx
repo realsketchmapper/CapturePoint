@@ -78,14 +78,28 @@ export const FeatureTypeProvider: React.FC<FeatureProviderProps> = ({ children }
     try {
       setIsLoading(true);
       setError(null);
+
+      console.log('Fetching feature types from server...');
       const fetchedFeatureTypes = await featureTypeService.fetchFeatureTypes(projectId);
       
       // Save feature types to AsyncStorage
       await storageService.saveFeatureTypes(fetchedFeatureTypes, projectId);
       
+      console.log(`Fetched ${fetchedFeatureTypes.length} feature types`);
       setFeatureTypes(fetchedFeatureTypes);
       setFeaturesLoaded(true);
     } catch (err) {
+      // If server fetch fails, try loading from storage as fallback
+      console.log('Server fetch failed, attempting to load from storage...');
+      const storedTypes = await storageService.getFeatureTypes(projectId);
+      
+      if (storedTypes && storedTypes.length > 0) {
+        console.log(`Loaded ${storedTypes.length} feature types from storage as fallback`);
+        setFeatureTypes(storedTypes);
+        setFeaturesLoaded(true);
+        return;
+      }
+
       setError(err instanceof Error ? err.message : 'Failed to fetch feature types');
       console.error('Error fetching feature types:', err);
     } finally {

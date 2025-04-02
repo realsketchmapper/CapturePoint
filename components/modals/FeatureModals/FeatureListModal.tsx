@@ -30,7 +30,23 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
     featuresLoaded,
   } = useFeatureTypeContext();
 
+  console.log('FeatureListModal render:', {
+    isVisible,
+    featureTypesCount: featureTypes.length,
+    featuresLoaded,
+    isLoading,
+    error,
+    expandedLayersCount: expandedLayers.size
+  });
+
+  console.log('Available feature types:', featureTypes.map(ft => ({
+    name: ft.name,
+    type: ft.geometryType,
+    layer: ft.draw_layer
+  })));
+
   const groupedFeatures = useMemo<GroupedFeatures>(() => {
+    console.log('Grouping features...');
     const groups = featureTypes.reduce<GroupedFeatures>((acc, featureType) => {
       if (!acc[featureType.draw_layer]) {
         acc[featureType.draw_layer] = [];
@@ -39,32 +55,40 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
       return acc;
     }, {});
 
-    // Sort features within each group
+    console.log('Initial groups:', groups);
+
     Object.keys(groups).forEach(layer => {
       groups[layer].sort((a, b) => a.name.localeCompare(b.name));
     });
 
-    // Sort draw_layers alphabetically
-    return Object.keys(groups)
+    const sortedGroups = Object.keys(groups)
       .sort()
       .reduce<GroupedFeatures>((acc, key) => {
         acc[key] = groups[key];
         return acc;
       }, {});
+
+    console.log('Final grouped features:', sortedGroups);
+    return sortedGroups;
   }, [featureTypes]);
 
   const handleFeatureSelect = useCallback((featureType: FeatureType) => {
+    console.log('Feature selected:', featureType);
     setSelectedFeatureType(featureType);
     onClose();
   }, [setSelectedFeatureType, onClose]);
 
-  // Function to render the appropriate image based on feature type
   const renderFeatureImage = useCallback((featureType: FeatureType) => {
-    // For line or polygon type features with SVG data
+    console.log('Rendering image for feature:', {
+      name: featureType.name,
+      geometryType: featureType.geometryType,
+      hasImage: !!featureType.image_url,
+      hasSvg: !!featureType.svg
+    });
+
     if ((featureType.geometryType === 'Line' || 
          featureType.geometryType === 'Polygon') && featureType.svg) {
       try {
-        // Check if the SVG content is valid
         if (featureType.svg.includes('<svg') && featureType.svg.includes('</svg>')) {
           return (
             <SvgXml 
@@ -78,10 +102,10 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
           return <MaterialIcons name="broken-image" size={20} color={Colors.Yellow} />;
         }
       } catch (error) {
+        console.error('Error rendering SVG:', error);
         return <MaterialIcons name="broken-image" size={20} color={Colors.BrightRed} />;
       }
     } 
-    // For point features with image URLs (PNGs)
     else if (featureType.geometryType === 'Point' && featureType.image_url) {
       return (
         <Image 
@@ -91,62 +115,70 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
         />
       );
     } 
-    // Fallback for features without images
     else {
       return <MaterialIcons name="image" size={20} color={Colors.LightBlue} />;
     }
   }, []);
 
-  // Memoize the rendering of layers and features to prevent re-renders
   const renderFeatureGroups = useMemo(() => {
-    return Object.entries(groupedFeatures).map(([layer, layerFeatures]) => (
-      <View key={layer}>
-        <TouchableOpacity 
-          key={`layer-${layer}`}
-          style={styles.layerHeader}
-          onPress={() => toggleLayer(layer)}
-        >
-          {expandedLayers.has(layer) ? (
-            <MaterialIcons name='arrow-drop-down' size={20} color="white" />
-          ) : (
-            <MaterialIcons name='keyboard-arrow-right' size={20} color="white" />
+    console.log('Rendering feature groups. Groups:', Object.keys(groupedFeatures));
+    console.log('Expanded layers:', Array.from(expandedLayers));
+    
+    return Object.entries(groupedFeatures).map(([layer, layerFeatures]) => {
+      console.log(`Processing layer "${layer}" with ${layerFeatures.length} features`);
+      
+      return (
+        <View key={layer}>
+          <TouchableOpacity 
+            key={`layer-${layer}`}
+            style={styles.layerHeader}
+            onPress={() => toggleLayer(layer)}
+          >
+            {expandedLayers.has(layer) ? (
+              <MaterialIcons name='arrow-drop-down' size={20} color="white" />
+            ) : (
+              <MaterialIcons name='keyboard-arrow-right' size={20} color="white" />
+            )}
+            <Text style={styles.layerTitle}>{layer}</Text>
+          </TouchableOpacity>
+          
+          {expandedLayers.has(layer) && (
+            <View style={styles.featureGroup}>
+              {layerFeatures.map(featureType => {
+                console.log(`Rendering feature: ${featureType.name}`);
+                return (
+                  <TouchableOpacity
+                    key={`${layer}-${featureType.name}`}
+                    style={[
+                      styles.featureItem,
+                      selectedFeatureType?.id === featureType.id && styles.selectedFeature
+                    ]}
+                    onPress={() => handleFeatureSelect(featureType)}
+                  >
+                    <View style={styles.featureItemContent}>
+                      <View style={styles.imageContainer}>
+                        {renderFeatureImage(featureType)}
+                      </View>
+                      <Text style={styles.featureName}>{featureType.name}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           )}
-          <Text style={styles.layerTitle}>{layer}</Text>
-        </TouchableOpacity>
-        
-        {expandedLayers.has(layer) && (
-          <View style={styles.featureGroup}>
-            {layerFeatures.map(featureType => (
-              <TouchableOpacity
-                key={`${layer}-${featureType.name}`}
-                style={[
-                  styles.featureItem,
-                  selectedFeatureType?.id === featureType.id && styles.selectedFeature
-                ]}
-                onPress={() => handleFeatureSelect(featureType)}
-              >
-                <View style={styles.featureItemContent}>
-                  <View style={styles.imageContainer}>
-                    {renderFeatureImage(featureType)}
-                  </View>
-                  <Text style={styles.featureName}>{featureType.name}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </View>
-    ));
+        </View>
+      );
+    });
   }, [groupedFeatures, expandedLayers, toggleLayer, selectedFeatureType, handleFeatureSelect, renderFeatureImage]);
 
   return (
     <Modal
       visible={isVisible}
-      animationType="slide"
       transparent={true}
+      animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.modalContainer}>
+      <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.header}>
             <Text style={styles.title}>Select Feature Type</Text>
@@ -181,14 +213,20 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
 });
 
 const styles = StyleSheet.create({
-  modalContainer: {
+  modalOverlay: {
     flex: 1,
-    backgroundColor: Colors.DarkBlue,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
-    flex: 1,
     backgroundColor: Colors.DarkBlue,
+    borderRadius: 12,
     padding: 20,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    minHeight: 300,
   },
   header: {
     flexDirection: 'row',
@@ -196,12 +234,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 24,
     borderBottomWidth: 1,
-    borderBottomColor: 'white',
+    borderBottomColor: 'rgba(255, 255, 255, 0.15)',
     paddingBottom: 12,
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: 'RobotoSlab-Bold',
     color: 'white',
   },
   closeButton: {
@@ -210,6 +248,7 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: 'white',
     fontSize: 16,
+    fontFamily: 'RobotoSlab-Regular',
   },
   centerContent: {
     flex: 1,
@@ -220,64 +259,56 @@ const styles = StyleSheet.create({
     color: Colors.BrightRed,
     fontSize: 16,
     textAlign: 'center',
+    fontFamily: 'RobotoSlab-Regular',
   },
   featureList: {
     flex: 1,
+    minHeight: 200,
   },
   layerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginVertical: 8,
-    borderRadius: 8,
-  },
-  layerTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
-    marginLeft: 10,
-  },
-  featureGroup: {
-    marginLeft: 20,
-  },
-  featureItem: {
-    padding: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  layerTitle: {
+    color: 'white',
+    fontSize: 18,
+    marginLeft: 8,
+    fontFamily: 'RobotoSlab-Bold',
+  },
+  featureGroup: {
+    paddingLeft: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  featureItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  selectedFeature: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   featureItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   imageContainer: {
-    marginRight: 10,
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 4,
-    padding: 4,
+    marginRight: 12,
   },
   featureImage: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholderContainer: {
-    marginRight: 10,
     width: 24,
     height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 4,
-  },
-  selectedFeature: {
-    backgroundColor: Colors.Aqua,
   },
   featureName: {
-    fontSize: 14,
     color: 'white',
+    fontSize: 16,
+    fontFamily: 'RobotoSlab-Regular',
   },
 });
