@@ -1,21 +1,21 @@
 import React, { createContext, useState, ReactNode, useContext, useCallback, useEffect, useMemo } from 'react';
-import { FeatureType, FeatureContextType } from '@/types/features.types';
+import { FeatureType, FeatureTypeContextType } from '@/types/features.types';
 import { featureTypeService } from '@/services/features/featureTypeService';
 import { Image } from 'react-native';
 import { FeatureProviderProps } from '@/types/features.types';
 import { storageService } from '@/services/storage/storageService';
 
-export const FeatureContext = createContext<FeatureContextType | undefined>(undefined);
+export const FeatureTypeContext = createContext<FeatureTypeContextType | undefined>(undefined);
 
-export const useFeatureContext = () => {
-  const context = useContext(FeatureContext);
+export const useFeatureTypeContext = () => {
+  const context = useContext(FeatureTypeContext);
   if (!context) {
-    throw new Error('useFeatureContext must be used within a FeatureProvider');
+    throw new Error('useFeatureTypeContext must be used within a FeatureTypeProvider');
   }
   return context;
 };
 
-export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) => {
+export const FeatureTypeProvider: React.FC<FeatureProviderProps> = ({ children }) => {
   const [selectedFeatureType, setSelectedFeatureType] = useState<FeatureType | null>(null);
   const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
   const [featureTypes, setFeatureTypes] = useState<FeatureType[]>([]);
@@ -100,7 +100,7 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
   }, []);
 
   return (
-    <FeatureContext.Provider
+    <FeatureTypeContext.Provider
       value={{
         selectedFeatureType,
         setSelectedFeatureType,
@@ -116,6 +116,6 @@ export const FeatureProvider: React.FC<FeatureProviderProps> = ({ children }) =>
       }}
     >
       {children}
-    </FeatureContext.Provider>
+    </FeatureTypeContext.Provider>
   );
 };

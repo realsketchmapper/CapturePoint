@@ -1,12 +1,12 @@
 import { Alert } from 'react-native';
 import { useCollectionContext } from '@/contexts/CollectionContext';
-import { useFeatureContext } from '@/FeatureContext';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 
 export const usePointCollection = () => {
   const { startCollection, stopCollection, saveCurrentPoint } = useCollectionContext();
-  const { selectedFeatureType } = useFeatureContext();
+  const { selectedFeatureType } = useFeatureTypeContext();
   const { currentLocation } = useLocationContext();
   const { addPoint, removeFeature } = useMapContext();
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Button, FlatList, StyleSheet, Image } from 'react-native';
-import { useFeatureContext } from '@/FeatureContext';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 
 type ImageStatus = {
   url: string;
@@ -8,8 +8,8 @@ type ImageStatus = {
   error?: string;
 };
 
-export const ImageURLTester: React.FC = () => {
-  const { features } = useFeatureContext();
+const ImageURLTester: React.FC = () => {
+  const { features } = useFeatureTypeContext();
   const [imageStatuses, setImageStatuses] = useState<ImageStatus[]>([]);
   
   useEffect(() => {
@@ -122,3 +122,5 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
 });
+
+export default ImageURLTester;

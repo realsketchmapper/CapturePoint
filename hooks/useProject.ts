@@ -1,10 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Project } from '@/types/project.types';
 import { projectService } from '@/services/projects/projectService';
 
 export const useProjects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchProjects = useCallback(async () => {
@@ -12,7 +12,10 @@ export const useProjects = () => {
       setLoading(true);
       setError(null);
       const data = await projectService.fetchProjects();
-      setProjects(data);
+      // Sort projects by name for consistent order
+      const sortedData = [...data].sort((a, b) => a.name.localeCompare(b.name));
+      console.log('Sorted projects:', sortedData.map(p => p.name));
+      setProjects(sortedData);
     } catch (err) {
       setError('Error loading projects');
       console.error('Error fetching projects:', err);
@@ -21,10 +24,11 @@ export const useProjects = () => {
     }
   }, []);
 
-
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
-
-  return { projects, loading, error, fetchProjects };
+  // Return a memoized value to ensure stable references
+  return useMemo(() => ({
+    projects,
+    loading,
+    error,
+    fetchProjects
+  }), [projects, loading, error, fetchProjects]);
 };

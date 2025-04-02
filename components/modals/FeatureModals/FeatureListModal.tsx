@@ -1,6 +1,6 @@
 import React, { useMemo, useCallback } from 'react';
 import { StyleSheet, Modal, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
-import { useFeatureContext } from '@/FeatureContext';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { FeatureType } from '@/types/features.types';
 import { SvgXml } from 'react-native-svg';
@@ -28,7 +28,7 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
     isLoading,
     error,
     featuresLoaded,
-  } = useFeatureContext();
+  } = useFeatureTypeContext();
 
   const groupedFeatures = useMemo<GroupedFeatures>(() => {
     const groups = featureTypes.reduce<GroupedFeatures>((acc, featureType) => {

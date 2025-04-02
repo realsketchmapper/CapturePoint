@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { Colors } from '@/theme/colors';
 
 interface ProjectDistanceWarningModalProps {
@@ -19,22 +19,19 @@ export const ProjectDistanceWarningModal: React.FC<ProjectDistanceWarningModalPr
   projectName,
   projectAddress
 }) => {
-  // Convert distance to miles with 1 decimal place
   const distanceMiles = (distance / 1609.34).toFixed(1);
 
   return (
     <Modal
       visible={isVisible}
-      animationType="fade"
       transparent={true}
+      animationType="fade"
       onRequestClose={onCancel}
     >
-      <View style={styles.modalContainer}>
+      <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Location Warning</Text>
-          </View>
-
+          <Text style={styles.title}>Location Warning</Text>
+          
           <View style={styles.detailsContainer}>
             <Text style={styles.projectName}>
               <Text style={styles.label}>WO: </Text>
@@ -74,34 +71,25 @@ export const ProjectDistanceWarningModal: React.FC<ProjectDistanceWarningModalPr
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
     backgroundColor: Colors.DarkBlue,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 20,
     width: '90%',
-    maxWidth: 500,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.15)',
+    maxWidth: 400,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontFamily: 'RobotoSlab-Bold',
     color: 'white',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    marginBottom: 20,
+    textAlign: 'center',
   },
   detailsContainer: {
     gap: 12,

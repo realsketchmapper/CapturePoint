@@ -47,14 +47,6 @@ export const MapControls: React.FC = () => {
     setIsMapReady(true);
   };
 
-  // Load features when map is ready
-  useEffect(() => {
-    if (isMapReady) {
-      console.log('Map is ready, loading features...');
-      refreshFeatures();
-    }
-  }, [isMapReady, refreshFeatures]);
-
   // Initial centering
   useEffect(() => {
     if (isMapReady && currentLocation && !initialCenterDone.current && cameraRef.current) {

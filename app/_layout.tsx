@@ -5,12 +5,13 @@ import { BluetoothProvider } from '@/contexts/BluetoothContext';
 import { AuthProvider, AuthContext } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
-import { FeatureProvider } from "@/FeatureContext";
+import { FeatureTypeProvider } from "@/contexts/FeatureTypeContext";
 import { NMEAProvider } from "@/contexts/NMEAContext";
 import { CollectionProvider } from "@/contexts/CollectionContext";
 import { MapProvider } from "@/contexts/MapDisplayContext";
 import { LocationProvider } from "@/contexts/LocationContext";
-import AppInitializer from "@/components/sync/AppInitializer";
+import { FeatureDataProvider } from "@/contexts/FeatureDataContext";
+import { ModalProvider } from '@/contexts/ModalContext';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -37,23 +38,25 @@ export default function RootLayout() {
       {/* Nest providers after AuthProvider to ensure auth state is available */}
       <ProjectProvider>
         <SettingsProvider>
-          <MapProvider>
-            <FeatureProvider>
-              <NMEAProvider>
-                <LocationProvider>
-                  <CollectionProvider>
-                    {/* Only render AppInitializer when fully authenticated and auth is ready */}
-                    {isLoggedIn && isAuthReady && <AppInitializer />}
-                    <BluetoothProvider>
-                      <Stack screenOptions={{ headerShown: false }}>
-                        {/* ... Stack screens ... */}
-                      </Stack>
-                    </BluetoothProvider>
-                  </CollectionProvider>
-                </LocationProvider>
-              </NMEAProvider>
-            </FeatureProvider>
-          </MapProvider>
+          <FeatureTypeProvider>
+            <FeatureDataProvider>
+              <MapProvider>
+                <NMEAProvider>
+                  <LocationProvider>
+                    <CollectionProvider>
+                      <BluetoothProvider>
+                        <ModalProvider>
+                          <Stack screenOptions={{ headerShown: false }}>
+                            {/* ... Stack screens ... */}
+                          </Stack>
+                        </ModalProvider>
+                      </BluetoothProvider>
+                    </CollectionProvider>
+                  </LocationProvider>
+                </NMEAProvider>
+              </MapProvider>
+            </FeatureDataProvider>
+          </FeatureTypeProvider>
         </SettingsProvider>
       </ProjectProvider>
     </AuthProvider>

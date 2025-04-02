@@ -2,7 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocationContext } from '@/contexts/LocationContext';
-import { useFeatureContext } from '@/FeatureContext';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { Colors } from '@/theme/colors';
 import { useLineCollection } from '@/hooks/useLineCollection';
 import { usePointCollection } from '@/hooks/usePointCollection';
@@ -10,7 +10,7 @@ import { LineCollectionControls } from './LineCollectionControls';
 
 const CollectionButton = () => {
   const { locationSource } = useLocationContext();
-  const { selectedFeatureType } = useFeatureContext();
+  const { selectedFeatureType } = useFeatureTypeContext();
   const { 
     isCollectingLine,
     linePoints,

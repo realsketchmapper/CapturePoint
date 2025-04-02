@@ -57,7 +57,7 @@ export interface FeatureToRender {
     };
 }
 
-export interface FeatureContextType {
+export interface FeatureTypeContextType {
     selectedFeatureType: FeatureType | null;
     setSelectedFeatureType: (feature: FeatureType | null) => void;
     expandedLayers: Set<string>;

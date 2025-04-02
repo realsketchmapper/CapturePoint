@@ -259,7 +259,7 @@ export const storageService = {
     }
   },
 
-  getProjectFeatures: async (projectId: number): Promise<CollectedFeature[]> => {
+  getProjectFeatures: async (projectId: number, fetchFromServer: boolean = false): Promise<CollectedFeature[]> => {
     try {
       const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${projectId}`;
       const featuresJson = await AsyncStorage.getItem(featuresKey);
@@ -267,78 +267,81 @@ export const storageService = {
       // Get features from storage
       let features: CollectedFeature[] = featuresJson ? JSON.parse(featuresJson) : [];
       
-      // Get active features from database
-      const activeFeatures = await collectedFeatureService.fetchActiveFeatures(projectId);
-      
-      // Create a map of existing features by client_id for quick lookup
-      const existingFeaturesMap = new Map(
-        features.map(f => [f.client_id, f])
-      );
-
-      // Process each active feature from database
-      for (const dbFeature of activeFeatures) {
-        const existingFeature = existingFeaturesMap.get(dbFeature.client_id);
+      // Only fetch from server if explicitly requested
+      if (fetchFromServer) {
+        // Use the single source of truth for fetching features
+        const activeFeatures = await collectedFeatureService.fetchActiveFeatures(projectId);
         
-        if (!existingFeature) {
-          // New feature from database - add it
-          features.push(dbFeature);
-        } else {
-          // Compare timestamps and update if database version is newer
-          const dbTimestamp = new Date(dbFeature.updated_at).getTime();
-          const storageTimestamp = new Date(existingFeature.updated_at).getTime();
-          
-          if (dbTimestamp > storageTimestamp) {
-            // Database version is newer - update the feature
-            const index = features.findIndex(f => f.client_id === dbFeature.client_id);
-            if (index !== -1) {
-              features[index] = dbFeature;
-            }
-          }
-        }
-      }
-
-      // Ensure each feature has its feature type
-      for (const feature of features) {
-        // Ensure each point has the feature type ID in its attributes
-        if (feature.points) {
-          for (const point of feature.points) {
-            if (!point.attributes?.featureTypeId) {
-              point.attributes = {
-                ...point.attributes,
-                featureTypeId: feature.attributes?.featureTypeId
-              };
-            }
-          }
-        }
-      }
-
-      // Filter out invalid features
-      features = features.filter(feature => {
-        // Skip features with no points
-        if (!feature.points || feature.points.length === 0) {
-          console.log(`Skipping feature ${feature.client_id} - no points`);
-          return false;
-        }
-
-        // Skip features with no valid points
-        const validPoints = feature.points.filter(point => 
-          point.coordinates && 
-          Array.isArray(point.coordinates) && 
-          point.coordinates.length === 2 &&
-          point.is_active
+        // Create a map of existing features by client_id for quick lookup
+        const existingFeaturesMap = new Map(
+          features.map(f => [f.client_id, f])
         );
 
-        // For point features, we only need 1 valid point
-        if (validPoints.length === 0) {
-          console.log(`Skipping feature ${feature.client_id} - no valid points`);
-          return false;
+        // Process each active feature from database
+        for (const dbFeature of activeFeatures) {
+          const existingFeature = existingFeaturesMap.get(dbFeature.client_id);
+          
+          if (!existingFeature) {
+            // New feature from database - add it
+            features.push(dbFeature);
+          } else {
+            // Compare timestamps and update if database version is newer
+            const dbTimestamp = new Date(dbFeature.updated_at).getTime();
+            const storageTimestamp = new Date(existingFeature.updated_at).getTime();
+            
+            if (dbTimestamp > storageTimestamp) {
+              // Database version is newer - update the feature
+              const index = features.findIndex(f => f.client_id === dbFeature.client_id);
+              if (index !== -1) {
+                features[index] = dbFeature;
+              }
+            }
+          }
         }
 
-        return true;
-      });
+        // Ensure each feature has its feature type
+        for (const feature of features) {
+          // Ensure each point has the feature type ID in its attributes
+          if (feature.points) {
+            for (const point of feature.points) {
+              if (!point.attributes?.featureTypeId) {
+                point.attributes = {
+                  ...point.attributes,
+                  featureTypeId: feature.attributes?.featureTypeId
+                };
+              }
+            }
+          }
+        }
 
-      // Save the updated features back to storage
-      await AsyncStorage.setItem(featuresKey, JSON.stringify(features));
+        // Filter out invalid features
+        features = features.filter(feature => {
+          // Skip features with no points
+          if (!feature.points || feature.points.length === 0) {
+            console.log(`Skipping feature ${feature.client_id} - no points`);
+            return false;
+          }
+
+          // Skip features with no valid points
+          const validPoints = feature.points.filter(point => 
+            point.coordinates && 
+            Array.isArray(point.coordinates) && 
+            point.coordinates.length === 2 &&
+            point.is_active
+          );
+
+          // For point features, we only need 1 valid point
+          if (validPoints.length === 0) {
+            console.log(`Skipping feature ${feature.client_id} - no valid points`);
+            return false;
+          }
+
+          return true;
+        });
+
+        // Save the updated features back to storage
+        await AsyncStorage.setItem(featuresKey, JSON.stringify(features));
+      }
 
       return features;
     } catch (error) {

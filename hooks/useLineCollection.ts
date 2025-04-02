@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useCollectionContext } from '@/contexts/CollectionContext';
-import { useFeatureContext } from '@/FeatureContext';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 import { LINE_POINT_FEATURE } from '@/constants/features';
@@ -11,7 +11,7 @@ import { FeatureType } from '@/types/features.types';
 
 export const useLineCollection = () => {
   const { startCollection, saveCurrentPoint } = useCollectionContext();
-  const { selectedFeatureType } = useFeatureContext();
+  const { selectedFeatureType } = useFeatureTypeContext();
   const { currentLocation } = useLocationContext();
   const { addPoint, addLine, removeFeature } = useMapContext();
   

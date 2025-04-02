@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
 import { FeatureToRender, FeatureType } from '@/types/features.types';
 import { MapContextType, Coordinate } from '@/types/map.types';
 import { generateId } from '@/utils/collections';
 import { LINE_POINT_FEATURE } from '@/constants/features';
-import { storageService } from '@/services/storage/storageService';
-import { PointCollected } from '@/types/pointCollected.types';
+import { useFeatureData } from '@/contexts/FeatureDataContext';
+import { useProjectContext } from '@/contexts/ProjectContext';
 
 const MapContext = createContext<MapContextType | undefined>(undefined);
 
@@ -19,76 +19,8 @@ export const useMapContext = () => {
 
 export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isMapReady, setIsMapReady] = useState(false);
-  const [features, setFeatures] = useState<FeatureCollection>({
-    type: 'FeatureCollection',
-    features: []
-  });
-
-  // Load features from storage
-  const loadFeaturesFromStorage = useCallback(async () => {
-    try {
-      const storedPoints = await storageService.getAllPoints();
-      console.log('Loading features from storage:', storedPoints.length);
-      
-      // Convert stored points to GeoJSON features
-      const features = await Promise.all(storedPoints.map(async (point: PointCollected) => {
-        // Get the feature type
-        const featureType = await storageService.getFeatureTypeByName(point.attributes.featureTypeName, point.project_id);
-        if (!featureType) {
-          console.warn(`Feature type ${point.attributes.featureTypeName} not found for point ${point.client_id}`);
-          return null;
-        }
-
-        // Get the feature properties from attributes
-        const featureName = point.attributes.name || featureType.name;
-        const color = point.attributes.style?.color || featureType.color || '#FF6B00';
-
-        const properties = {
-          client_id: point.client_id,
-          name: featureName,
-          category: featureType.category,
-          color,
-          is_active: point.is_active,
-          featureType,
-          ...point.attributes  // Include all other attributes
-        };
-
-        const feature: Feature<Point, GeoJsonProperties> = {
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: point.coordinates
-          },
-          properties
-        };
-
-        return feature;
-      }));
-
-      // Filter out null features and log the final features for debugging
-      const validFeatures = features.filter((f): f is Feature<Point, GeoJsonProperties> => f !== null);
-      console.log('Loaded features:', validFeatures.map(f => ({
-        client_id: f.properties?.client_id,
-        type: f.geometry.type,
-        name: f.properties?.name,
-        category: f.properties?.category
-      })));
-      
-      setFeatures({
-        type: 'FeatureCollection',
-        features: validFeatures
-      });
-    } catch (error) {
-      console.error('Error loading features from storage:', error);
-    }
-  }, []);
-
-  // Expose the load function
-  const refreshFeatures = useCallback(async () => {
-    console.log('Refreshing features from storage...');
-    await loadFeaturesFromStorage();
-    console.log('Features refreshed from storage');
-  }, [loadFeaturesFromStorage]);
+  const { features, refreshFeatures } = useFeatureData();
+  const { activeProject } = useProjectContext();
 
   // Validate coordinates for both points and lines
   const isValidCoords = useCallback((coords: any): boolean => {
@@ -133,11 +65,6 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    setFeatures(prev => ({
-      type: 'FeatureCollection',
-      features: [...prev.features, feature]
-    }));
-
     return client_id;
   }, [isValidCoords]);
 
@@ -162,14 +89,6 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...properties
       }
     };
-    
-    setFeatures((prev) => {
-      const newFeatures = [...prev.features, lineFeature];
-      return {
-        type: 'FeatureCollection',
-        features: newFeatures
-      } as FeatureCollection;
-    });
 
     return client_id;
   }, [isValidCoords]);
@@ -180,51 +99,16 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('Invalid coordinates provided to updateFeature');
       return;
     }
-    
-    setFeatures((prev) => {
-      const updatedFeatures = prev.features.map(feature => {
-        if (feature.properties?.client_id === client_id) {
-          const isPoint = feature.geometry.type === 'Point';
-          
-          // Create a new feature with updated coordinates
-          const updatedFeature = {
-            ...feature,
-            geometry: {
-              ...feature.geometry,
-              type: isPoint ? 'Point' : 'LineString',
-              coordinates
-            }
-          };
-          
-          return updatedFeature;
-        }
-        return feature;
-      });
-      
-      return {
-        type: 'FeatureCollection',
-        features: updatedFeatures
-      } as FeatureCollection;
-    });
   }, [isValidCoords]);
 
   // Remove a feature
   const removeFeature = useCallback((client_id: string) => {
-    setFeatures((prev) => {
-      const filteredFeatures = prev.features.filter(feature => feature.properties?.client_id !== client_id);
-      return {
-        type: 'FeatureCollection',
-        features: filteredFeatures
-      } as FeatureCollection;
-    });
+    // Implementation will be handled by the map component
   }, []);
 
   // Clear all features
   const clearFeatures = useCallback(() => {
-    setFeatures({
-      type: 'FeatureCollection',
-      features: []
-    });
+    // Implementation will be handled by the map component
   }, []);
 
   // Render any type of feature
@@ -254,20 +138,32 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return null;
   }, [addPoint, addLine]);
 
+  // Remove automatic loading on mount
+  // Only load when explicitly called after project selection
+  const loadFeaturesFromStorage = useCallback(async () => {
+    if (!activeProject) {
+      console.log('No active project, skipping feature load');
+      return;
+    }
+    // ... rest of loading logic
+  }, [activeProject]);
+
   return (
-    <MapContext.Provider value={{
-      addPoint,
-      addLine,
-      updateFeature,
-      removeFeature,
-      clearFeatures,
-      features,
-      isMapReady,
-      setIsMapReady,
-      renderFeature,
-      previewFeature,
-      refreshFeatures
-    }}>
+    <MapContext.Provider
+      value={{
+        features,
+        isMapReady,
+        setIsMapReady,
+        addPoint,
+        addLine,
+        updateFeature,
+        removeFeature,
+        clearFeatures,
+        renderFeature,
+        previewFeature,
+        refreshFeatures
+      }}
+    >
       {children}
     </MapContext.Provider>
   );

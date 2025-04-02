@@ -13,7 +13,7 @@ import { syncService } from '@/services/sync/syncService';
 import { generateClientId } from '@/utils/collections';
 // Replace v4 import with a more React Native friendly approach
 import 'react-native-get-random-values'; // Add this import at the top
-import { v4 as uuidv4 } from 'uuid';
+
 
 // Extended interface to include all functionality
 interface ExtendedCollectionContextType extends CollectionContextType {
@@ -37,6 +37,7 @@ interface ExtendedCollectionContextType extends CollectionContextType {
     unsyncedCount: number;
   };
   syncPoints: () => Promise<boolean>;
+  loadUnsyncedCount: () => Promise<void>;
 }
 
 const CollectionContext = createContext<ExtendedCollectionContextType | undefined>(undefined);
@@ -73,18 +74,19 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     unsyncedCount: 0
   });
   
-  // Load unsynced count on startup
-  useEffect(() => {
-    const loadUnsyncedCount = async () => {
-      const unsyncedPoints = await storageService.getUnsyncedPoints();
-      setSyncStatus(prev => ({
-        ...prev,
-        unsyncedCount: unsyncedPoints.length
-      }));
-    };
+  // Remove the useEffect and make loading explicit
+  const loadUnsyncedCount = useCallback(async () => {
+    if (!user?.id) {
+      console.log('No authenticated user, skipping unsynced count check');
+      return;
+    }
     
-    loadUnsyncedCount();
-  }, []);
+    const unsyncedPoints = await storageService.getUnsyncedPoints();
+    setSyncStatus(prev => ({
+      ...prev,
+      unsyncedCount: unsyncedPoints.length
+    }));
+  }, [user?.id]);
 
   // Helper function to get valid coordinates from position
   const getValidCoordinates = useCallback((position?: Position): [number, number] | null => {
@@ -447,7 +449,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // Sync operations
         syncStatus,
-        syncPoints
+        syncPoints,
+        loadUnsyncedCount
       }}
     >
       {children}

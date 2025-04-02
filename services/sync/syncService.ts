@@ -1,7 +1,7 @@
 // services/sync/syncService.ts
 import { api } from "@/api/clients";
 import { API_ENDPOINTS } from "@/api/endpoints";
-import { storageService } from '../storage/storageService';
+import { storageService } from '@/services/storage/storageService';
 import NetInfo from '@react-native-community/netinfo';
 import { PointCollected } from "@/types/pointCollected.types";
 import { CollectedFeature } from "@/types/features.types";

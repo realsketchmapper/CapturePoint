@@ -13,7 +13,6 @@ import { FeatureButton } from './FeatureButton';
 import { BackButton } from './BackButton';
 import { ThinHeaderContainer } from '../ThinHeader/ThinHeaderContainer';
 import { useFeatureModal } from '@/hooks/useFeatureModal';
-import { FeatureListModal } from '@/components/modals/FeatureModals/FeatureListModal';
 
 export const HeaderContainer: React.FC = () => {
   const {
@@ -70,11 +69,6 @@ export const HeaderContainer: React.FC = () => {
         />
       )}
 
-      <FeatureListModal
-        isVisible={isFeatureModalVisible}
-        onClose={handleCloseFeatureModal}
-      />
-
       <SettingsMainModal
         visible={isVisible}
         onClose={handleCloseSettings}
@@ -87,14 +81,14 @@ export const HeaderContainer: React.FC = () => {
 
 const styles = StyleSheet.create({
   headerWrapper: {
-    width: '100%',
+    zIndex: 1000,
   },
   header: {
-    width: '100%',
-    backgroundColor: Colors.OffWhite,
-    padding: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.DarkBlue,
+    backgroundColor: Colors.White,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.LightGrey,
   },
   headerContent: {
     flexDirection: 'row',
@@ -103,6 +97,6 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    gap: 12,
-  }
+    gap: 8,
+  },
 });

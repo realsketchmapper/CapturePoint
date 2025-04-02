@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
-import { useFeatureContext } from '@/FeatureContext';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { CurrentFeatureDisplayProps } from '@/types/currentFeatures.types';
 import { Colors } from '@/theme/colors';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -9,7 +9,7 @@ import { SvgXml } from 'react-native-svg';
 export const CurrentFeatureDisplay: React.FC<CurrentFeatureDisplayProps> = ({
   style,
 }) => {
-  const { selectedFeatureType } = useFeatureContext();
+  const { selectedFeatureType } = useFeatureTypeContext();
 
   // Function to render the appropriate image based on feature type
   const renderFeatureImage = useCallback(() => {

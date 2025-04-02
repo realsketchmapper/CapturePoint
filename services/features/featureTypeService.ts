@@ -55,39 +55,5 @@ export const featureTypeService = {
       console.error('Error inactivating feature:', error);
       throw error;
     }
-  },
-
-  fetchActiveFeatures: async (projectId: number): Promise<FeatureType[]> => {
-    try {
-      console.log("Fetching active features for project:", projectId);
-      const endpoint = API_ENDPOINTS.ACTIVE_PROJECT_COLLECTED_FEATURES.replace(':projectId', projectId.toString())
-        .replace(/^\//, '');
-      
-      const response = await api.get(endpoint);
-      
-      if (response.data.success) {
-        console.log("Active features count:", response.data.features.length);
-        // Ensure all features have required properties
-        const features = response.data.features.map((feature: any) => ({
-          name: feature.name,
-          category: feature.category,
-          geometryType: feature.geometryType,
-          image_url: feature.image_url,
-          svg: feature.svg || '',
-          color: feature.color || '#000000',
-          line_weight: feature.line_weight || 1,
-          dash_pattern: feature.dash_pattern || '',
-          z_value: feature.z_value || 0,
-          draw_layer: feature.draw_layer,
-          is_active: feature.is_active !== false,
-          attributes: feature.attributes || {}
-        }));
-        return features;
-      }
-      throw new Error('Failed to fetch active features');
-    } catch (error) {
-      console.error('Error in fetchActiveFeatures:', error);
-      throw error;
-    }
   }
 };

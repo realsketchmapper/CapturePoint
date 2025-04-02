@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Image } from 'react-native';
 import { MarkerView } from '@maplibre/maplibre-react-native';
-import { useFeatureContext } from '@/FeatureContext';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { CollectedFeature } from '@/types/features.types';
 import { FeatureType } from '@/types/features.types';
 
@@ -10,7 +10,7 @@ interface ExtendedFeatureMarkersProps {
 }
 
 const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ features }) => {
-  const { featureTypes } = useFeatureContext();
+  const { featureTypes } = useFeatureTypeContext();
 
   // Create a map of feature types for faster lookup
   const featureTypeMap = useMemo(() => {
