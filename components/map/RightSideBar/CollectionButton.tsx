@@ -6,7 +6,7 @@ import { useFeatureContext } from '@/FeatureContext';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 import { Position } from '@/types/collection.types';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 
 const CollectionButton = () => {

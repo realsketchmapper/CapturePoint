@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ProjectsHeaderProps } from '@/types/project.types';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 
 export const ProjectsHeader: React.FC<ProjectsHeaderProps> = ({ 
   onRefresh, 

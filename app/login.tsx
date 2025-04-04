@@ -11,7 +11,7 @@ import {
 import { router } from 'expo-router';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { LoginForm } from '@/components/auth/LoginForm';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 
 export default function Login() {
   const { login, isLoading, error } = useAuthContext();

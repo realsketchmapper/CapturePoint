@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
 import { ProjectListItemProps } from '@/types/project.types';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 
 const getWorkTypeName = (workType: any): string => {
   if (!workType) return 'Not set';

@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useCollectionContext } from '@/contexts/CollectionContext';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 export const SyncStatus: React.FC = () => {
   const { syncStatus, syncPoints } = useCollectionContext();
   const { isSyncing, unsyncedCount } = syncStatus;

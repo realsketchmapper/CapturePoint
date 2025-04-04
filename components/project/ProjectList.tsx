@@ -3,7 +3,7 @@ import { View, FlatList, ActivityIndicator, Text, StyleSheet } from 'react-nativ
 import { ProjectListItem } from './ProjectListItem';
 import { ProjectsHeader } from './ProjectsHeader';
 import { ProjectListProps } from '@/types/project.types';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 
 export const ProjectList: React.FC<ProjectListProps> = ({
   projects,

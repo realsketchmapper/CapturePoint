@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useContext } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 import { PointCollected } from '@/types/pointCollected.types';
-import { formatDate } from '@/utils/date';
+import { formatDate } from '@/src/utils/date';
 import { storageService } from '@/services/storage/storageService';
 import { AuthContext } from '@/contexts/AuthContext';
 import { AuthContextState } from '@/types/auth.types';

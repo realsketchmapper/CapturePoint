@@ -7,7 +7,7 @@ import { Project } from '@/types/project.types';
 import { ProjectContext } from '@/contexts/ProjectContext';
 import { useFeatureContext } from '@/FeatureContext';
 import { useLocationContext } from '@/contexts/LocationContext';
-import { calculateDistance, HALF_MILE_IN_METERS } from '@/utils/distance';
+import { calculateDistance, HALF_MILE_IN_METERS } from '@/src/utils/distance';
 import { ProjectDistanceWarningModal } from '@/components/modals/ProjectModals/ProjectDistanceWarningModal';
 
 const ProjectView = () => {

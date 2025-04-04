@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
 import { FeatureToRender } from '@/types/features.types';
 import { MapContextType, Coordinate, FeatureType } from '@/types/map.types';
-import { generateId } from '@/utils/collections';
+import { generateId } from '@/src/utils/collections';
 const MapContext = createContext<MapContextType | undefined>(undefined);
 
 export const useMapContext = () => {

@@ -2,8 +2,8 @@ import RNBluetoothClassic, {
   BluetoothDevice, 
   BluetoothEventSubscription 
 } from 'react-native-bluetooth-classic';
-import { BluetoothDeviceType } from '@/types/bluetooth.types';
-import { BLUETOOTH_DEVICE_TYPES } from '@/src/utils/constants';
+import { BluetoothDeviceType } from '../../types/bluetooth.types';
+import { BLUETOOTH_DEVICE_TYPES } from '../../utils/constants';
 import { deviceStorage } from './deviceStorage';
 
 export class BluetoothManager {

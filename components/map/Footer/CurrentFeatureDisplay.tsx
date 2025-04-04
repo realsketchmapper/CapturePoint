@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { useFeatureContext } from '@/FeatureContext';
 import { CurrentFeatureDisplayProps } from '@/types/currentFeatures.types';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 

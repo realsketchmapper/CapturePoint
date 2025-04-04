@@ -1,5 +1,5 @@
 import type { FeatureCollection, GeoJsonProperties } from 'geojson';
-import { FeatureToRender } from './features.types';
+import { FeatureToRender } from './featureType.types';
 
 // Simplified type definitions
 export type Coordinate = [number, number];

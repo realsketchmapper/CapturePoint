@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, Switch, TextInput, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 import { SettingsProps } from '@/types/settings.types';
 import { useBluetooth } from '@/hooks/useBluetooth';
 import Slider from '@react-native-community/slider';

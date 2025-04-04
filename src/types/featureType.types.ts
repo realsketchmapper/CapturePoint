@@ -1,11 +1,11 @@
-import type { GeoJsonProperties } from 'geojson';
+import type { Feature, GeoJsonProperties } from 'geojson';
 import { ReactNode } from 'react';
 
-export interface Feature {
+export interface FeatureType {
     id: number;
     svg: string;
     name: string;
-    type: 'Point' | 'Line' | 'Polygon';
+    type: FeatureTypeGeometry;
     color: string;
     line_weight: number;
     dash_pattern: string;
@@ -35,7 +35,7 @@ export interface FeatureContextType {
     imagesPreloaded: boolean;
 }
 
-export type FeatureType = 'point' | 'line' | 'polygon';
+export type FeatureTypeGeometry = 'point' | 'line' | 'polygon';
 
 export type FeatureToRender = {
     type: 'Point' | 'Line' | 'Polygon';

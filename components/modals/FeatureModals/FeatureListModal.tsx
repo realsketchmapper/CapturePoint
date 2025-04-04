@@ -4,7 +4,7 @@ import { useFeatureContext } from '@/FeatureContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Feature, FeatureListModalProps } from '@/types/features.types';
 import { SvgXml } from 'react-native-svg';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 
 type GroupedFeatures = {
   [key: string]: Feature[];

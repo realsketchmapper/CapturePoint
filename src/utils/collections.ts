@@ -1,4 +1,4 @@
-import { Position } from "@/types/collection.types";
+import { Position } from "@/src/types/collection.types";
 
 export const isValidPosition = (position: Position): position is { longitude: number; latitude: number } => {
   return typeof position.longitude === 'number' && 

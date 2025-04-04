@@ -6,7 +6,7 @@ import { useSettingsContext } from '@/contexts/SettingsContext';
 import { DeviceTypeModal } from '@/components/modals/BluetoothModals/DeviceTypeModal';
 import { DeviceSelectionModal } from '@/components/modals/BluetoothModals/DeviceSelectionModal';
 import SettingsMainModal from '@/components/modals/SettingsModal';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 import { BluetoothButton } from './BluetoothButton';
 import { SettingsButton } from './SettingsButton';
 import { FeatureButton } from './FeatureButton';

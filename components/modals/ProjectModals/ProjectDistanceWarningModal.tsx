@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 
 interface ProjectDistanceWarningModalProps {
   isVisible: boolean;

@@ -4,7 +4,7 @@ import { useNMEAContext } from '@/contexts/NMEAContext';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { NMEA_QUALITY_TYPES } from '@/types/nmea.types';
 import { NMEAQualityDisplayProps } from '@/types/nmea.types';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 export const NMEAQualityDisplay: React.FC<NMEAQualityDisplayProps> = ({
   style,
 }) => {

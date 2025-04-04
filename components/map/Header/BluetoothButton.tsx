@@ -4,7 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { BluetoothButtonProps } from '@/types/bluetooth.types';
 import { useLocationContext } from '@/contexts/LocationContext';
 
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 
 export const BluetoothButton: React.FC<BluetoothButtonProps> = ({
   onPress,

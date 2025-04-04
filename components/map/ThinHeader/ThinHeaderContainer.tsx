@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 import { ProjectNameDisplay } from './ProjectNameDisplay';
 import { SyncStatus } from './SyncStatus';
 

@@ -1,7 +1,7 @@
 // FooterContainer.tsx
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 import { CurrentFeatureDisplay } from './CurrentFeatureDisplay';
 import { RMSDisplay } from './RMSDisplay';
 import { NMEAQualityDisplay } from './NMEAQualityDisplay';

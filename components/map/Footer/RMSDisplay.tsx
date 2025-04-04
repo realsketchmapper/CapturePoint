@@ -3,7 +3,7 @@ import { Text, StyleSheet, View, ViewStyle, TextStyle } from 'react-native';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { NMEAParser } from '@/services/gnss/nmeaParser';
 import { RMSDisplayProps, RMSValues } from '@/types/nmea.types';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 
 const RMS_THRESHOLDS = {
     GREEN: 0.1,    // 0.1ft and below

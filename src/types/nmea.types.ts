@@ -31,6 +31,8 @@ export interface NMEAContextType {
   startListening: (address: string) => Promise<void>;
   stopListening: (address: string) => Promise<void>;
   error: string | null;
+  getMaplibreCoordinates: () => [number, number] | null;
+  getMySQLPoint: () => { longitude: number; latitude: number } | null;
 }
 
 export const NMEA_QUALITY_TYPES = {
@@ -59,9 +61,4 @@ export interface RMSValues {
 export interface NMEAQualityDisplayProps {
   text?: string;
   style?: object;
-}
-
-export interface DisplayValues {
-  quality: string;
-  satellites: string;
 }

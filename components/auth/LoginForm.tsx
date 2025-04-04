@@ -3,7 +3,7 @@ import { View, Pressable, Text, StyleSheet } from 'react-native';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { EmailInput } from './EmailInput';
 import { PasswordInput } from './PasswordInput';
-import { Colors } from '@/theme/colors';
+import { Colors } from '@/src/theme/colors';
 import { LoginFormProps } from '@/types/auth.types';
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => {

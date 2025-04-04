@@ -1,4 +1,4 @@
-import { DeviceTypeOption } from "@/types/bluetooth.types";
+import { DeviceTypeOption } from "../types/bluetooth.types";
 
 // bluetooth devices we can select from
 export const BLUETOOTH_DEVICE_TYPES: DeviceTypeOption[] = [
