@@ -1,14 +1,14 @@
 // contexts/CollectionContext.tsx
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import { Position, CollectionContextType, CollectionState, Coordinates } from '@/src/types/collection.types';
+import { Position, CollectionContextType, CollectionState, Coordinates, CollectionMetadata } from '@/src/types/collection.types';
 import { FeatureType } from '@/src/types/featureType.types';
 import { PointCollected } from '@/src/types/pointCollected.types';
 import { useLocationContext } from '@/src/contexts/LocationContext';
 import { useNMEAContext } from '@/src/contexts/NMEAContext';
 import { AuthContext } from '@/src/contexts/AuthContext';
 import { ProjectContext } from '@/src/contexts/ProjectContext';
-import { storageService } from '@/services/storage/storageService';
-import { syncService } from '@/services/sync/syncService';
+import { storageService } from '@/src/services/storage/storageService';
+import { syncService } from '@/src/services/sync/syncService';
 // Replace v4 import with a more React Native friendly approach
 import 'react-native-get-random-values'; // Add this import at the top
 import { v4 as uuidv4 } from 'uuid';
@@ -23,6 +23,7 @@ interface ExtendedCollectionContextType extends CollectionContextType {
   startCollection: (initialPosition: Position, featureType: FeatureType) => CollectionState;
   recordPoint: (position?: Position) => boolean;
   stopCollection: () => void;
+  updateCollectionMetadata: (metadata: Partial<CollectionMetadata>) => void;
   
   // Saving operations
   isSaving: boolean;
@@ -51,7 +52,16 @@ const initialState = {
   collectionState: {
     points: [] as Coordinates[],
     isActive: false,
-    activeFeatureType: null as FeatureType | null
+    activeFeatureType: null as FeatureType | null,
+    metadata: {
+      name: '',
+      description: '',
+      projectId: 0,
+      created_by: '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      updated_by: ''
+    }
   },
   isSaving: false,
   syncStatus: {
@@ -101,7 +111,16 @@ function collectionReducer(state: typeof initialState, action: CollectionAction)
         collectionState: {
           points: [],
           isActive: false,
-          activeFeatureType: null
+          activeFeatureType: null,
+          metadata: {
+            name: '',
+            description: '',
+            projectId: 0,
+            created_by: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            updated_by: ''
+          }
         }
       };
     default:
@@ -146,20 +165,20 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, []);
 
   // Helper function to get valid coordinates from position
-  const getValidCoordinates = useCallback((position?: Position): Position | null => {
+  const getValidCoordinates = useCallback((position?: Position): Coordinates | null => {
     if (!position) {
-      return currentLocation;
+      return currentLocation ? (Array.isArray(currentLocation) ? currentLocation : [currentLocation.longitude, currentLocation.latitude]) : null;
     }
 
     if (Array.isArray(position) && position.length === 2) {
-      return position as Position;
+      return position as Coordinates;
     }
 
-    if (position.longitude && position.latitude) {
+    if ('longitude' in position && 'latitude' in position) {
       return [position.longitude, position.latitude];
     }
 
-    return currentLocation;
+    return null;
   }, [currentLocation]);
   
   // Start collecting points
@@ -171,19 +190,61 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return {
         points: [],
         isActive: false,
-        activeFeatureType: null
+        activeFeatureType: featureType,
+        metadata: {
+          name: '',
+          description: '',
+          projectId: activeProject?.id || 0,
+          created_by: String(user?.id || 'unknown'),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          updated_by: String(user?.id || 'unknown')
+        }
       };
     }
     
-    const newState = {
+    const newState: CollectionState = {
       points: [pointCoordinates],
       isActive: true,
-      activeFeatureType: featureType
+      activeFeatureType: featureType,
+      metadata: {
+        name: '',
+        description: '',
+        projectId: activeProject?.id || 0,
+        created_by: String(user?.id || 'unknown'),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        updated_by: String(user?.id || 'unknown')
+      }
     };
     
     dispatch({ type: 'SET_COLLECTION_STATE', payload: newState });
     return newState;
-  }, [getValidCoordinates]);
+  }, [getValidCoordinates, activeProject, user]);
+
+  // Update collection metadata
+  const updateCollectionMetadata = useCallback((metadata: Partial<CollectionMetadata>) => {
+    if (!state.collectionState.activeFeatureType) {
+      console.warn('Cannot update metadata: No active feature type');
+      return;
+    }
+
+    const updatedState: CollectionState = {
+      ...state.collectionState,
+      activeFeatureType: state.collectionState.activeFeatureType,
+      metadata: {
+        ...state.collectionState.metadata,
+        ...metadata,
+        updated_at: new Date().toISOString(),
+        updated_by: String(user?.id || 'unknown')
+      }
+    };
+
+    dispatch({
+      type: 'SET_COLLECTION_STATE',
+      payload: updatedState
+    });
+  }, [state.collectionState, user]);
 
   // Record a new point
   const recordPoint = useCallback((position?: Position): boolean => {
@@ -213,13 +274,13 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   
   // Save the current point with all metadata
   const saveCurrentPoint = useCallback(async (properties: Record<string, any> = {}, stateOverride?: CollectionState): Promise<boolean> => {
-    const activeFeature = stateOverride?.activeFeature || state.collectionState.activeFeature;
+    const activeFeatureType = stateOverride?.activeFeatureType || state.collectionState.activeFeatureType;
     const points = stateOverride?.points || state.collectionState.points;
 
-    if (!activeFeature || points.length === 0
+    if (!activeFeatureType || points.length === 0
       || !ggaData?.latitude || !ggaData?.longitude || !gstData?.rmsTotal) {
       console.warn('Missing required data to save point:', {
-        hasFeature: !!activeFeature,
+        hasFeature: !!activeFeatureType,
         pointsLength: points.length,
         hasGGA: !!ggaData?.latitude && !!ggaData?.longitude,
         hasGST: !!gstData?.rmsTotal
@@ -236,27 +297,30 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     dispatch({ type: 'SET_SAVING', payload: true });
     
     try {
-      const coordinates = activeFeature.type === 'Point' 
+      const coordinates = activeFeatureType.type === 'Point' 
         ? points[0]
         : points[points.length - 1];
       
       const point: PointCollected = {
         id: properties.pointId,
-        name: properties.name || activeFeature.name,
-        featureType: activeFeature.type,
+        name: properties.name || activeFeatureType.name,
+        description: properties.description || '',
+        feature_id: 0, // TODO: Get actual feature ID from somewhere
+        created_by: String(user?.id || 'unknown'),
         created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        updated_by: String(user?.id || 'unknown'),
         projectId: activeProject?.id || 0,
-        featureTypeId: activeFeature.id,
-        coordinates,
         nmeaData: {
           gga: ggaData,
           gst: gstData
         },
         synced: false,
-        properties: {
+        attributes: {
           ...properties,
-          featureType: activeFeature.type,
-          featureName: activeFeature.name,
+          featureType: activeFeatureType.type,
+          featureName: activeFeatureType.name,
+          coordinates,
           userId: user?.id || 'unknown',
           deviceInfo: `React Native / Expo`
         }
@@ -276,7 +340,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } finally {
       dispatch({ type: 'SET_SAVING', payload: false });
     }
-  }, [state.collectionState.activeFeature, state.collectionState.points, ggaData, gstData, activeProject, user, state.syncStatus.unsyncedCount]);
+  }, [state.collectionState.activeFeatureType, state.collectionState.points, ggaData, gstData, activeProject, user, state.syncStatus.unsyncedCount]);
   
   // Sync points with the server
   const syncPoints = useCallback(async (): Promise<boolean> => {
@@ -341,6 +405,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         startCollection,
         recordPoint,
         stopCollection,
+        updateCollectionMetadata,
         
         // Saving operations
         isSaving: state.isSaving,
