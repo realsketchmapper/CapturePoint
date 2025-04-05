@@ -1,6 +1,7 @@
 import { GGAData, GSTData } from "./nmea.types";
 
 export interface PointCollected {
+  id: string;
   name: string,
   description: string;
   nmeaData: {

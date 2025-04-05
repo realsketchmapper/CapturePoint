@@ -22,4 +22,7 @@ export interface SettingsButtonProps {
 export interface SettingsContextType {
   settings: SettingsProps;
   handleSettingsChange: (settings: SettingsProps) => void;
+  updateSetting: <K extends keyof SettingsProps>(key: K, value: SettingsProps[K]) => Promise<void>;
+  error: string | null;
+  isLoading: boolean;
 }

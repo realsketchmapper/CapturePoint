@@ -14,6 +14,8 @@ export interface BluetoothState {
   error: string | null;
   isConnecting: boolean;
   connectionError: string | null;
+  connectedDevice: BluetoothDevice | null;
+  isBluetoothEnabled: boolean;
 }
 
 export interface BluetoothActions {
