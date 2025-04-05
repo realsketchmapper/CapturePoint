@@ -36,6 +36,12 @@ const ProjectView = () => {
   };
 
   const handleProjectPress = async (project: Project) => {
+    // If project has no coordinates, open it directly
+    if (!project.coords || project.coords.length < 2) {
+      await openProject(project);
+      return;
+    }
+
     const dist = calculateDistanceFromProject(project);
     
     if (dist > HALF_MILE_IN_METERS) {

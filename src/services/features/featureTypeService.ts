@@ -19,7 +19,7 @@ const buildEndpoint = (endpoint: string, params: Record<string, string | number>
 export const featureTypeService = {
   fetchFeatureTypes: async (projectId: number): Promise<FeatureType[]> => {
     try {
-      const endpoint = buildEndpoint(API_ENDPOINTS.ACTIVE_FEATURES, { projectId });
+      const endpoint = buildEndpoint(API_ENDPOINTS.FEATURE_TYPES, { projectId });
       const response = await api.get(endpoint);
       
       if (!response.data.success) {
@@ -27,19 +27,22 @@ export const featureTypeService = {
       }
 
       return response.data.features.map((feature: any) => ({
-        id: feature.id,
+        id: feature.id || '',
         name: feature.name,
-        category: feature.draw_layer,
-        geometryType: feature.type,
-        image_url: feature.type === 'Point' ? feature.image_url : null,
-        svg: (feature.type === 'Line' || feature.type === 'Polygon') ? feature.svg : null,
+        type: feature.type,
         color: feature.color || '#000000',
         line_weight: feature.line_weight || 1,
         dash_pattern: feature.dash_pattern || '',
-        z_value: feature.z_value || 0,
+        label: feature.label || '',
+        svg: feature.svg || '',
         draw_layer: feature.draw_layer || 'default',
-        is_active: feature.is_active !== false,
-        attributes: feature
+        z_value: feature.z_value || 0,
+        created_by: 'system',
+        created_at: new Date().toISOString(),
+        updated_by: 'system',
+        updated_at: new Date().toISOString(),
+        is_active: true,
+        image_url: feature.image_url || null
       }));
     } catch (error) {
       return handleApiError(error, 'fetchFeatureTypes');

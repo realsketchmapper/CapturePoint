@@ -13,6 +13,7 @@ import { FeatureButton } from './FeatureButton';
 import { BackButton } from './BackButton';
 import { ThinHeaderContainer } from '../ThinHeader/ThinHeaderContainer';
 import { useFeatureTypeModal } from '@/hooks/useFeatureTypeModal';
+import { FeatureListModal } from '@/components/modals/FeatureModals/FeatureListModal';
 
 export const HeaderContainer: React.FC = () => {
   const {
@@ -74,6 +75,11 @@ export const HeaderContainer: React.FC = () => {
         onClose={handleCloseSettings}
         settings={settings}
         handleSettingsChange={handleSettingsChange}
+      />
+
+      <FeatureListModal
+        isVisible={isFeatureTypeModalVisible}
+        onClose={handleCloseFeatureTypeModal}
       />
     </View>
   );
