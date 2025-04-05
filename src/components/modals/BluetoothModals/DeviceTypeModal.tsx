@@ -1,8 +1,8 @@
 import React from 'react';
 import { Modal, View, FlatList, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { DeviceTypeOption, DeviceTypeModalProps } from '@/types/bluetooth.types';
-import { BLUETOOTH_DEVICE_TYPES } from '@/src/utils/constants';
-import { Colors } from '@/src/theme/colors';
+import { BLUETOOTH_DEVICE_TYPES } from '@/utils/constants';
+import { Colors } from '@/theme/colors';
 
 export const DeviceTypeModal: React.FC<DeviceTypeModalProps> = ({
   visible,

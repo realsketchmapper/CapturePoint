@@ -1,5 +1,5 @@
 import React, { createContext, useReducer, useCallback, useContext } from 'react';
-import { Project, ProjectContextType } from '@/src/types/project.types';
+import { Project, ProjectContextType } from '@/types/project.types';
 
 // Define action types
 type ProjectAction = 

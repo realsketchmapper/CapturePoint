@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { HeaderContainer } from '@/src/components/map/Header/HeaderContainer';
-import { FooterContainer } from '@/src/components/map/Footer/FooterContainer';
-import { MapControls } from '@/src/components/map/MapControls';
-import { LocationPermissionHandler } from '@/src/components/shared/LocationPermissionHandler';
+import { HeaderContainer } from '@/components/map/Header/HeaderContainer';
+import { FooterContainer } from '@/components/map/Footer/FooterContainer';
+import { MapControls } from '@/components/map/MapControls';
+import { LocationPermissionHandler } from '@/components/shared/LocationPermissionHandler';
 
 const MapView: React.FC = () => {
   return (

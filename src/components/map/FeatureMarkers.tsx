@@ -2,8 +2,9 @@ import React, { useMemo } from 'react';
 import { View, Image } from 'react-native';
 import { MarkerView } from '@maplibre/maplibre-react-native';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
-import { CollectedFeature } from '@/types/features.types';
-import { FeatureType } from '@/types/features.types';
+import { CollectedFeature } from '@/types/currentFeatures.types';
+import { FeatureType } from '@/types/featureType.types';
+import { NMEAParser } from '@/services/gnss/nmeaParser';
 
 interface ExtendedFeatureMarkersProps {
   features: (CollectedFeature | GeoJSON.Feature)[];
@@ -35,6 +36,13 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
           return null;
         }
 
+        // Validate NMEA data
+        const nmeaCoordinates = NMEAParser.ggaToMaplibreCoordinates(collectedFeature.points[0].nmeaData.gga);
+        if (!nmeaCoordinates) {
+          console.warn('Skipping feature with invalid NMEA data:', collectedFeature);
+          return null;
+        }
+
         // Get feature type from map
         const featureType = featureTypeMap.get(collectedFeature.attributes.featureTypeName);
         if (!featureType) {
@@ -46,12 +54,12 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
           type: 'Feature' as const,
           geometry: {
             type: 'Point' as const,
-            coordinates: collectedFeature.points[0].coordinates
+            coordinates: nmeaCoordinates
           },
           properties: {
-            client_id: collectedFeature.points[0].client_id,
+            client_id: collectedFeature.client_id,
             name: collectedFeature.attributes.featureTypeName,
-            category: featureType.category,
+            draw_layer: featureType.draw_layer,
             style: collectedFeature.attributes?.style || {},
             featureType: featureType,
             points: collectedFeature.points

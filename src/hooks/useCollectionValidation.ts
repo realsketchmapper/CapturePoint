@@ -1,6 +1,6 @@
 import { Alert } from 'react-native';
-import { GGAData } from '@/src/types/nmea.types';
-import { FeatureType } from '@/src/types/featureType.types';
+import { GGAData } from '@/types/nmea.types';
+import { FeatureType } from '@/types/featureType.types';
 
 /**
  * Custom hook for validating collection data

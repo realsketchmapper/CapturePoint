@@ -11,8 +11,8 @@ import {
   Platform
 } from 'react-native';
 import { BluetoothDevice } from 'react-native-bluetooth-classic';
-import { useBluetoothContext } from '@/src/contexts/BluetoothContext';
-import { Colors } from '@/src/theme/colors';
+import { useBluetoothContext } from '@/contexts/BluetoothContext';
+import { Colors } from '@/theme/colors';
 import { DeviceSelectionModalProps } from '@/types/bluetooth.types';
 
 export const DeviceSelectionModal: React.FC<DeviceSelectionModalProps> = ({

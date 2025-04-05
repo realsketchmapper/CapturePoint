@@ -33,7 +33,7 @@ export interface FeatureTypeContextType {
     imagesPreloaded: boolean;
 }
 
-export type FeatureTypeGeometry = 'point' | 'line' | 'polygon';
+export type FeatureTypeGeometry = 'Point' | 'Line' | 'Polygon';
 
 export interface FeatureButtonProps {
     onPress: () => void;

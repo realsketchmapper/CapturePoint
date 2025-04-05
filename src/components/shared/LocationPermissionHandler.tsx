@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useLocationContext } from '@/src/contexts/LocationContext';
+import { useLocationContext } from '@/contexts/LocationContext';
 
 export const LocationPermissionHandler: React.FC = () => {
   const { requestLocationPermission, currentLocation, isInitialized } = useLocationContext();

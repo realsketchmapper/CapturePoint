@@ -1,15 +1,17 @@
 import React, { useState, useCallback, useContext } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
-import { Colors } from '@/src/theme/colors';
+import { Colors } from '@/theme/colors';
 import { PointCollected } from '@/types/pointCollected.types';
-import { formatDate } from '@/src/utils/date';
+import { formatDate } from '@/utils/date';
 import { storageService } from '@/services/storage/storageService';
-import { AuthContext } from '@/src/contexts/AuthContext';
+import { AuthContext } from '@/contexts/AuthContext';
 import { AuthContextState } from '@/types/auth.types';
-import { featureService } from '@/services/features/featuresService';
-import { ProjectContext } from '@/src/contexts/ProjectContext';
-import { useMapContext } from '@/src/contexts/MapDisplayContext';
-import { Feature, FeatureToRender } from '@/types/features.types';
+import { featureTypeService } from '@/services/features/featureTypeService';
+import { ProjectContext } from '@/contexts/ProjectContext';
+import { useMapContext } from '@/contexts/MapDisplayContext';
+import { FeatureToRender } from '@/types/featuresToRender.types';
+import { collectedFeatureService } from '@/services/features/collectedFeatureService';
+import { Feature } from 'geojson';
 
 interface MapPointDetailsProps {
   isVisible: boolean;
@@ -59,7 +61,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   const { user } = useContext(AuthContext) as AuthContextState;
   const { activeProject } = useContext(ProjectContext);
   const { clearFeatures, renderFeature } = useMapContext();
-  const [description, setDescription] = useState(point.properties?.description || '');
+  const [description, setDescription] = useState(point.description || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -86,10 +88,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
       // Update the point with new description
       const updatedPoint = {
         ...point,
-        properties: {
-          ...point.properties,
-          description
-        }
+        description
       };
       
       // Save back to storage using updatePoint
@@ -122,7 +121,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
               
               // Try to inactivate the feature - this might succeed or fail if already inactive
               try {
-                await featureService.inactivateFeature(activeProject.id, point.id.toString());
+                await collectedFeatureService.inactivateFeature(activeProject.id, point.feature_id.toString());
               } catch (error) {
                 console.log('Error inactivating feature:', error);
                 // Continue with refresh even if inactivation failed - the feature might already be inactive
@@ -133,13 +132,12 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 // Clear existing features first
                 clearFeatures();
                 // Fetch and update with active features
-                const activeFeatures = await featureService.fetchActiveFeatures(activeProject.id);
+                const activeFeatures = await collectedFeatureService.fetchActiveFeatures(activeProject.id);
                 // Render each active feature on the map
-                activeFeatures.forEach((feature: Feature) => {
+                activeFeatures.forEach((feature: PointCollected) => {
                   // Skip features without valid coordinates
-                  if (!feature.coordinates || 
-                      (Array.isArray(feature.coordinates) && feature.coordinates.length < 2)) {
-                    console.warn('Skipping feature with invalid coordinates:', feature.id);
+                  if (!feature.nmeaData || !feature.nmeaData.gga) {
+                    console.warn('Skipping feature with invalid NMEA data:', feature.client_id);
                     return;
                   }
 
@@ -147,73 +145,27 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                     // Ensure coordinates are in the correct format
                     let formattedCoordinates: [number, number] | [number, number][];
                     
-                    if (feature.type === 'Point') {
-                      // For points, ensure we have a single coordinate pair
-                      if (!Array.isArray(feature.coordinates)) {
-                        console.warn('Invalid coordinates format for point:', feature.id);
-                        return;
-                      }
-
-                      if (Array.isArray(feature.coordinates[0])) {
-                        // Handle nested array format: [[lon, lat]]
-                        const coord = feature.coordinates[0];
-                        if (!Array.isArray(coord) || coord.length < 2) {
-                          console.warn('Invalid nested coordinates for point:', feature.id);
-                          return;
+                    // For points, we'll use the GGA data for coordinates
+                    const lon = feature.nmeaData.gga.longitude;
+                    const lat = feature.nmeaData.gga.latitude;
+                    
+                    if (lon !== undefined && lat !== undefined) {
+                      formattedCoordinates = [lon, lat] as [number, number];
+                      
+                      const featureToRender: FeatureToRender = {
+                        type: 'Point',
+                        coordinates: formattedCoordinates,
+                        properties: {
+                          featureId: feature.feature_id,
+                          name: feature.name,
+                          description: feature.description,
+                          ...feature.attributes
                         }
-                        formattedCoordinates = [Number(coord[0]), Number(coord[1])] as [number, number];
-                      } else {
-                        // Handle flat array format: [lon, lat]
-                        if (feature.coordinates.length < 2) {
-                          console.warn('Invalid flat coordinates for point:', feature.id);
-                          return;
-                        }
-                        formattedCoordinates = [
-                          Number(feature.coordinates[0]),
-                          Number(feature.coordinates[1])
-                        ] as [number, number];
-                      }
-                    } else {
-                      // For lines/polygons, ensure we have an array of coordinate pairs
-                      if (!Array.isArray(feature.coordinates)) {
-                        console.warn('Invalid coordinates format for line/polygon:', feature.id);
-                        return;
-                      }
-
-                      if (Array.isArray(feature.coordinates[0])) {
-                        // Already in correct format: [[lon, lat], [lon, lat], ...]
-                        formattedCoordinates = feature.coordinates.map(coord => {
-                          if (!Array.isArray(coord) || coord.length < 2) {
-                            throw new Error('Invalid coordinate pair in line/polygon');
-                          }
-                          return [Number(coord[0]), Number(coord[1])] as [number, number];
-                        });
-                      } else {
-                        // Convert single pair to array: [lon, lat] -> [[lon, lat]]
-                        if (feature.coordinates.length < 2) {
-                          console.warn('Invalid coordinates for line/polygon:', feature.id);
-                          return;
-                        }
-                        formattedCoordinates = [[
-                          Number(feature.coordinates[0]),
-                          Number(feature.coordinates[1])
-                        ] as [number, number]];
-                      }
+                      };
+                      renderFeature(featureToRender);
                     }
-
-                    const featureToRender: FeatureToRender = {
-                      type: feature.type,
-                      coordinates: formattedCoordinates,
-                      properties: {
-                        featureId: feature.id,
-                        name: feature.name,
-                        draw_layer: feature.draw_layer,
-                        ...feature.properties
-                      }
-                    };
-                    renderFeature(featureToRender);
                   } catch (error) {
-                    console.error('Error formatting coordinates for feature:', feature.id, error);
+                    console.error('Error formatting coordinates for feature:', feature.client_id, error);
                   }
                 });
                 
@@ -272,7 +224,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Type:</Text>
-                  <Text style={styles.value}>{point.featureType}</Text>
+                  <Text style={styles.value}>Point</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Collected By:</Text>
@@ -297,7 +249,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                           <TouchableOpacity 
                             style={[styles.descriptionButton, styles.cancelButton]}
                             onPress={() => {
-                              setDescription(point.properties?.description || '');
+                              setDescription(point.description || '');
                               setIsEditing(false);
                             }}
                           >
@@ -345,11 +297,11 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 {/* Position */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Longitude:</Text>
-                  <Text style={styles.value}>{formatValue(point.coordinates[0])}</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.longitude)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Latitude:</Text>
-                  <Text style={styles.value}>{formatValue(point.coordinates[1])}</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.latitude)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Altitude:</Text>

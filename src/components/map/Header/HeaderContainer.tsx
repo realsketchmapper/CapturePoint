@@ -12,7 +12,7 @@ import { SettingsButton } from './SettingsButton';
 import { FeatureButton } from './FeatureButton';
 import { BackButton } from './BackButton';
 import { ThinHeaderContainer } from '../ThinHeader/ThinHeaderContainer';
-import { useFeatureModal } from '@/hooks/useFeatureModal';
+import { useFeatureTypeModal } from '@/hooks/useFeatureTypeModal';
 
 export const HeaderContainer: React.FC = () => {
   const {
@@ -33,10 +33,10 @@ export const HeaderContainer: React.FC = () => {
   } = useSettings();
 
   const {
-    isFeatureModalVisible,
-    handleFeaturePress,
-    handleCloseFeatureModal,
-  } = useFeatureModal();
+    isFeatureTypeModalVisible,
+    handleFeatureTypePress,
+    handleCloseFeatureTypeModal,
+  } = useFeatureTypeModal();
 
   const { settings, handleSettingsChange } = useSettingsContext();
 
@@ -47,7 +47,7 @@ export const HeaderContainer: React.FC = () => {
         <View style={styles.headerContent}>
           <BackButton />
           <View style={styles.buttonContainer}>
-            <FeatureButton onPress={handleFeaturePress} />
+            <FeatureButton onPress={handleFeatureTypePress} />
             <BluetoothButton onPress={handleBluetoothPress} />
             <SettingsButton onPress={handleSettingsPress} />
           </View>
@@ -84,11 +84,11 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   header: {
-    backgroundColor: Colors.White,
+    backgroundColor: Colors.OffWhite,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.LightGrey,
+    borderBottomColor: Colors.VeryLightGrey,
   },
   headerContent: {
     flexDirection: 'row',

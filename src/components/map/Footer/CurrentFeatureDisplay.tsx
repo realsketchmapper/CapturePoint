@@ -16,8 +16,8 @@ export const CurrentFeatureDisplay: React.FC<CurrentFeatureDisplayProps> = ({
     if (!selectedFeatureType) return null;
 
     // For line or polygon type features with SVG data
-    if ((selectedFeatureType.geometryType === 'Line' || 
-         selectedFeatureType.geometryType === 'Polygon') && selectedFeatureType.svg) {
+    if ((selectedFeatureType.type === 'Line' || 
+         selectedFeatureType.type === 'Polygon') && selectedFeatureType.svg) {
       try {
         // Check if the SVG content is valid
         if (selectedFeatureType.svg.includes('<svg') && selectedFeatureType.svg.includes('</svg>')) {
@@ -36,7 +36,7 @@ export const CurrentFeatureDisplay: React.FC<CurrentFeatureDisplayProps> = ({
       }
     } 
     // For point features with image URLs (PNGs)
-    else if ((selectedFeatureType.geometryType === 'Point') && selectedFeatureType.image_url) {
+    else if ((selectedFeatureType.type === 'Point') && selectedFeatureType.image_url) {
       return (
         <Image 
           source={{ uri: selectedFeatureType.image_url }} 

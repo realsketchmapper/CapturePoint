@@ -21,14 +21,22 @@ import FeatureMarkers from './FeatureMarkers';
 import MapPointDetails from '@/components/modals/PointModals/MapPointDetails';
 import { storageService } from '@/services/storage/storageService';
 import { PointCollected } from '@/types/pointCollected.types';
-import { CollectedFeature } from '@/types/features.types';
+import { CollectedFeature } from '@/types/currentFeatures.types';
 import { Colors } from '@/theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@/constants/storage';
+import { Position } from '@/types/collection.types';
 
+// Helper function to convert Position to coordinates array
+const positionToCoordinates = (position: Position): [number, number] => {
+  if (Array.isArray(position)) {
+    return position;
+  }
+  return [position.longitude, position.latitude];
+};
 
 export const MapControls: React.FC = () => {
-  const { features, isMapReady, setIsMapReady, refreshFeatures, clearFeatures } = useMapContext();
+  const { features, isMapReady, setIsMapReady, clearFeatures } = useMapContext();
   const { currentLocation } = useLocationContext();
   const { settings } = useSettingsContext();
   const { activeProject } = useProjectContext();
@@ -52,7 +60,7 @@ export const MapControls: React.FC = () => {
     if (isMapReady && currentLocation && !initialCenterDone.current && cameraRef.current) {
       console.log("setting initial position");
       cameraRef.current.setCamera({
-        centerCoordinate: currentLocation,
+        centerCoordinate: positionToCoordinates(currentLocation),
         zoomLevel: 18,
         animationDuration: 500,
       });
@@ -64,7 +72,7 @@ export const MapControls: React.FC = () => {
   useEffect(() => {
     if (isMapReady && initialCenterDone.current && currentLocation && followGNSS && cameraRef.current) {
       cameraRef.current.setCamera({
-        centerCoordinate: currentLocation,
+        centerCoordinate: positionToCoordinates(currentLocation),
         animationDuration: 300
       });
     }
@@ -138,8 +146,7 @@ export const MapControls: React.FC = () => {
         }
 
         // Get features from storage
-        const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${activeProject.id}`;
-        const featuresJson = await AsyncStorage.getItem(featuresKey);
+        const featuresJson = await AsyncStorage.getItem(STORAGE_KEYS.COLLECTED_POINTS);
         if (!featuresJson) {
           console.log('No features found in storage');
           return;
@@ -190,8 +197,7 @@ export const MapControls: React.FC = () => {
         console.log('Selected feature:', clickedFeature);
 
         // Get features from storage
-        const featuresKey = `${STORAGE_KEYS.PROJECT_FEATURES_PREFIX}${activeProject.id}`;
-        const featuresJson = await AsyncStorage.getItem(featuresKey);
+        const featuresJson = await AsyncStorage.getItem(STORAGE_KEYS.COLLECTED_POINTS);
         if (!featuresJson) {
           console.log('No features found in storage');
           return;
@@ -242,11 +248,11 @@ export const MapControls: React.FC = () => {
       setIsClearing(true);
       console.log('\n=== Starting Clear Storage ===');
       
-      // Clear all points for the active project
-      await storageService.clearAllPoints(activeProject.id);
+      // Clear all points
+      await storageService.clearAllPoints();
       
-      // Refresh the map
-      refreshFeatures();
+      // Clear features from map
+      clearFeatures();
       
       console.log('=== Clear Storage Complete ===\n');
     } catch (error) {
@@ -268,14 +274,14 @@ export const MapControls: React.FC = () => {
         <Camera
           ref={cameraRef}
           defaultSettings={{
-            centerCoordinate: currentLocation || [-122.4194, 37.7749],
+            centerCoordinate: currentLocation ? positionToCoordinates(currentLocation) : [-122.4194, 37.7749],
             zoomLevel: 18,         
           }} 
         />
 
         {currentLocation && (
           <CurrentPositionMarker 
-            position={currentLocation}
+            position={positionToCoordinates(currentLocation)}
             color="#FF6B00"
             size={0.8}
             isLocationMarker={true}

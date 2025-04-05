@@ -4,9 +4,9 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { Colors } from '@/theme/colors';
-import { useLineCollection } from '@/hooks/useLineCollection';
 import { usePointCollection } from '@/hooks/usePointCollection';
 import { LineCollectionControls } from './LineCollectionControls';
+import { useLineCollection } from '@/hooks/useLineCollection';
 
 const CollectionButton = () => {
   const { locationSource } = useLocationContext();
@@ -29,7 +29,7 @@ const CollectionButton = () => {
   const handleCollect = () => {
     if (!selectedFeatureType) return;
 
-    switch (selectedFeatureType.geometryType) {
+    switch (selectedFeatureType.type) {
       case 'Point':
         handlePointCollection();
         break;
@@ -50,7 +50,7 @@ const CollectionButton = () => {
           disabled={!selectedFeatureType}
         >
           <MaterialIcons
-            name={selectedFeatureType?.geometryType === 'Line' ? 'timeline' : 'add-location'}
+            name={selectedFeatureType?.type === 'Line' ? 'timeline' : 'add-location'}
             size={24}
             color={Colors.DarkBlue}
           />

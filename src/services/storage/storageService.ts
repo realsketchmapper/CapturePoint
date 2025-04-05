@@ -148,7 +148,7 @@ class StorageService {
       
       if (points.length === filteredPoints.length) {
         return false; // Point not found
-      }
+      } 
       
       await AsyncStorage.setItem(STORAGE_KEYS.COLLECTED_POINTS, JSON.stringify(filteredPoints));
       return true;

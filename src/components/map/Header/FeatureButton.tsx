@@ -1,7 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { FeatureButtonProps } from '@/types/features.types';
+import { FeatureButtonProps } from '@/types/featureType.types';
 import { Colors } from '@/theme/colors';
 
 export const FeatureButton: React.FC<FeatureButtonProps> = ({ onPress }) => {

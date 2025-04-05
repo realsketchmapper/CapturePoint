@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
-import { BluetoothDevice } from 'react-native-bluetooth-classic';
-import { BluetoothContextType, BluetoothDeviceType, BluetoothState, BluetoothActions } from '@/src/types/bluetooth.types';
+import { BluetoothDevice, BluetoothEventSubscription } from 'react-native-bluetooth-classic';
+import { BluetoothContextType, BluetoothDeviceType, BluetoothState, BluetoothActions } from '@/types/bluetooth.types';
 import { BluetoothManager } from '@/services/bluetooth/bluetoothManager';
-import { useNMEAContext } from '@/src/contexts/NMEAContext';
-import { useLocationContext } from '@/src/contexts/LocationContext';
+import { useNMEAContext } from '@/contexts/NMEAContext';
+import { useLocationContext } from '@/contexts/LocationContext';
 import RNBluetoothClassic from 'react-native-bluetooth-classic';
 
 const BluetoothContext = createContext<BluetoothContextType | null>(null);
@@ -57,12 +57,13 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
   const { startListening, stopListening } = useNMEAContext();
   const { setUsingNMEA } = useLocationContext();
   const bluetoothStateListener = useRef<any>(null);
+  const bluetoothManager = BluetoothManager.getInstance();
 
   // Monitor Bluetooth state changes
   useEffect(() => {
     const checkBluetoothState = async () => {
       try {
-        const isEnabled = await BluetoothManager.isBluetoothEnabled();
+        const isEnabled = await bluetoothManager.isBluetoothEnabled();
         dispatch({ type: 'SET_BLUETOOTH_ENABLED', payload: isEnabled });
       } catch (error) {
         console.error('Error checking Bluetooth state:', error);
@@ -73,14 +74,13 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
     checkBluetoothState();
 
     // Set up listener for Bluetooth state changes
-    // Note: We're using a type assertion here since the type definition might be incomplete
-    bluetoothStateListener.current = (RNBluetoothClassic as any).onBluetoothStateChanged((state: string) => {
-      dispatch({ type: 'SET_BLUETOOTH_ENABLED', payload: state === 'on' });
-    });
+    const subscription = RNBluetoothClassic.onStateChanged((event) => {
+      dispatch({ type: 'SET_BLUETOOTH_ENABLED', payload: event.state === 'on' });
+    }) as BluetoothEventSubscription;
 
     return () => {
-      if (bluetoothStateListener.current) {
-        bluetoothStateListener.current.remove();
+      if (subscription) {
+        subscription.remove();
       }
     };
   }, []);
@@ -90,7 +90,7 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
       dispatch({ type: 'SET_SCANNING', payload: true });
       dispatch({ type: 'SET_ERROR', payload: null });
       
-      const devices = await BluetoothManager.scanDevices(deviceType);
+      const devices = await bluetoothManager.scanDevices(deviceType);
       
       if (devices.length === 0) {
         dispatch({ 
@@ -114,7 +114,7 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
       dispatch({ type: 'SET_CONNECTING', payload: true });
       dispatch({ type: 'SET_CONNECTION_ERROR', payload: null });
 
-      const connected = await BluetoothManager.connectToDevice(device);
+      const connected = await bluetoothManager.connectToDevice(device);
       
       if (connected) {
         await startListening(device.address);
@@ -137,7 +137,7 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
   const disconnectDevice = useCallback(async (address: string) => {
     try {
       await stopListening(address);
-      await BluetoothManager.disconnectDevice(address);
+      await bluetoothManager.disconnectDevice(address);
       setUsingNMEA(false);
       dispatch({ type: 'SET_CONNECTED_DEVICE', payload: null });
     } catch (err) {

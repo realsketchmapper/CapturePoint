@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
-import { FeatureToRender } from '@/src/types/featureType.types';
-import { MapContextType, Coordinate, FeatureType } from '@/src/types/map.types';
-import { generateId } from '@/src/utils/collections';
+import { FeatureToRender } from '@/types/featuresToRender.types';
+import { MapContextType, Coordinate, FeatureType } from '@/types/map.types';
+import { generateId } from '@/utils/collections';
 
 const MapContext = createContext<MapContextType | undefined>(undefined);
 

@@ -1,13 +1,15 @@
 import React, { useMemo, useCallback } from 'react';
 import { StyleSheet, Modal, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
-import { useFeatureContext } from '@/src/contexts/FeatureContext';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Feature, FeatureListModalProps } from '@/types/features.types';
+import { FeatureToRender } from '@/types/featuresToRender.types';
 import { SvgXml } from 'react-native-svg';
-import { Colors } from '@/src/theme/colors';
+import { Colors } from '@/theme/colors';
+import { FeatureListModalProps } from '@/types/featureType.types';
+import { FeatureType } from '@/types/featureType.types';
 
 type GroupedFeatures = {
-  [key: string]: Feature[];
+  [key: string]: FeatureType[];
 }
 
 export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({ 
@@ -15,19 +17,19 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
   onClose
 }) => {
   const { 
-    selectedFeature, 
-    setSelectedFeature, 
+    selectedFeatureType: selectedFeature, 
+    setSelectedFeatureType: setSelectedFeature, 
     expandedLayers, 
     toggleLayer,
-    features,
+    featureTypes: features,
     isLoading,
     error,
-    featuresLoaded,
-  } = useFeatureContext();
+    featureTypesLoaded: featuresLoaded,
+  } = useFeatureTypeContext();
 
   const groupedFeatures = useMemo<GroupedFeatures>(() => {
     console.log('Recalculating groupedFeatures');
-    const groups = features.reduce<GroupedFeatures>((acc, feature) => {
+    const groups = features.reduce<GroupedFeatures>((acc: GroupedFeatures, feature: FeatureType) => {
       if (!acc[feature.draw_layer]) {
         acc[feature.draw_layer] = [];
       }
@@ -37,25 +39,25 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
 
     // Sort features within each group
     Object.keys(groups).forEach(layer => {
-      groups[layer].sort((a, b) => a.name.localeCompare(b.name));
+      groups[layer].sort((a: FeatureType, b: FeatureType) => a.name.localeCompare(b.name));
     });
 
     // Sort draw_layers alphabetically
     return Object.keys(groups)
       .sort()
-      .reduce<GroupedFeatures>((acc, key) => {
+      .reduce<GroupedFeatures>((acc: GroupedFeatures, key: string) => {
         acc[key] = groups[key];
         return acc;
       }, {});
   }, [features]);
 
-  const handleFeatureSelect = useCallback((feature: Feature) => {
+  const handleFeatureSelect = useCallback((feature: FeatureType) => {
     setSelectedFeature(feature);
     onClose();
   }, [setSelectedFeature, onClose]);
 
   // Function to render the appropriate image based on feature type
-  const renderFeatureImage = useCallback((feature: Feature) => {
+  const renderFeatureImage = useCallback((feature: FeatureType) => {
     // For line or polygon type features with SVG data
     if ((feature.type === 'Line' || 
          feature.type === 'Polygon') && feature.svg) {
@@ -112,10 +114,10 @@ export const FeatureListModal: React.FC<FeatureListModalProps> = React.memo(({
           <View style={styles.featureGroup}>
             {layerFeatures.map(feature => (
               <TouchableOpacity
-                key={feature.id}
+                key={`${feature.name}-${feature.created_at}`}
                 style={[
                   styles.featureItem,
-                  selectedFeature?.id === feature.id && styles.selectedFeature
+                  selectedFeature?.name === feature.name && styles.selectedFeature
                 ]}
                 onPress={() => handleFeatureSelect(feature)}
               >

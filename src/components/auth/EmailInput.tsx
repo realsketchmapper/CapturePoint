@@ -1,6 +1,6 @@
 import React from 'react';
 import { TextInput, StyleSheet} from 'react-native';
-import { EmailInputProps } from '@/src/types/auth.types';
+import { EmailInputProps } from '@/types/auth.types';
 
 export const EmailInput: React.FC<EmailInputProps> = ({
   value,

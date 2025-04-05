@@ -1,6 +1,6 @@
-import { api } from "@/src/api/clients";
-import { FeatureType } from "@/src/types/featureType.types";
-import { API_ENDPOINTS } from "@/src/api/endpoints";
+import { api } from "@/api/clients";
+import { FeatureType } from "@/types/featureType.types";
+import { API_ENDPOINTS } from "@/api/endpoints";
 
 /**
  * Service for managing feature types in the application
@@ -13,11 +13,15 @@ export const featureTypeService = {
    */
   fetchProjectFeatureTypes: async (projectId: number): Promise<FeatureType[]> => {
     try {
+      console.log('Fetching feature types for project:', projectId);
       const response = await api.get(`/projects/${projectId}/features`);
       
       if (!response.data.success) {
-        throw new Error('Failed to fetch feature types');
+        console.error('Failed to fetch feature types:', response.data.error);
+        throw new Error(response.data.error || 'Failed to fetch feature types');
       }
+      
+      console.log('Successfully fetched feature types:', response.data.features?.length || 0);
       
       // Map and normalize the feature types
       return response.data.features.map((feature: any) => ({

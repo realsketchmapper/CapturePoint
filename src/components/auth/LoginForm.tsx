@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
-import { LoadingSpinner } from '@/src/components/shared/LoadingSpinner';
+import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { EmailInput } from './EmailInput';
 import { PasswordInput } from './PasswordInput';
-import { Colors } from '@/src/theme/colors';
-import { LoginFormProps } from '@/src/types/auth.types';
+import { Colors } from '@/theme/colors';
+import { LoginFormProps } from '@/types/auth.types';
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading }) => {
   const [credentials, setCredentials] = useState({

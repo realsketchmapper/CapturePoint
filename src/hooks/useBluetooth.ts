@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { BluetoothDevice } from 'react-native-bluetooth-classic';
-import { useBluetoothContext } from '@/src/contexts/BluetoothContext';
-import { BluetoothDeviceType } from '@/src/types/bluetooth.types';
+import { useBluetoothContext } from '@/contexts/BluetoothContext';
+import { BluetoothDeviceType } from '@/types/bluetooth.types';
 
 /**
  * Custom hook for managing Bluetooth device selection and connection

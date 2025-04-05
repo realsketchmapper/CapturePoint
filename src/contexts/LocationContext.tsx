@@ -2,8 +2,8 @@ import React, { createContext, useContext, useReducer, useCallback, useRef, useE
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LocationContextType, LocationSource } from '@/src/types/location.types';
-import { Position } from '@/src/types/collection.types';
+import { LocationContextType, LocationSource } from '@/types/location.types';
+import { Position } from '@/types/collection.types';
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
 

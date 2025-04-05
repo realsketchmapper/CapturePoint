@@ -1,6 +1,6 @@
 import React, { createContext, useReducer, useContext, ReactNode, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SettingsProps, SettingsContextType, BasemapStyle } from '@/src/types/settings.types';
+import { SettingsProps, SettingsContextType, BasemapStyle } from '@/types/settings.types';
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 

@@ -1,6 +1,6 @@
 import React, { createContext, useEffect, useReducer, useCallback, useContext, useRef } from 'react';
-import { AuthService } from '@/src/services/auth/authService';
-import { User, AuthContextState, AuthContextActions } from '@/src/types/auth.types';
+import { AuthService } from '@/services/auth/authService';
+import { User, AuthContextState, AuthContextActions } from '@/types/auth.types';
 import NetInfo from '@react-native-community/netinfo';
 
 type AuthContextType = AuthContextState & AuthContextActions;

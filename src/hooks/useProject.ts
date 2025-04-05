@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Project } from '@/src/types/project.types';
-import { projectService } from '@/src/services/projectService';
+import { Project } from '@/types/project.types';
+import { projectService } from '@/services/project/projectService';
 
 /**
  * Custom hook for managing projects

@@ -15,7 +15,7 @@ const Splash: React.FC = () => {
 
   return (
     <ImageBackground
-      source={require('@/src/assets/images/GCP_CastleHayne.png')}
+      source={require('@/assets/images/GCP_CastleHayne.png')}
       style={styles.container}
     />
   );

@@ -9,9 +9,9 @@ import {
   StyleSheet
 } from 'react-native';
 import { router } from 'expo-router';
-import { useAuthContext } from '@/src/contexts/AuthContext';
-import { LoginForm } from '@/src/components/auth/LoginForm';
-import { Colors } from '@/src/theme/colors';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { LoginForm } from '@/components/auth/LoginForm';
+import { Colors } from '@/theme/colors';
 
 export default function Login() {
   const { login, isLoading, error } = useAuthContext();
@@ -36,7 +36,7 @@ export default function Login() {
       >
         <View style={styles.innerContainer}>
           <Image
-            source={require('@/src/assets/images/bhug_logo.png')}
+            source={require('@/assets/images/bhug_logo.png')}
             style={styles.logo}
             resizeMode="contain"
           />

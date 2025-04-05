@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { } from 'react-native/Libraries/NewAppScreen';
-import { PasswordInputProps } from '@/src/types/auth.types';
+import { PasswordInputProps } from '@/types/auth.types';
 
 export const PasswordInput: React.FC<PasswordInputProps> = ({
   value,

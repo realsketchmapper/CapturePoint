@@ -1,4 +1,4 @@
-import { useFeatureContext } from "@/src/contexts/FeatureContext";
+import { useFeatureTypeContext } from "@/contexts/FeatureTypeContext";
 
 /**
  * Custom hook for accessing feature list functionality
@@ -7,18 +7,18 @@ import { useFeatureContext } from "@/src/contexts/FeatureContext";
  */
 export const useFeatureTypesList = () => {
   const { 
-    features, 
+    featureTypes, 
     isLoading, 
     error, 
-    fetchFeatures,
-    featuresLoaded 
-  } = useFeatureContext();
+    fetchFeatureTypes,
+    featureTypesLoaded 
+  } = useFeatureTypeContext();
   
   return {
-    features,
+    featureTypes,
     isLoading,
     error,
-    refreshFeatures: fetchFeatures,
-    featuresLoaded
+    refreshFeatureTypes: fetchFeatureTypes,
+    featureTypesLoaded
   };
 }; 

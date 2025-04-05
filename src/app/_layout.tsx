@@ -1,16 +1,15 @@
 import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
 import { useContext, useState, useEffect } from "react";
-import { BluetoothProvider } from '@/src/contexts/BluetoothContext';
-import { AuthProvider, AuthContext } from "@/src/contexts/AuthContext";
-import { ProjectProvider } from "@/src/contexts/ProjectContext";
-import { SettingsProvider } from "@/src/contexts/SettingsContext";
-import { FeatureProvider } from "@/src/contexts/FeatureContext";
-import { NMEAProvider } from "@/src/contexts/NMEAContext";
-import { CollectionProvider } from "@/src/contexts/CollectionContext";
-import { MapProvider } from "@/src/contexts/MapDisplayContext";
-import { LocationProvider } from "@/src/contexts/LocationContext";
-import AppInitializer from "@/src/components/sync/AppInitializer";
+import { BluetoothProvider } from '@/contexts/BluetoothContext';
+import { AuthProvider, AuthContext } from "@/contexts/AuthContext";
+import { ProjectProvider } from "@/contexts/ProjectContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
+import { FeatureTypeProvider } from "@/contexts/FeatureTypeContext";
+import { NMEAProvider } from "@/contexts/NMEAContext";
+import { CollectionProvider } from "@/contexts/CollectionContext";
+import { MapProvider } from "@/contexts/MapDisplayContext";
+import { LocationProvider } from "@/contexts/LocationContext";
 
 // Types
 interface AuthStateObserverProps {
@@ -29,9 +28,9 @@ interface AppProvidersProps {
 // Custom hook for font loading
 const useAppFonts = () => {
   const [fontsLoaded, fontError] = useFonts({
-    'RobotoSlab_Bold': require('@/src/assets/fonts/RobotoSlab-Bold.ttf'),
-    'RobotoSlab-Medium': require('@/src/assets/fonts/RobotoSlab-Medium.ttf'),
-    'RobotoSlab-Regular': require('@/src/assets/fonts/RobotoSlab-Regular.ttf'),
+    'RobotoSlab_Bold': require('@/assets/fonts/RobotoSlab-Bold.ttf'),
+    'RobotoSlab-Medium': require('@/assets/fonts/RobotoSlab-Medium.ttf'),
+    'RobotoSlab-Regular': require('@/assets/fonts/RobotoSlab-Regular.ttf'),
   });
 
   return { fontsLoaded, fontError };
@@ -81,18 +80,17 @@ const AppProviders: React.FC<AppProvidersProps> = ({
       <ProjectProvider>
         <SettingsProvider>
           <MapProvider>
-            <FeatureProvider>
+            <FeatureTypeProvider>
               <NMEAProvider>
                 <LocationProvider>
                   <CollectionProvider>
-                    {isLoggedIn && isAuthReady && <AppInitializer />}
                     <BluetoothProvider>
                       {children}
                     </BluetoothProvider>
                   </CollectionProvider>
                 </LocationProvider>
               </NMEAProvider>
-            </FeatureProvider>
+            </FeatureTypeProvider>
           </MapProvider>
         </SettingsProvider>
       </ProjectProvider>

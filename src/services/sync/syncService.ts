@@ -1,6 +1,6 @@
 import { api } from '@/api/clients';
 import { API_ENDPOINTS } from '@/api/endpoints';
-import { storageService } from './storageService';
+import { storageService } from '../storage/storageService';
 import NetInfo from '@react-native-community/netinfo';
 import { PointCollected } from '@/types/pointCollected.types';
 import { AxiosError } from 'axios';
@@ -45,7 +45,7 @@ const formatPointForAPI = (point: PointCollected): FormattedPoint => {
   const longitude = point.nmeaData?.gga?.longitude || 0;
   const latitude = point.nmeaData?.gga?.latitude || 0;
   
-  return {  
+  return {
     client_id: String(point.client_id),
     category: point.feature_id,
     type: 'Point', // Default to Point type
@@ -129,7 +129,7 @@ class SyncService {
                          response.data.created_ids || 
                          unsyncedPoints.map((p: PointCollected) => p.client_id);
         
-        // Mark as synced in local storage
+        // Mark as synced in local storage  
         if (syncedIds.length > 0) {
           await storageService.markPointsAsSynced(syncedIds);
         }

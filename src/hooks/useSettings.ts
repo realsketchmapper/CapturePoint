@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { useSettingsContext } from '@/src/contexts/SettingsContext';
-import { SettingsProps } from '@/src/types/settings.types';
+import { useSettingsContext } from '@/contexts/SettingsContext';
+import { SettingsProps } from '@/types/settings.types';
 
 /**
  * Custom hook for managing settings modal visibility and settings state

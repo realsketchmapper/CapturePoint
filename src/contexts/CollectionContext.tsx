@@ -1,14 +1,14 @@
 // contexts/CollectionContext.tsx
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import { Position, CollectionContextType, CollectionState, Coordinates, CollectionMetadata } from '@/src/types/collection.types';
-import { FeatureType } from '@/src/types/featureType.types';
-import { PointCollected } from '@/src/types/pointCollected.types';
-import { useLocationContext } from '@/src/contexts/LocationContext';
-import { useNMEAContext } from '@/src/contexts/NMEAContext';
-import { AuthContext } from '@/src/contexts/AuthContext';
-import { ProjectContext } from '@/src/contexts/ProjectContext';
-import { storageService } from '@/src/services/storage/storageService';
-import { syncService } from '@/src/services/sync/syncService';
+import { Position, CollectionContextType, CollectionState, Coordinates, CollectionMetadata } from '@/types/collection.types';
+import { FeatureType } from '@/types/featureType.types';
+import { PointCollected } from '@/types/pointCollected.types';
+import { useLocationContext } from '@/contexts/LocationContext';
+import { useNMEAContext } from '@/contexts/NMEAContext';
+import { AuthContext } from '@/contexts/AuthContext';
+import { ProjectContext } from '@/contexts/ProjectContext';
+import { storageService } from '@/services/storage/storageService';
+import { syncService } from '@/services/sync/syncService';
 // Replace v4 import with a more React Native friendly approach
 import 'react-native-get-random-values'; // Add this import at the top
 import { v4 as uuidv4 } from 'uuid';
@@ -302,7 +302,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         : points[points.length - 1];
       
       const point: PointCollected = {
-        id: properties.pointId,
+        client_id: properties.pointId,
         name: properties.name || activeFeatureType.name,
         description: properties.description || '',
         feature_id: 0, // TODO: Get actual feature ID from somewhere
