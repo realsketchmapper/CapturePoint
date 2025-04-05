@@ -1,12 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PointCollected } from '@/types/pointCollected.types';
-
-/**
- * Storage keys used for AsyncStorage
- */
-const STORAGE_KEYS = {
-  COLLECTED_POINTS: 'PointsCollected',
-} as const;
+import { STORAGE_KEYS } from '@/constants/storage';
 
 /**
  * Service for managing collected points in local storage

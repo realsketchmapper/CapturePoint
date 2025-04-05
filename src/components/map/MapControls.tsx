@@ -152,19 +152,12 @@ export const MapControls: React.FC = () => {
           return;
         }
 
-        const storedFeatures: CollectedFeature[] = JSON.parse(featuresJson);
+        const storedPoints: PointCollected[] = JSON.parse(featuresJson);
         
-        // Find the feature that contains this point
-        let matchedPoint: PointCollected | null = null;
-        for (const storedFeature of storedFeatures) {
-          if (storedFeature.points) {
-            matchedPoint = storedFeature.points.find((p: PointCollected) => 
-              p.client_id === closestFeature?.properties?.client_id
-            ) || null;
-            
-            if (matchedPoint) break;
-          }
-        }
+        // Find the point directly by client_id
+        const matchedPoint = storedPoints.find(p => 
+          p.client_id === closestFeature?.properties?.client_id
+        );
         
         console.log('Matched point from storage:', matchedPoint);
         
@@ -203,20 +196,12 @@ export const MapControls: React.FC = () => {
           return;
         }
 
-        const storedFeatures: CollectedFeature[] = JSON.parse(featuresJson);
+        const storedPoints: PointCollected[] = JSON.parse(featuresJson);
         
-        // Find the feature that contains this point
-        let matchedPoint: PointCollected | null = null;
-        for (const storedFeature of storedFeatures) {
-          if (storedFeature.points) {
-            matchedPoint = storedFeature.points.find((p: PointCollected) => 
-              p.client_id === clickedFeature?.properties?.client_id &&
-              p.attributes?.featureTypeName === storedFeature.name
-            ) || null;
-            
-            if (matchedPoint) break;
-          }
-        }
+        // Find the point directly by client_id
+        const matchedPoint = storedPoints.find(p => 
+          p.client_id === clickedFeature?.properties?.client_id
+        );
         
         console.log('Matched point from storage:', matchedPoint);
         

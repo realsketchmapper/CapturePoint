@@ -2,6 +2,9 @@ import { useCallback } from 'react';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
+import { useNMEAContext } from '@/contexts/NMEAContext';
+import { useProjectContext } from '@/contexts/ProjectContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { storageService } from '@/services/storage/storageService';
 import { generateId } from '@/utils/collections';
 
@@ -13,6 +16,9 @@ export const usePointCollection = () => {
   const { currentLocation } = useLocationContext();
   const { selectedFeatureType } = useFeatureTypeContext();
   const { renderFeature } = useMapContext();
+  const { ggaData, gstData } = useNMEAContext();
+  const { activeProject } = useProjectContext();
+  const { user } = useAuthContext();
 
   /**
    * Handle point collection
@@ -54,7 +60,7 @@ export const usePointCollection = () => {
         name: selectedFeatureType.name,
         description: '',
         nmeaData: {
-          gga: {
+          gga: ggaData || {
             time: new Date().toISOString(),
             latitude: coordinates[1],
             longitude: coordinates[0],
@@ -66,7 +72,7 @@ export const usePointCollection = () => {
             geoidHeight: 0,
             geoidHeightUnit: 'M'
           },
-          gst: {
+          gst: gstData || {
             time: new Date().toISOString(),
             rmsTotal: 0,
             semiMajor: 0,
@@ -83,20 +89,20 @@ export const usePointCollection = () => {
             color: selectedFeatureType.color
           }
         },
-        created_by: 'user',
+        created_by: String(user?.id || 'unknown'),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        updated_by: 'user',
+        updated_by: String(user?.id || 'unknown'),
         synced: false,
         feature_id: 0,
-        projectId: 0
+        projectId: activeProject?.id || 0
       });
 
       console.log('Point collected successfully:', clientId);
     } catch (error) {
       console.error('Error collecting point:', error);
     }
-  }, [currentLocation, selectedFeatureType, renderFeature]);
+  }, [currentLocation, selectedFeatureType, renderFeature, ggaData, gstData, activeProject, user]);
 
   return {
     handlePointCollection

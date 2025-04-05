@@ -114,6 +114,17 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
       dispatch({ type: 'SET_CONNECTING', payload: true });
       dispatch({ type: 'SET_CONNECTION_ERROR', payload: null });
 
+      // Check if already connected
+      const isConnected = await bluetoothManager.isBluetoothEnabled() && 
+                         await RNBluetoothClassic.isDeviceConnected(device.address);
+      
+      if (isConnected) {
+        dispatch({ type: 'SET_CONNECTED_DEVICE', payload: device });
+        await startListening(device.address);
+        setUsingNMEA(true);
+        return true;
+      }
+
       const connected = await bluetoothManager.connectToDevice(device);
       
       if (connected) {

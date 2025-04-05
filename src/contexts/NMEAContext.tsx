@@ -16,6 +16,7 @@ export const NMEAProvider: React.FC<{ children: React.ReactNode }> = ({
   const [gstData, setGSTData] = useState<GSTData | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bluetoothManager = BluetoothManager.getInstance();
 
   // Process all NMEA sentences in a single pass
   const handleNMEAData = useCallback((data: string) => {
@@ -23,6 +24,7 @@ export const NMEAProvider: React.FC<{ children: React.ReactNode }> = ({
     
     for (const line of lines) {
       const trimmedLine = line.trim();
+      if (!trimmedLine) continue;
       
       // Try to parse as GGA
       const parsedGGA = NMEAParser.parseGGA(trimmedLine);
@@ -47,22 +49,22 @@ export const NMEAProvider: React.FC<{ children: React.ReactNode }> = ({
   const startListening = useCallback(async (address: string) => {
     try {
       setError(null);
-      await BluetoothManager.startListeningToDevice(address, handleNMEAData);
+      await bluetoothManager.startListeningToDevice(address, handleNMEAData);
       setIsListening(true);
     } catch (err) {
       handleError(err, 'start listening');
     }
-  }, [handleNMEAData, handleError]);
+  }, [handleNMEAData, handleError, bluetoothManager]);
 
   const stopListening = useCallback(async (address: string) => {
     try {
-      await BluetoothManager.stopListeningToDevice(address);
+      await bluetoothManager.stopListeningToDevice(address);
       setIsListening(false);
       setError(null);
     } catch (err) {
       handleError(err, 'stop listening');
     }
-  }, [handleError]);
+  }, [handleError, bluetoothManager]);
 
   // Helper functions to get coordinates in different formats
   const getMaplibreCoordinates = useCallback((): MaplibreCoordinates | null => {
