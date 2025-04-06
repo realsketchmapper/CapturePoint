@@ -275,26 +275,20 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Save the current point with all metadata
   const saveCurrentPoint = useCallback(async (properties: Record<string, any> = {}, stateOverride?: CollectionState): Promise<boolean> => {
     const activeFeatureType = stateOverride?.activeFeatureType || state.collectionState.activeFeatureType;
-    const points = stateOverride?.points || state.collectionState.points;
-
-    if (!activeFeatureType || points.length === 0
-      || !ggaData?.latitude || !ggaData?.longitude || !gstData?.rmsTotal) {
-      console.warn('Missing required data to save point:', {
-        hasFeature: !!activeFeatureType,
-        pointsLength: points.length,
-        hasGGA: !!ggaData?.latitude && !!ggaData?.longitude,
-        hasGST: !!gstData?.rmsTotal
-      });
-      return false;
-    }
-
-    // Require pointId to be provided
-    if (!properties.pointId) {
-      console.error('No pointId provided to saveCurrentPoint');
+    
+    if (!activeFeatureType) {
+      console.error('No active feature type');
       return false;
     }
     
     dispatch({ type: 'SET_SAVING', payload: true });
+    
+    const points = stateOverride?.points || state.collectionState.points;
+    if (!points || points.length === 0) {
+      console.error('No points to save');
+      dispatch({ type: 'SET_SAVING', payload: false });
+      return false;
+    }
     
     try {
       const coordinates = activeFeatureType.type === 'Point' 
@@ -302,7 +296,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         : points[points.length - 1];
       
       const point: PointCollected = {
-        client_id: properties.pointId,
+        client_id: properties.pointId || uuidv4(),
         name: properties.name || activeFeatureType.name,
         description: properties.description || '',
         feature_id: 0, // TODO: Get actual feature ID from somewhere
@@ -312,8 +306,28 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updated_by: String(user?.id || 'unknown'),
         projectId: activeProject?.id || 0,
         nmeaData: {
-          gga: ggaData,
-          gst: gstData
+          gga: ggaData || {
+            time: new Date().toISOString(),
+            latitude: 0,
+            longitude: 0,
+            quality: 0,
+            satellites: 0,
+            hdop: 0,
+            altitude: 0,
+            altitudeUnit: 'm',
+            geoidHeight: 0,
+            geoidHeightUnit: 'm'
+          },
+          gst: gstData || {
+            time: new Date().toISOString(),
+            rmsTotal: 0,
+            semiMajor: 0,
+            semiMinor: 0,
+            orientation: 0,
+            latitudeError: 0,
+            longitudeError: 0,
+            heightError: 0
+          }
         },
         synced: false,
         attributes: {
@@ -326,11 +340,21 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
       };
       
+      console.log('Saving point:', JSON.stringify(point, null, 2));
       await storageService.savePoint(point);
+      console.log('Point saved successfully');
+      
+      // Update sync status to reflect new unsynced point
+      // Get the current unsynced count from storage to ensure accuracy
+      const unsyncedPoints = await storageService.getUnsyncedPoints();
+      console.log('Current unsynced points:', unsyncedPoints.length);
       
       dispatch({ 
-        type: 'UPDATE_UNSYNCED_COUNT', 
-        payload: state.syncStatus.unsyncedCount + 1 
+        type: 'SET_SYNC_STATUS', 
+        payload: {
+          ...state.syncStatus,
+          unsyncedCount: unsyncedPoints.length
+        }
       });
       
       return true;
@@ -340,7 +364,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     } finally {
       dispatch({ type: 'SET_SAVING', payload: false });
     }
-  }, [state.collectionState.activeFeatureType, state.collectionState.points, ggaData, gstData, activeProject, user, state.syncStatus.unsyncedCount]);
+  }, [state.collectionState.activeFeatureType, state.collectionState.points, ggaData, gstData, activeProject, user, state.syncStatus]);
   
   // Sync points with the server
   const syncPoints = useCallback(async (): Promise<boolean> => {
@@ -367,16 +391,25 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         result = await syncService.syncAllPoints();
       }
       
+      // Update syncing state and last sync time
       dispatch({ 
         type: 'SET_SYNC_STATUS', 
         payload: {
+          ...state.syncStatus,
           isSyncing: false,
-          lastSyncTime: new Date(),
-          unsyncedCount: result.success 
-            ? Math.max(0, state.syncStatus.unsyncedCount - result.syncedCount)
-            : state.syncStatus.unsyncedCount
+          lastSyncTime: new Date()
         }
       });
+      
+      // Update unsynced count separately
+      if (result.success) {
+        // Get the current unsynced count from storage to ensure accuracy
+        const unsyncedPoints = await storageService.getUnsyncedPoints();
+        dispatch({ 
+          type: 'UPDATE_UNSYNCED_COUNT', 
+          payload: unsyncedPoints.length
+        });
+      }
       
       return result.success;
     } catch (error) {
@@ -392,7 +425,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       return false;
     }
-  }, [state.syncStatus.isSyncing, state.syncStatus.unsyncedCount, activeProject]);
+  }, [state.syncStatus.isSyncing, state.syncStatus, activeProject]);
 
   return (
     <CollectionContext.Provider

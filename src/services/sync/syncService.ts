@@ -5,6 +5,10 @@ import NetInfo from '@react-native-community/netinfo';
 import { PointCollected } from '@/types/pointCollected.types';
 import { AxiosError } from 'axios';
 
+// Debug log to check if API_ENDPOINTS is properly imported
+console.log('API_ENDPOINTS imported:', API_ENDPOINTS);
+console.log('SYNC_COLLECTED_FEATURES:', API_ENDPOINTS?.SYNC_COLLECTED_FEATURES);
+
 /**
  * Interface representing the result of a sync operation
  */
@@ -19,19 +23,21 @@ export interface SyncResult {
  * Interface for the formatted point data sent to the API
  */
 interface FormattedPoint {
-  client_id: string;
-  category: number;
-  type: string;
-  name?: string;
-  description?: string;
-  project_id: number;
-  coords: [number, number];
-  created_by?: string;
-  created_at: string;
-  properties?: Record<string, any>;
-  nmea_data: {
-    gga: any;
-    gst: any;
+  clientId: string;
+  lastModified: string;
+  data: {
+    name: string;
+    description: string;
+    category: number;
+    type: string;
+    coords: [number, number];
+    created_at: string;
+    updated_at: string;
+    attributes: Record<string, any>;
+    nmea_data: {
+      gga: any;
+      gst: any;
+    };
   };
 }
 
@@ -46,21 +52,38 @@ const formatPointForAPI = (point: PointCollected): FormattedPoint => {
   const latitude = point.nmeaData?.gga?.latitude || 0;
   
   return {
-    client_id: String(point.client_id),
-    category: point.feature_id,
-    type: 'Point', // Default to Point type
-    name: point.name,
-    description: point.description,
-    project_id: point.projectId,
-    coords: [longitude, latitude],
-    created_by: point.created_by,
-    created_at: point.created_at,
-    properties: point.attributes,
-    nmea_data: {
-      gga: point.nmeaData.gga,
-      gst: point.nmeaData.gst
+    clientId: String(point.client_id),
+    lastModified: point.updated_at,
+    data: {
+      name: point.name,
+      description: point.description,
+      category: point.feature_id,
+      type: 'Point', // Default to Point type
+      coords: [longitude, latitude],
+      created_at: point.created_at,
+      updated_at: point.updated_at,
+      attributes: point.attributes || {},
+      nmea_data: {
+        gga: point.nmeaData.gga,
+        gst: point.nmeaData.gst
+      }
     }
   };
+};
+
+// Helper function to build endpoint URL
+const buildEndpoint = (endpoint: string, params: Record<string, string | number>): string => {
+  console.log('buildEndpoint called with:', { endpoint, params });
+  if (!endpoint) {
+    console.error('buildEndpoint received undefined endpoint');
+    return '';
+  }
+  const result = Object.entries(params).reduce(
+    (url, [key, value]) => url.replace(`:${key}`, value.toString()),
+    endpoint.replace(/^\//, '')
+  );
+  console.log('buildEndpoint result:', result);
+  return result;
 };
 
 /**
@@ -83,8 +106,12 @@ class SyncService {
    */
   async syncPoints(projectId: number): Promise<SyncResult> {
     try {
+      console.log('=== Starting syncPoints ===');
+      console.log('Project ID:', projectId);
+      
       // Verify project ID
       if (!projectId) {
+        console.log('Sync failed: No project ID provided');
         return {
           success: false,
           syncedCount: 0,
@@ -95,7 +122,9 @@ class SyncService {
       
       // Check if online
       const online = await this.isOnline();
+      console.log('Online status:', online);
       if (!online) {
+        console.log('Sync failed: Device is offline');
         return { 
           success: false, 
           syncedCount: 0, 
@@ -106,8 +135,11 @@ class SyncService {
       
       // Get unsynced points for this project
       const unsyncedPoints = await storageService.getUnsyncedPointsForProject(projectId);
+      console.log('Unsynced points found:', unsyncedPoints.length);
+      console.log('Unsynced points:', JSON.stringify(unsyncedPoints, null, 2));
       
       if (unsyncedPoints.length === 0) {
+        console.log('No points to sync');
         return { 
           success: true, 
           syncedCount: 0, 
@@ -117,37 +149,51 @@ class SyncService {
       
       // Format points for API
       const formattedPoints = unsyncedPoints.map(formatPointForAPI);
+      console.log('Formatted points for API:', JSON.stringify(formattedPoints, null, 2));
       
       // Construct the endpoint URL with the project ID
-      const endpoint = API_ENDPOINTS.SYNC_POINTS.replace(':projectId', projectId.toString());
+      const endpoint = buildEndpoint(API_ENDPOINTS.SYNC_COLLECTED_FEATURES, { projectId });
+      console.log('Sync endpoint:', endpoint);
       
       // Send points to server
-      const response = await api.post(endpoint, { points: formattedPoints });
+      console.log('Sending points to server...');
+      const response = await api.post(endpoint, { 
+        features: formattedPoints,
+        lastSyncTimestamp: null // We'll implement this later for bi-directional sync
+      });
+      console.log('Server response:', JSON.stringify(response.data, null, 2));
       
       if (response.data && response.data.success) {
-        const syncedIds = response.data.syncedIds || 
-                         response.data.created_ids || 
-                         unsyncedPoints.map((p: PointCollected) => p.client_id);
+        const syncedIds = response.data.processed || [];
+        const failedIds = response.data.failed || [];
+        
+        console.log('Synced IDs:', syncedIds);
+        console.log('Failed IDs:', failedIds);
         
         // Mark as synced in local storage  
         if (syncedIds.length > 0) {
+          console.log('Marking points as synced in local storage...');
           await storageService.markPointsAsSynced(syncedIds);
+          console.log('Points marked as synced successfully');
         }
         
+        console.log('=== Sync completed successfully ===');
         return {
           success: true,
           syncedCount: syncedIds.length,
-          failedCount: 0
+          failedCount: failedIds.length
         };
       } else {
+        console.log('Sync failed:', response.data?.message || 'Unknown error');
         return {
           success: false,
           syncedCount: 0,
           failedCount: unsyncedPoints.length,
-          errorMessage: response.data?.error || 'Sync failed'
+          errorMessage: response.data?.message || 'Sync failed'
         };
       }
     } catch (error) {
+      console.error('Sync error:', error);
       // Handle Axios errors specifically
       if (error instanceof AxiosError) {
         let errorMessage = 'Unknown API error';
