@@ -4,10 +4,8 @@ import { storageService } from '../storage/storageService';
 import NetInfo from '@react-native-community/netinfo';
 import { PointCollected } from '@/types/pointCollected.types';
 import { AxiosError } from 'axios';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 
-// Debug log to check if API_ENDPOINTS is properly imported
-console.log('API_ENDPOINTS imported:', API_ENDPOINTS);
-console.log('SYNC_COLLECTED_FEATURES:', API_ENDPOINTS?.SYNC_COLLECTED_FEATURES);
 
 /**
  * Interface representing the result of a sync operation
@@ -30,26 +28,39 @@ interface FormattedPoint {
     description: string;
     category: number;
     type: string;
-    coords: [number, number];
+    draw_layer: string;
+    points: {
+      client_id: string;
+      coords: [number, number];
+      created_at: string;
+      updated_at: string;
+      attributes: Record<string, any>;
+      nmea_data: {
+        gga: any;
+        gst: any;
+      };
+    }[];
     created_at: string;
     updated_at: string;
     attributes: Record<string, any>;
-    nmea_data: {
-      gga: any;
-      gst: any;
-    };
-  };
+  }
 }
 
 /**
  * Formats a stored point for API submission
  * @param point - The point to format
- * @returns Formatted point data for API
+ * @returns Formatted point data for API or null if coordinates are missing
  */
-const formatPointForAPI = (point: PointCollected): FormattedPoint => {
+const formatPointForAPI = (point: PointCollected): FormattedPoint | null => {
   // Extract coordinates from NMEA data
-  const longitude = point.nmeaData?.gga?.longitude || 0;
-  const latitude = point.nmeaData?.gga?.latitude || 0;
+  const longitude = point.nmeaData?.gga?.longitude;
+  const latitude = point.nmeaData?.gga?.latitude;
+  
+  // Skip points with missing coordinates
+  if (longitude === undefined || latitude === undefined || longitude === null || latitude === null) {
+    console.warn(`Skipping point ${point.client_id} due to missing coordinates:`, { longitude, latitude });
+    return null;
+  }
   
   return {
     clientId: String(point.client_id),
@@ -59,14 +70,21 @@ const formatPointForAPI = (point: PointCollected): FormattedPoint => {
       description: point.description,
       category: point.feature_id,
       type: 'Point', // Default to Point type
-      coords: [longitude, latitude],
+      draw_layer: point.draw_layer,
+      points: [{
+        client_id: point.client_id,
+        coords: [longitude, latitude],
+        created_at: point.created_at,
+        updated_at: point.updated_at,
+        attributes: {}, // Empty attributes object for future use
+        nmea_data: {
+          gga: point.nmeaData.gga,
+          gst: point.nmeaData.gst
+        }
+      }],
       created_at: point.created_at,
       updated_at: point.updated_at,
-      attributes: point.attributes || {},
-      nmea_data: {
-        gga: point.nmeaData.gga,
-        gst: point.nmeaData.gst
-      }
+      attributes: {} // Empty attributes object for future use
     }
   };
 };
@@ -148,8 +166,20 @@ class SyncService {
       }
       
       // Format points for API
-      const formattedPoints = unsyncedPoints.map(formatPointForAPI);
+      const formattedPoints = unsyncedPoints
+        .map(formatPointForAPI)
+        .filter((point): point is FormattedPoint => point !== null);
+      
       console.log('Formatted points for API:', JSON.stringify(formattedPoints, null, 2));
+      
+      if (formattedPoints.length === 0) {
+        console.log('No valid points to sync after filtering');
+        return { 
+          success: true, 
+          syncedCount: 0, 
+          failedCount: 0 
+        };
+      }
       
       // Construct the endpoint URL with the project ID
       const endpoint = buildEndpoint(API_ENDPOINTS.SYNC_COLLECTED_FEATURES, { projectId });
@@ -253,7 +283,7 @@ class SyncService {
       const pointsByProject: Record<number, PointCollected[]> = {};
       
       unsyncedPoints.forEach((point: PointCollected) => {
-        const projectId = point.projectId;
+        const projectId = point.project_id;
         
         if (!pointsByProject[projectId]) {
           pointsByProject[projectId] = [];

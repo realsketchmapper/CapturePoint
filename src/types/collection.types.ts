@@ -26,7 +26,7 @@ export interface CollectionContextType {
 export interface CollectionMetadata {
   name: string;
   description: string;
-  projectId: number;
+  project_id: number;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -36,7 +36,7 @@ export interface CollectionMetadata {
 export interface CollectionOptions {
   name?: string;
   description?: string;
-  projectId?: number;
+  project_id?: number;
   created_by?: string;
 }
 

@@ -2,9 +2,8 @@ import axios from 'axios';
 import { API_ENDPOINTS } from './endpoints';
 import { tokenStorage } from '../services/auth/tokenStorage';
 
-// Debug log to check if API_ENDPOINTS is properly imported
-console.log('API_ENDPOINTS imported in clients.ts:', API_ENDPOINTS);
-console.log('BASE_URL in clients.ts:', API_ENDPOINTS?.BASE_URL);
+console.log('Clients.ts loaded');
+
 
 const api = axios.create({
   baseURL: API_ENDPOINTS.BASE_URL,

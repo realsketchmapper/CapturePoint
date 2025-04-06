@@ -134,7 +134,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 // Fetch and update with active features
                 const activeFeatures = await collectedFeatureService.fetchActiveFeatures(activeProject.id);
                 // Render each active feature on the map
-                activeFeatures.forEach((feature: PointCollected) => {
+                activeFeatures.forEach((feature: any) => {
                   // Skip features without valid coordinates
                   if (!feature.nmeaData || !feature.nmeaData.gga) {
                     console.warn('Skipping feature with invalid NMEA data:', feature.client_id);
@@ -159,6 +159,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                           featureId: feature.feature_id,
                           name: feature.name,
                           description: feature.description,
+                          draw_layer: feature.draw_layer,
                           ...feature.attributes
                         }
                       };

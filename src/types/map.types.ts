@@ -1,5 +1,5 @@
-import type { FeatureCollection, GeoJsonProperties } from 'geojson';
-import { FeatureToRender } from './featureType.types';
+import type { FeatureCollection, GeoJsonProperties, Feature } from 'geojson';
+import { FeatureToRender } from './featuresToRender.types';
 
 // Simplified type definitions
 export type Coordinate = [number, number];
@@ -9,6 +9,7 @@ export interface MapContextType {
   // Feature management
   addPoint: (coordinates: Coordinate, properties?: GeoJsonProperties) => string | null;
   addLine: (coordinates: Coordinate[], properties?: GeoJsonProperties) => string | null;
+  addFeature: (feature: Feature) => void;
   updateFeature: (id: string, coordinates: Coordinate | Coordinate[]) => void;
   removeFeature: (id: string) => void;
   clearFeatures: () => void;
@@ -21,4 +22,12 @@ export interface MapContextType {
   // Feature rendering
   renderFeature: (feature: FeatureToRender) => string | null;
   previewFeature: (coordinates: Coordinate | Coordinate[], type: FeatureType) => string | null;
+  
+  // Sync state and operations
+  isSyncing: boolean;
+  lastSyncTime: string | null;
+  error: string | null;
+  syncFeatures: () => Promise<void>;
+  syncAllProjects: () => Promise<void>;
+  setError: (error: string | null) => void;
 }

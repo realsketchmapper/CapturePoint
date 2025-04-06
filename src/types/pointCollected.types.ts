@@ -4,6 +4,7 @@ export interface PointCollected {
   client_id: string;
   name: string,
   description: string;
+  draw_layer: string;
   nmeaData: {
     gga: GGAData;
     gst: GSTData;
@@ -17,5 +18,5 @@ export interface PointCollected {
   updated_by: string;
   synced: boolean;
   feature_id: number;
-  projectId: number;
+  project_id: number;
 }

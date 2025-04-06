@@ -44,6 +44,7 @@ export const usePointCollection = () => {
         coordinates,
         properties: {
           client_id: clientId,
+          name: selectedFeatureType.name,
           featureType: selectedFeatureType,
           style: {
             color: selectedFeatureType.color
@@ -59,6 +60,7 @@ export const usePointCollection = () => {
         client_id: clientId,
         name: selectedFeatureType.name,
         description: '',
+        draw_layer: selectedFeatureType.draw_layer,
         nmeaData: {
           gga: ggaData || {
             time: new Date().toISOString(),
@@ -84,10 +86,7 @@ export const usePointCollection = () => {
           }
         },
         attributes: {
-          featureTypeName: selectedFeatureType.name,
-          style: {
-            color: selectedFeatureType.color
-          }
+          featureTypeName: selectedFeatureType.name
         },
         created_by: String(user?.id || 'unknown'),
         created_at: new Date().toISOString(),
@@ -95,7 +94,7 @@ export const usePointCollection = () => {
         updated_by: String(user?.id || 'unknown'),
         synced: false,
         feature_id: 0,
-        projectId: activeProject?.id || 0
+        project_id: activeProject?.id || 0
       });
 
       console.log('Point collected successfully:', clientId);

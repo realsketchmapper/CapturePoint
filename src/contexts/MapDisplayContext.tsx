@@ -3,6 +3,10 @@ import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties }
 import { FeatureToRender } from '@/types/featuresToRender.types';
 import { MapContextType, Coordinate, FeatureType } from '@/types/map.types';
 import { generateId } from '@/utils/collections';
+import { biDirectionalSyncService } from '@/services/sync/biDirectionalSyncService';
+import { useProjectContext } from './ProjectContext';
+import { useFeatureTypeContext } from './FeatureTypeContext';
+import { storageService } from '@/services/storage/storageService';
 
 const MapContext = createContext<MapContextType | undefined>(undefined);
 
@@ -21,13 +25,16 @@ type MapAction =
   | { type: 'UPDATE_FEATURE'; payload: { id: string; feature: Feature } }
   | { type: 'REMOVE_FEATURE'; payload: string }
   | { type: 'CLEAR_FEATURES' }
-  | { type: 'SET_ERROR'; payload: string | null };
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_SYNC_STATUS'; payload: { isSyncing: boolean; lastSyncTime: string | null } };
 
 // Define initial state
 interface MapState {
   isMapReady: boolean;
   features: FeatureCollection;
   error: string | null;
+  isSyncing: boolean;
+  lastSyncTime: string | null;
 }
 
 const initialState: MapState = {
@@ -36,7 +43,9 @@ const initialState: MapState = {
     type: 'FeatureCollection',
     features: []
   },
-  error: null
+  error: null,
+  isSyncing: false,
+  lastSyncTime: null
 };
 
 // Reducer function
@@ -86,6 +95,12 @@ function mapReducer(state: MapState, action: MapAction): MapState {
         ...state, 
         error: action.payload 
       };
+    case 'SET_SYNC_STATUS':
+      return {
+        ...state,
+        isSyncing: action.payload.isSyncing,
+        lastSyncTime: action.payload.lastSyncTime
+      };
     default:
       return state;
   }
@@ -93,6 +108,8 @@ function mapReducer(state: MapState, action: MapAction): MapState {
 
 export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(mapReducer, initialState);
+  const { activeProject } = useProjectContext();
+  const { featureTypes, getFeatureTypeByName } = useFeatureTypeContext();
 
   // Validate coordinates for both points and lines
   const isValidCoords = useCallback((coords: any): boolean => {
@@ -234,16 +251,146 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return null;
   }, [addPoint, addLine]);
 
+  const syncFeatures = useCallback(async () => {
+    if (!activeProject) {
+      dispatch({ type: 'SET_ERROR', payload: 'No active project selected' });
+      return;
+    }
+
+    try {
+      dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: true, lastSyncTime: null } });
+      
+      const result = await biDirectionalSyncService.syncProject(activeProject.id);
+      
+      if (result.success) {
+        // Update last sync time
+        dispatch({ 
+          type: 'SET_SYNC_STATUS', 
+          payload: { 
+            isSyncing: false, 
+            lastSyncTime: new Date().toISOString() 
+          } 
+        });
+        
+        // Clear any existing error
+        dispatch({ type: 'SET_ERROR', payload: null });
+        
+        // Clear existing features and reload from storage
+        dispatch({ type: 'CLEAR_FEATURES' });
+        
+        // Load features from storage
+        const projectPoints = await storageService.getPointsForProject(activeProject.id);
+        
+        // Add each point to the map
+        for (const point of projectPoints) {
+          // Extract coordinates from NMEA data
+          const longitude = point.nmeaData?.gga?.longitude || 0;
+          const latitude = point.nmeaData?.gga?.latitude || 0;
+          
+          // Find the feature type by name using the helper method
+          const featureTypeName = point.name;
+          console.log('Looking for feature type by name:', featureTypeName);
+          const featureType = getFeatureTypeByName(featureTypeName);
+          
+          if (!featureType) {
+            console.warn(`Feature type "${featureTypeName}" not found in available types:`, featureTypes.map(f => f.name));
+            continue;
+          }
+          
+          // Create a feature for the map
+          const feature: Feature = {
+            type: 'Feature',
+            id: point.client_id,
+            geometry: {
+              type: 'Point',
+              coordinates: [longitude, latitude]
+            },
+            properties: {
+              type: 'Point',
+              client_id: point.client_id,
+              name: point.name,
+              description: point.description,
+              feature_id: point.feature_id,
+              featureType: featureType,
+              draw_layer: featureType.draw_layer,
+              style: point.attributes?.style || {},
+              color: featureType.color
+            }
+          };
+          
+          // Add to map
+          dispatch({ type: 'ADD_FEATURE', payload: feature });
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing features:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to sync features' });
+    } finally {
+      dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: false, lastSyncTime: null } });
+    }
+  }, [activeProject, getFeatureTypeByName, featureTypes]);
+
+  const syncAllProjects = useCallback(async () => {
+    try {
+      dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: true, lastSyncTime: null } });
+      
+      const result = await biDirectionalSyncService.syncAllProjects();
+      
+      if (result.success) {
+        // Update last sync time
+        dispatch({ 
+          type: 'SET_SYNC_STATUS', 
+          payload: { 
+            isSyncing: false, 
+            lastSyncTime: new Date().toISOString() 
+          } 
+        });
+        
+        // Clear any existing error
+        dispatch({ type: 'SET_ERROR', payload: null });
+      } else {
+        dispatch({ 
+          type: 'SET_ERROR', 
+          payload: result.errorMessage || 'Sync failed' 
+        });
+        dispatch({ 
+          type: 'SET_SYNC_STATUS', 
+          payload: { isSyncing: false, lastSyncTime: null } 
+        });
+      }
+    } catch (error) {
+      dispatch({ 
+        type: 'SET_ERROR', 
+        payload: error instanceof Error ? error.message : 'Unknown error during sync' 
+      });
+      dispatch({ 
+        type: 'SET_SYNC_STATUS', 
+        payload: { isSyncing: false, lastSyncTime: null } 
+      });
+    }
+  }, []);
+
+  const setIsMapReady = (isReady: boolean) => dispatch({ type: 'SET_MAP_READY', payload: isReady });
+  const addFeature = (feature: Feature) => dispatch({ type: 'ADD_FEATURE', payload: feature });
+  const setError = (error: string | null) => dispatch({ type: 'SET_ERROR', payload: error });
+
   return (
     <MapContext.Provider value={{
-      addPoint,
-      addLine,
+      features: state.features,
+      isMapReady: state.isMapReady,
+      setIsMapReady,
+      addFeature,
       updateFeature,
       removeFeature,
       clearFeatures,
-      features: state.features,
-      isMapReady: state.isMapReady,
-      setIsMapReady: (ready: boolean) => dispatch({ type: 'SET_MAP_READY', payload: ready }),
+      isSyncing: state.isSyncing,
+      lastSyncTime: state.lastSyncTime,
+      error: state.error,
+      setError,
+      syncFeatures,
+      syncAllProjects,
+      addPoint,
+      addLine,
       renderFeature,
       previewFeature
     }}>

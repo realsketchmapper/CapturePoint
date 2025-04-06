@@ -56,12 +56,20 @@ const ProjectView = () => {
   const openProject = async (project: Project) => {
     try {
       console.log('Opening project:', project.name);
+      
+      // Clear existing feature types first
       clearFeatureTypes();
       console.log('Cleared feature types');
+      
+      // Set the active project
       setActiveProject(project);
       console.log('Set active project');
+      
+      // Fetch feature types for the project
       await fetchFeatureTypes(project.id);
       console.log('Fetched feature types');
+      
+      // Navigate to map view
       router.replace('/mapview');
       console.log('Navigating to mapview');
     } catch (error) {

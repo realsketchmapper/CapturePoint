@@ -56,7 +56,7 @@ const initialState = {
     metadata: {
       name: '',
       description: '',
-      projectId: 0,
+      project_id: 0,
       created_by: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -115,7 +115,7 @@ function collectionReducer(state: typeof initialState, action: CollectionAction)
           metadata: {
             name: '',
             description: '',
-            projectId: 0,
+            project_id: 0,
             created_by: '',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -147,9 +147,14 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Use reducer for state management
   const [state, dispatch] = useReducer(collectionReducer, initialState);
   
-  // Load unsynced count on startup
+  // Load unsynced count on startup - but only if we're logged in and have a project
   useEffect(() => {
     const loadUnsyncedCount = async () => {
+      // Only proceed if we're logged in and have a project
+      if (!user?.id || !activeProject?.id) {
+        return;
+      }
+
       try {
         const unsyncedPoints = await storageService.getUnsyncedPoints();
         dispatch({ 
@@ -162,7 +167,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
     
     loadUnsyncedCount();
-  }, []);
+  }, [user?.id, activeProject?.id]); // Only run when auth or project changes
 
   // Helper function to get valid coordinates from position
   const getValidCoordinates = useCallback((position?: Position): Coordinates | null => {
@@ -194,7 +199,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         metadata: {
           name: '',
           description: '',
-          projectId: activeProject?.id || 0,
+          project_id: activeProject?.id || 0,
           created_by: String(user?.id || 'unknown'),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -210,7 +215,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       metadata: {
         name: '',
         description: '',
-        projectId: activeProject?.id || 0,
+        project_id: activeProject?.id || 0,
         created_by: String(user?.id || 'unknown'),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -291,80 +296,58 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     try {
-      const coordinates = activeFeatureType.type === 'Point' 
-        ? points[0]
-        : points[points.length - 1];
+      let result;
       
-      const point: PointCollected = {
-        client_id: properties.pointId || uuidv4(),
-        name: properties.name || activeFeatureType.name,
-        description: properties.description || '',
-        feature_id: 0, // TODO: Get actual feature ID from somewhere
-        created_by: String(user?.id || 'unknown'),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        updated_by: String(user?.id || 'unknown'),
-        projectId: activeProject?.id || 0,
-        nmeaData: {
-          gga: ggaData || {
-            time: new Date().toISOString(),
-            latitude: 0,
-            longitude: 0,
-            quality: 0,
-            satellites: 0,
-            hdop: 0,
-            altitude: 0,
-            altitudeUnit: 'm',
-            geoidHeight: 0,
-            geoidHeightUnit: 'm'
-          },
-          gst: gstData || {
-            time: new Date().toISOString(),
-            rmsTotal: 0,
-            semiMajor: 0,
-            semiMinor: 0,
-            orientation: 0,
-            latitudeError: 0,
-            longitudeError: 0,
-            heightError: 0
-          }
-        },
-        synced: false,
-        attributes: {
-          ...properties,
-          featureType: activeFeatureType.type,
-          featureName: activeFeatureType.name,
-          coordinates,
-          userId: user?.id || 'unknown',
-          deviceInfo: `React Native / Expo`
+      // Only attempt sync if we're logged in and have a project
+      if (user?.id && activeProject?.id) {
+        if (activeProject) {
+          // If we have an active project, sync points for that project
+          result = await syncService.syncPoints(activeProject.id);
+        } else {
+          // If no active project, sync all points across all projects
+          result = await syncService.syncAllPoints();
         }
-      };
+        
+        // Update syncing state and last sync time
+        dispatch({ 
+          type: 'SET_SYNC_STATUS', 
+          payload: {
+            ...state.syncStatus,
+            isSyncing: false,
+            lastSyncTime: new Date()
+          }
+        });
+        
+        // Update unsynced count separately
+        if (result.success) {
+          // Get the current unsynced count from storage to ensure accuracy
+          const unsyncedPoints = await storageService.getUnsyncedPoints();
+          dispatch({ 
+            type: 'UPDATE_UNSYNCED_COUNT', 
+            payload: unsyncedPoints.length
+          });
+        }
+        
+        return result.success;
+      }
       
-      console.log('Saving point:', JSON.stringify(point, null, 2));
-      await storageService.savePoint(point);
-      console.log('Point saved successfully');
-      
-      // Update sync status to reflect new unsynced point
-      // Get the current unsynced count from storage to ensure accuracy
-      const unsyncedPoints = await storageService.getUnsyncedPoints();
-      console.log('Current unsynced points:', unsyncedPoints.length);
+      return true; // Return true if we skipped sync due to no auth/project
+    } catch (error) {
+      console.error('Error syncing points:', error);
       
       dispatch({ 
         type: 'SET_SYNC_STATUS', 
-        payload: {
-          ...state.syncStatus,
-          unsyncedCount: unsyncedPoints.length
-        }
+        payload: { 
+          ...state.syncStatus, 
+          isSyncing: false 
+        } 
       });
       
-      return true;
-    } catch (error) {
-      console.error('Error saving point:', error);
       return false;
     } finally {
       dispatch({ type: 'SET_SAVING', payload: false });
     }
-  }, [state.collectionState.activeFeatureType, state.collectionState.points, ggaData, gstData, activeProject, user, state.syncStatus]);
+  }, [state.syncStatus.isSyncing, state.syncStatus, activeProject, user?.id]);
   
   // Sync points with the server
   const syncPoints = useCallback(async (): Promise<boolean> => {

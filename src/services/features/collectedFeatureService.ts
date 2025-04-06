@@ -2,6 +2,7 @@ import { api } from "@/api/clients";
 import { PointCollected } from "@/types/pointCollected.types";
 import { API_ENDPOINTS } from "@/api/endpoints";
 import { generateId } from "@/utils/collections";
+import { ApiFeature } from "@/types/currentFeatures.types";
 
 // Helper function to handle API errors
 const handleApiError = (error: unknown, operation: string): never => {
@@ -32,7 +33,7 @@ export const collectedFeatureService = {
     }
   },
 
-  fetchActiveFeatures: async (projectId: number): Promise<PointCollected[]> => {
+  fetchActiveFeatures: async (projectId: number): Promise<ApiFeature[]> => {
     try {
       const endpoint = buildEndpoint(API_ENDPOINTS.ACTIVE_FEATURES, { projectId });
       const response = await api.get(endpoint);
@@ -41,19 +42,32 @@ export const collectedFeatureService = {
         throw new Error('Failed to fetch active features');
       }
 
-      return response.data.features.map((feature: any) => ({
-        client_id: feature.properties?.client_id || generateId(),
-        featureTypeId: feature.featureTypeId || feature.id,
-        featureType: feature.featureType || feature,
-        project_id: projectId,
-        points: feature.properties?.points || [],
-        attributes: feature.properties || {},
-        is_active: feature.is_active !== false,
-        created_by: feature.created_by || null,
-        created_at: feature.created_at || new Date().toISOString(),
-        updated_by: feature.updated_by || null,
-        updated_at: feature.updated_at || new Date().toISOString()
-      }));
+      console.log('Raw server response:', JSON.stringify(response.data.features, null, 2));
+
+      return response.data.features.map((feature: any) => {
+        console.log('Processing feature:', JSON.stringify(feature, null, 2));
+        console.log('Feature points:', JSON.stringify(feature.points, null, 2));
+        console.log('Feature coordinates:', JSON.stringify(feature.coordinates, null, 2));
+        console.log('Feature properties:', JSON.stringify(feature.properties, null, 2));
+        console.log('Feature data:', JSON.stringify(feature.data, null, 2));
+        
+        return {
+          properties: {
+            client_id: feature.client_id || generateId(),
+            points: feature.points || [],
+            ...feature
+          },
+          data: feature.data || {},
+          featureTypeId: feature.featureTypeId || feature.id,
+          featureType: feature.featureType || feature,
+          id: feature.id,
+          is_active: feature.is_active !== false,
+          created_by: feature.created_by || null,
+          created_at: feature.created_at || new Date().toISOString(),
+          updated_by: feature.updated_by || null,
+          updated_at: feature.updated_at || new Date().toISOString()
+        };
+      });
     } catch (error) {
       handleApiError(error, 'fetchActiveFeatures');
       return []; // Return empty array in case of error

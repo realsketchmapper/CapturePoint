@@ -52,12 +52,9 @@ const AuthStateObserver: React.FC<AuthStateObserverProps> = ({ setIsLoggedIn, se
     
     console.log(`Auth state updated: loggedIn=${isFullyLoggedIn}, isOffline=${authContext.user?.isOffline}, isInitialized=${authContext.isInitialized}`);
   }, [
-    authContext, 
     authContext?.user?.id, 
     authContext?.isInitialized, 
-    authContext?.user?.isOffline, 
-    setIsLoggedIn, 
-    setIsAuthReady
+    authContext?.user?.isOffline
   ]);
   
   return null;
@@ -79,8 +76,8 @@ const AppProviders: React.FC<AppProvidersProps> = ({
       />
       <ProjectProvider>
         <SettingsProvider>
-          <MapProvider>
-            <FeatureTypeProvider>
+          <FeatureTypeProvider>
+            <MapProvider>
               <NMEAProvider>
                 <LocationProvider>
                   <CollectionProvider>
@@ -90,8 +87,8 @@ const AppProviders: React.FC<AppProvidersProps> = ({
                   </CollectionProvider>
                 </LocationProvider>
               </NMEAProvider>
-            </FeatureTypeProvider>
-          </MapProvider>
+            </MapProvider>
+          </FeatureTypeProvider>
         </SettingsProvider>
       </ProjectProvider>
     </AuthProvider>

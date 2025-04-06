@@ -11,14 +11,7 @@ interface ExtendedFeatureMarkersProps {
 }
 
 const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ features }) => {
-  const { featureTypes } = useFeatureTypeContext();
-
-  // Create a map of feature types for faster lookup
-  const featureTypeMap = useMemo(() => {
-    const map = new Map<string, FeatureType>();
-    featureTypes.forEach(f => map.set(f.name, f));
-    return map;
-  }, [featureTypes]);
+  const { featureTypes, getFeatureTypeByName } = useFeatureTypeContext();
 
   // Convert and filter features to points
   const pointFeatures = useMemo(() => {
@@ -31,7 +24,7 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
         const collectedFeature = feature as CollectedFeature;
         
         // Skip if no points or invalid data
-        if (!collectedFeature.points?.length || !collectedFeature.attributes?.featureTypeName) {
+        if (!collectedFeature.points?.length) {
           console.warn('Skipping invalid feature:', collectedFeature);
           return null;
         }
@@ -43,10 +36,10 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
           return null;
         }
 
-        // Get feature type from map
-        const featureType = featureTypeMap.get(collectedFeature.attributes.featureTypeName);
+        // Get feature type using the new helper method
+        const featureType = getFeatureTypeByName(collectedFeature.name);
         if (!featureType) {
-          console.warn(`Feature type ${collectedFeature.attributes.featureTypeName} not found`);
+          console.warn(`Feature type "${collectedFeature.name}" not found in available types:`, featureTypes.map(f => f.name));
           return null;
         }
 
@@ -58,8 +51,8 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
           },
           properties: {
             client_id: collectedFeature.client_id,
-            name: collectedFeature.attributes.featureTypeName,
-            draw_layer: featureType.draw_layer,
+            name: collectedFeature.name,
+            draw_layer: collectedFeature.draw_layer,
             style: collectedFeature.attributes?.style || {},
             featureType: featureType,
             points: collectedFeature.points
@@ -70,7 +63,7 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
 
     // Filter for point features
     return convertedFeatures.filter(f => f?.geometry.type === 'Point');
-  }, [features, featureTypeMap]);
+  }, [features, getFeatureTypeByName, featureTypes]);
 
   // Memoize the rendered markers
   const renderedMarkers = useMemo(() => {
@@ -82,10 +75,10 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
         ? (feature.geometry as GeoJSON.Point).coordinates as [number, number]
         : [0, 0];
       
-      // Get the feature type from properties
-      const featureType = props.featureType;
+      // Get the feature type using the new helper method
+      const featureType = getFeatureTypeByName(props.name);
       if (!featureType) {
-        console.warn('Feature type not found in properties');
+        console.warn(`Feature type "${props.name}" not found in available types:`, featureTypes.map(f => f.name));
         return null;
       }
       
@@ -120,7 +113,7 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
         </MarkerView>
       );
     });
-  }, [pointFeatures]);
+  }, [pointFeatures, getFeatureTypeByName, featureTypes]);
 
   return <>{renderedMarkers}</>;
 });

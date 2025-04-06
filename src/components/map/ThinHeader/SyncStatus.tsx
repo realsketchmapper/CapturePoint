@@ -3,12 +3,14 @@ import { TouchableOpacity, StyleSheet, Animated, Easing, View } from 'react-nati
 import { MaterialIcons } from '@expo/vector-icons';
 import { useCollectionContext } from '@/contexts/CollectionContext';
 import { useProjectContext } from '@/contexts/ProjectContext';
+import { useMapContext } from '@/contexts/MapDisplayContext';
 import { Colors } from '@/theme/colors';
 
 export const SyncStatus: React.FC = () => {
-  const { syncStatus, syncPoints } = useCollectionContext();
+  const { syncStatus } = useCollectionContext();
   const { activeProject } = useProjectContext();
-  const { isSyncing, unsyncedCount } = syncStatus;
+  const { syncFeatures, isSyncing } = useMapContext();
+  const { unsyncedCount } = syncStatus;
   const spinValue = useRef(new Animated.Value(0)).current;
   const spinAnimation = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -20,7 +22,7 @@ export const SyncStatus: React.FC = () => {
       hasActiveProject: !!activeProject,
       projectId: activeProject?.id
     });
-  }, [syncStatus, activeProject]);
+  }, [syncStatus, activeProject, isSyncing]);
 
   const startSpinAnimation = () => {
     spinValue.setValue(0);
@@ -50,10 +52,7 @@ export const SyncStatus: React.FC = () => {
     
     startSpinAnimation();
     try {
-      const success = await syncPoints();
-      if (!success) {
-        console.error('Sync failed');
-      }
+      await syncFeatures();
     } catch (error) {
       console.error('Sync failed with error:', error);
     } finally {

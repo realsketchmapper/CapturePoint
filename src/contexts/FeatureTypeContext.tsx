@@ -13,6 +13,7 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [error, setError] = useState<string | null>(null);
   const [featureTypesLoaded, setFeatureTypesLoaded] = useState(false);
   const [imagesPreloaded, setImagesPreloaded] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState<number | null>(null);
 
   const toggleLayer = useCallback((layerName: string) => {
     setExpandedLayers(prev => {
@@ -63,11 +64,8 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
   }, [featureTypes, imagesPreloaded]);
 
   const fetchFeatureTypes = useCallback(async (projectId: number): Promise<void> => {
-    if (featureTypesLoaded) {
-      console.log('Feature types already loaded, skipping fetch');
-      return;
-    }
-    
+    // Always fetch feature types for the project, even if already loaded
+    // This ensures we have the latest data when switching projects
     console.log('Starting feature types fetch for project:', projectId);
     setIsLoading(true);
     setError(null);
@@ -78,6 +76,7 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
       console.log('Successfully fetched feature types:', data.length);
       setFeatureTypes(data);
       setFeatureTypesLoaded(true);
+      setCurrentProjectId(projectId);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch feature types';
       console.error('Error fetching feature types:', errorMessage);
@@ -85,14 +84,21 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
     } finally {
       setIsLoading(false);
     }
-  }, [featureTypesLoaded]);
+  }, []);
 
   const clearFeatureTypes = useCallback(() => {
     setFeatureTypes([]);
     setFeatureTypesLoaded(false);
     setSelectedFeatureType(null);
     setImagesPreloaded(false); // Reset preload flag when clearing feature types
+    setCurrentProjectId(null);
   }, []);
+
+  // Get a feature type by name (case-insensitive)
+  const getFeatureTypeByName = useCallback((name: string): FeatureType | undefined => {
+    if (!name) return undefined;
+    return featureTypes.find(f => f.name.toLowerCase() === name.toLowerCase());
+  }, [featureTypes]);
 
   // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => ({
@@ -106,7 +112,9 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
     fetchFeatureTypes,
     clearFeatureTypes,
     featureTypesLoaded,
-    imagesPreloaded
+    imagesPreloaded,
+    currentProjectId,
+    getFeatureTypeByName
   }), [
     selectedFeatureType,
     expandedLayers,
@@ -117,7 +125,9 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
     fetchFeatureTypes,
     clearFeatureTypes,
     featureTypesLoaded,
-    imagesPreloaded
+    imagesPreloaded,
+    currentProjectId,
+    getFeatureTypeByName
   ]);
 
   return (

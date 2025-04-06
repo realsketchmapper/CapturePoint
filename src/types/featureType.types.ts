@@ -10,7 +10,7 @@ export interface FeatureType {
     dash_pattern: string; // dash pattern for the feature type
     label: string; // label for the feature type
     z_value: number; // z-value for the feature type
-    draw_layer: string; // draw layer for the feature type
+    draw_layer: string; // draw layer for the feature type also called Category
     created_by: string; // created by for the feature type
     created_at: string; // created at for the feature type
     updated_by: string; // updated by for the feature type
@@ -31,6 +31,8 @@ export interface FeatureTypeContextType {
     clearFeatureTypes: () => void;
     featureTypesLoaded: boolean;
     imagesPreloaded: boolean;
+    currentProjectId: number | null;
+    getFeatureTypeByName: (name: string) => FeatureType | undefined;
 }
 
 export type FeatureTypeGeometry = 'Point' | 'Line' | 'Polygon';

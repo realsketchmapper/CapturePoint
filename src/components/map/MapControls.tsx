@@ -26,6 +26,11 @@ import { Colors } from '@/theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@/constants/storage';
 import { Position } from '@/types/collection.types';
+import { FeatureToRender } from '@/types/featuresToRender.types';
+import { Feature, Point } from 'geojson';
+import { generateId } from '@/utils/collections';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
+import { biDirectionalSyncService } from '@/services/sync/biDirectionalSyncService';
 
 // Helper function to convert Position to coordinates array
 const positionToCoordinates = (position: Position): [number, number] => {
@@ -36,16 +41,31 @@ const positionToCoordinates = (position: Position): [number, number] => {
 };
 
 export const MapControls: React.FC = () => {
-  const { features, isMapReady, setIsMapReady, clearFeatures } = useMapContext();
+  const { 
+    features, 
+    isMapReady, 
+    setIsMapReady, 
+    clearFeatures, 
+    syncFeatures, 
+    isSyncing, 
+    error,
+    addPoint,
+    renderFeature,
+    addFeature
+  } = useMapContext();
   const { currentLocation } = useLocationContext();
   const { settings } = useSettingsContext();
   const { activeProject } = useProjectContext();
+  const { featureTypes, getFeatureTypeByName } = useFeatureTypeContext();
   
   const mapRef = useRef<MapViewRef | null>(null);
   const cameraRef = useRef<CameraRef | null>(null);
   const [followGNSS, setFollowGNSS] = useState(true);
   const initialCenterDone = useRef<boolean>(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [isLoadingFeatures, setIsLoadingFeatures] = useState(false);
+  const featuresLoadedRef = useRef<boolean>(false);
+  const lastSyncTimeRef = useRef<number>(0);
   
   // State for point details modal
   const [selectedPoint, setSelectedPoint] = useState<PointCollected | null>(null);
@@ -137,8 +157,6 @@ export const MapControls: React.FC = () => {
           console.log('No features found within click radius');
           return;
         }
-
-        console.log('Found closest feature:', closestFeature);
 
         if (!activeProject?.id) {
           console.log('No active project');
@@ -239,6 +257,9 @@ export const MapControls: React.FC = () => {
       // Clear features from map
       clearFeatures();
       
+      // Reset the features loaded flag
+      featuresLoadedRef.current = false;
+      
       console.log('=== Clear Storage Complete ===\n');
     } catch (error) {
       console.error('Error clearing storage:', error);
@@ -246,6 +267,113 @@ export const MapControls: React.FC = () => {
       setIsClearing(false);
     }
   };
+
+  // Add function to load features from storage
+  const loadFeaturesFromStorage = useCallback(async () => {
+    // Prevent multiple calls
+    if (isLoadingFeatures) {
+      console.log('Already loading features, skipping');
+      return;
+    }
+    
+    try {
+      setIsLoadingFeatures(true);
+      console.log('=== Loading features from storage ===');
+      if (!activeProject) {
+        console.log('No active project, cannot load features');
+        return;
+      }
+
+      const projectPoints = await storageService.getPointsForProject(activeProject.id);
+      console.log('Points loaded from storage:', projectPoints.length);
+
+      // Clear existing features
+      clearFeatures();
+
+      // Add each point to the map
+      for (const point of projectPoints) {
+        // Extract coordinates from NMEA data
+        const longitude = point.nmeaData?.gga?.longitude || 0;
+        const latitude = point.nmeaData?.gga?.latitude || 0;
+        
+        // Find the feature type by name using the new helper method
+        const featureTypeName = point.name;
+        console.log('Looking for feature type by name:', featureTypeName);
+        const featureType = getFeatureTypeByName(featureTypeName);
+        
+        if (!featureType) {
+          console.warn(`Feature type "${featureTypeName}" not found in available types:`, featureTypes.map(f => f.name));
+          continue;
+        }
+        
+        // Create a feature for the map
+        const feature: Feature = {
+          type: 'Feature',
+          id: point.client_id, // Use client_id as the feature id for MapLibre
+          geometry: {
+            type: 'Point',
+            coordinates: [longitude, latitude] // Ensure coordinates are in [longitude, latitude] format
+          },
+          properties: {
+            type: 'Point',
+            client_id: point.client_id,
+            name: point.name,
+            description: point.description,
+            feature_id: point.feature_id,
+            featureType: featureType,
+            draw_layer: point.draw_layer,
+            style: point.attributes?.style || {},
+            color: featureType.color
+          }
+        };
+        
+        // Add to map using addFeature
+        console.log('Adding feature to map:', {
+          name: feature.properties?.name,
+          coordinates: (feature.geometry as Point).coordinates,
+          featureType: feature.properties?.featureType?.name
+        });
+        addFeature(feature);
+      }
+      
+      console.log('Features loaded and added to map');
+      featuresLoadedRef.current = true;
+    } catch (error) {
+      console.error('Error loading features from storage:', error);
+    } finally {
+      setIsLoadingFeatures(false);
+    }
+  }, [activeProject, clearFeatures, addFeature, getFeatureTypeByName, featureTypes, isLoadingFeatures]);
+
+  // Single effect to handle initial feature loading
+  useEffect(() => {
+    // Only proceed if we have an active project and the map is ready
+    if (!activeProject || !isMapReady) {
+      return;
+    }
+
+    // Initial load - map is ready but features haven't been loaded yet
+    if (!featuresLoadedRef.current && !isLoadingFeatures) {
+      console.log('Initial feature load');
+      loadFeaturesFromStorage();
+    }
+  }, [isMapReady, activeProject, loadFeaturesFromStorage, isLoadingFeatures]);
+
+  // Add clear storage button component
+  const ClearStorageButton = () => (
+    <TouchableOpacity
+      style={[
+        styles.clearButton,
+        isClearing && styles.buttonDisabled
+      ]}
+      onPress={handleClearStorage}
+      disabled={isClearing}
+    >
+      <Text style={styles.buttonText}>
+        {isClearing ? 'Clearing...' : 'Clear Storage'}
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -273,61 +401,12 @@ export const MapControls: React.FC = () => {
           />
         )}
 
+        {/* Use FeatureMarkers for rendering features */}
         <FeatureMarkers features={features.features} />
-
-        <ShapeSource
-          id="collectedData"
-          shape={features}
-        >
-          {/* Line layer for lines */}
-          <LineLayer
-            id="line-layer"
-            sourceID="collectedData"
-            filter={['==', ['get', 'type'], 'LineString']}
-            style={{
-              lineWidth: 3,
-              lineColor: [
-                'case',
-                ['has', 'color', ['properties']],
-                ['get', 'color', ['properties']],
-                '#FF6B00' // Default to orange if no color property
-              ],
-              lineOpacity: 0.8,
-            }}
-          />
-
-          {/* Circle layer for points */}
-          <CircleLayer
-            id="point-layer"
-            sourceID="collectedData"
-            filter={['==', ['get', 'type'], 'Point']}
-            style={{
-              circleRadius: 6,
-              circleColor: [
-                'case',
-                ['has', 'color', ['properties']],
-                ['get', 'color', ['properties']],
-                '#FF6B00' // Default to orange if no color property
-              ],
-              circleOpacity: 0.8,
-              circleStrokeWidth: 2,
-              circleStrokeColor: '#FFFFFF',
-              circleStrokeOpacity: 1
-            }}
-          />
-        </ShapeSource>
       </MapView>
       
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[styles.button, isClearing && styles.buttonDisabled]}
-          onPress={handleClearStorage}
-          disabled={isClearing}
-        >
-          <Text style={styles.buttonText}>
-            {isClearing ? 'Clearing...' : 'Clear Storage'}
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.controlsContainer}>
+        <ClearStorageButton />
       </View>
 
       <RightSidebarContainer />
@@ -347,6 +426,12 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  controlsContainer: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 1,
   },
   buttonContainer: {
     position: 'absolute',
@@ -372,5 +457,28 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+  },
+  clearButton: {
+    backgroundColor: Colors.DarkBlue,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 5,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    marginTop: 10,
+  },
+  loadButton: {
+    backgroundColor: Colors.DarkBlue,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 5,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
 });

@@ -106,7 +106,7 @@ class StorageService {
   async getUnsyncedPointsForProject(projectId: number): Promise<PointCollected[]> {
     try {
       const unsyncedPoints = await this.getUnsyncedPoints();
-      return unsyncedPoints.filter(point => point.projectId === projectId);
+      return unsyncedPoints.filter(point => point.project_id === projectId);
     } catch (error) {
       console.error('Error getting unsynced points for project:', error);
       return [];
@@ -194,7 +194,7 @@ class StorageService {
   async getPointsForProject(projectId: number): Promise<PointCollected[]> {
     try {
       const points = await this.getAllPoints();
-      return points.filter(point => point.projectId === projectId);
+      return points.filter(point => point.project_id === projectId);
     } catch (error) {
       console.error('Error getting points for project:', error);
       return [];
