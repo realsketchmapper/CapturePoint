@@ -18,6 +18,7 @@ import { useProjectContext } from '@/contexts/ProjectContext';
 import { getMapStyle } from '@/services/maplibre/maplibre_helpers';
 import CurrentPositionMarker from './CurrentPositionMarker';
 import FeatureMarkers from './FeatureMarkers';
+import LineFeatures from './LineFeatures';
 import MapPointDetails from '@/components/modals/PointModals/MapPointDetails';
 import { storageService } from '@/services/storage/storageService';
 import { PointCollected } from '@/types/pointCollected.types';
@@ -254,6 +255,9 @@ export const MapControls: React.FC = () => {
       // Clear all points
       await storageService.clearAllPoints();
       
+      // Clear all lines
+      await storageService.clearAllLines();
+      
       // Clear features from map
       clearFeatures();
       
@@ -403,6 +407,7 @@ export const MapControls: React.FC = () => {
 
         {/* Use FeatureMarkers for rendering features */}
         <FeatureMarkers features={features.features} />
+        <LineFeatures features={{ type: 'FeatureCollection', features: features.features }} />
       </MapView>
       
       <View style={styles.controlsContainer}>

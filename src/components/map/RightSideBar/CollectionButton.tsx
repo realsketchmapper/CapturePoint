@@ -5,21 +5,21 @@ import { useLocationContext } from '@/contexts/LocationContext';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { Colors } from '@/theme/colors';
 import { usePointCollection } from '@/hooks/usePointCollection';
-import { LineCollectionControls } from './LineCollectionControls';
 import { useLineCollection } from '@/hooks/useLineCollection';
 
 const CollectionButton = () => {
   const { locationSource } = useLocationContext();
   const { selectedFeatureType } = useFeatureTypeContext();
-  const { 
-    isCollectingLine,
-    linePoints,
-    handleLinePointCollection,
-    handleCompleteLine,
-    handleUndoPoint,
-    handleCancelLine
-  } = useLineCollection();
+
   const { handlePointCollection } = usePointCollection();
+  const { 
+    handleLineCollection, 
+    completeLine, 
+    isCollecting, 
+    currentPoints,
+    removeLastPoint,
+    cancelLine
+  } = useLineCollection();
 
   // Don't render if not using NMEA
   if (locationSource !== 'nmea') {
@@ -34,34 +34,79 @@ const CollectionButton = () => {
         handlePointCollection();
         break;
       case 'Line':
-        if (!isCollectingLine) {
-          handleLinePointCollection();
-        }
+        handleLineCollection();
         break;
     }
   };
 
   return (
     <View style={styles.container}>
-      {!isCollectingLine ? (
-        <TouchableOpacity 
-          style={styles.button}
+      {selectedFeatureType?.type === 'Line' && isCollecting ? (
+        <>
+          {/* Cancel button */}
+          <TouchableOpacity
+            style={[styles.button, styles.cancelButton]}
+            onPress={cancelLine}
+          >
+            <MaterialIcons
+              name="close"
+              size={24}
+              color={Colors.OffWhite}
+            />
+          </TouchableOpacity>
+
+          {/* Back button (only show if we have points) */}
+          {currentPoints.length > 0 && (
+            <TouchableOpacity
+              style={[styles.button, styles.backButton]}
+              onPress={removeLastPoint}
+            >
+              <MaterialIcons
+                name="arrow-back"
+                size={24}
+                color={Colors.OffWhite}
+              />
+            </TouchableOpacity>
+          )}
+
+          {/* Collect button */}
+          <TouchableOpacity
+            style={[styles.button, styles.collectButton]}
+            onPress={handleCollect}
+          >
+            <MaterialIcons
+              name="add"
+              size={24}
+              color={Colors.OffWhite}
+            />
+          </TouchableOpacity>
+
+          {/* Finish button (only show if we have at least 2 points) */}
+          {currentPoints.length >= 2 && (
+            <TouchableOpacity
+              style={[styles.button, styles.finishButton]}
+              onPress={completeLine}
+            >
+              <MaterialIcons
+                name="check"
+                size={24}
+                color={Colors.OffWhite}
+              />
+            </TouchableOpacity>
+          )}
+        </>
+      ) : (
+        // Default collect button
+        <TouchableOpacity
+          style={[styles.button, styles.collectButton]}
           onPress={handleCollect}
-          disabled={!selectedFeatureType}
         >
           <MaterialIcons
-            name={selectedFeatureType?.type === 'Line' ? 'timeline' : 'add-location'}
+            name="play-arrow"
             size={24}
-            color={Colors.DarkBlue}
+            color={Colors.OffWhite}
           />
         </TouchableOpacity>
-      ) : (
-        <LineCollectionControls
-          onComplete={handleCompleteLine}
-          onUndo={handleUndoPoint}
-          onCancel={handleCancelLine}
-          canUndo={linePoints.length > 0}
-        />
       )}
     </View>
   );
@@ -69,22 +114,32 @@ const CollectionButton = () => {
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center'
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    flexDirection: 'row',
+    gap: 8,
   },
   button: {
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 8,
-    margin: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  }
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+  },
+  collectButton: {
+    backgroundColor: Colors.Aqua,
+  },
+  cancelButton: {
+    backgroundColor: Colors.BrightRed,
+  },
+  backButton: {
+    backgroundColor: Colors.DarkOrange,
+  },
+  finishButton: {
+    backgroundColor: Colors.BrightGreen,
+  },
 });
 
 export default CollectionButton;

@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PointCollected } from '@/types/pointCollected.types';
+import { LineCollected } from '@/types/lineCollected.types';
 import { STORAGE_KEYS } from '@/constants/storage';
 
 /**
- * Service for managing collected points in local storage
- * Provides methods for CRUD operations on collected points
+ * Service for managing collected points and lines in local storage
+ * Provides methods for CRUD operations on collected features
  * 
  * Performance considerations:
  * - Uses in-memory caching to reduce AsyncStorage operations
@@ -16,6 +17,7 @@ import { STORAGE_KEYS } from '@/constants/storage';
 class StorageService {
   // In-memory cache to reduce AsyncStorage operations
   private pointsCache: PointCollected[] | null = null;
+  private linesCache: LineCollected[] | null = null;
   private cacheTimestamp: number = 0;
   private readonly CACHE_TTL = 60000; // 1 minute cache TTL
   
@@ -41,16 +43,20 @@ class StorageService {
   }
 
   /**
-   * Updates an existing point in local storage
-   * @param point - The updated point
-   * @throws Error if updating fails after retries
+   * Saves a collected line to local storage
+   * @param line - The line to save
+   * @throws Error if saving fails after retries
    */
-  async updatePoint(point: PointCollected): Promise<void> {
+  async saveLine(line: LineCollected): Promise<void> {
+    console.log('=== Saving line ===');
+    console.log('Line to save:', JSON.stringify(line, null, 2));
+    
     return this._withRetry(async () => {
-      const points = await this.getAllPoints();
-      const updatedPoints = points.map(p => p.client_id === point.client_id ? point : p);
-      await this._savePointsToStorage(updatedPoints);
-    }, 'updating point');
+      const lines = await this.getAllLines();
+      const updatedLines = [...lines, line];
+      await this._saveLinesToStorage(updatedLines);
+      console.log('Line saved successfully');
+    }, 'saving line');
   }
 
   /**
@@ -81,6 +87,33 @@ class StorageService {
   }
 
   /**
+   * Retrieves all collected lines from local storage
+   * Uses in-memory cache to reduce AsyncStorage operations
+   * @returns Array of collected lines
+   */
+  async getAllLines(): Promise<LineCollected[]> {
+    try {
+      // Check if cache is valid
+      if (this.linesCache && (Date.now() - this.cacheTimestamp) < this.CACHE_TTL) {
+        return this.linesCache;
+      }
+
+      // Cache miss or expired, fetch from storage
+      const linesJson = await AsyncStorage.getItem(STORAGE_KEYS.COLLECTED_LINES);
+      const lines = linesJson ? JSON.parse(linesJson) : [];
+      
+      // Update cache
+      this.linesCache = lines;
+      this.cacheTimestamp = Date.now();
+      
+      return lines;
+    } catch (error) {
+      console.error('Error getting all lines:', error);
+      return [];
+    }
+  }
+
+  /**
    * Retrieves all unsynced points from local storage
    * @returns Array of unsynced points
    */
@@ -99,6 +132,24 @@ class StorageService {
   }
 
   /**
+   * Retrieves all unsynced lines from local storage
+   * @returns Array of unsynced lines
+   */
+  async getUnsyncedLines(): Promise<LineCollected[]> {
+    try {
+      console.log('=== Getting unsynced lines ===');
+      const lines = await this.getAllLines();
+      const unsyncedLines = lines.filter(line => !line.synced);
+      console.log('Found unsynced lines:', unsyncedLines.length);
+      console.log('Unsynced lines:', JSON.stringify(unsyncedLines, null, 2));
+      return unsyncedLines;
+    } catch (error) {
+      console.error('Error getting unsynced lines:', error);
+      return [];
+    }
+  }
+
+  /**
    * Retrieves unsynced points for a specific project
    * @param projectId - The project ID
    * @returns Array of unsynced points for the project
@@ -109,6 +160,21 @@ class StorageService {
       return unsyncedPoints.filter(point => point.project_id === projectId);
     } catch (error) {
       console.error('Error getting unsynced points for project:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Retrieves unsynced lines for a specific project
+   * @param projectId - The project ID
+   * @returns Array of unsynced lines for the project
+   */
+  async getUnsyncedLinesForProject(projectId: number): Promise<LineCollected[]> {
+    try {
+      const unsyncedLines = await this.getUnsyncedLines();
+      return unsyncedLines.filter(line => line.project_id === projectId);
+    } catch (error) {
+      console.error('Error getting unsynced lines for project:', error);
       return [];
     }
   }
@@ -202,6 +268,21 @@ class StorageService {
   }
 
   /**
+   * Retrieves all lines for a specific project
+   * @param projectId - The project ID
+   * @returns Array of lines for the project
+   */
+  async getLinesForProject(projectId: number): Promise<LineCollected[]> {
+    try {
+      const lines = await this.getAllLines();
+      return lines.filter(line => line.project_id === projectId);
+    } catch (error) {
+      console.error('Error getting lines for project:', error);
+      return [];
+    }
+  }
+
+  /**
    * Deletes a point from local storage
    * @param pointId - The ID of the point to delete
    * @returns Boolean indicating if the point was found and deleted
@@ -228,12 +309,25 @@ class StorageService {
    * @throws Error if clearing points fails after retries
    */
   async clearAllPoints(): Promise<void> {
+    console.log('=== Clearing all points ===');
     return this._withRetry(async () => {
       await AsyncStorage.removeItem(STORAGE_KEYS.COLLECTED_POINTS);
-      // Clear cache
-      this.pointsCache = null;
-      this.cacheTimestamp = 0;
-    }, 'clearing points');
+      this.pointsCache = [];
+      console.log('All points cleared successfully');
+    }, 'clearing all points');
+  }
+
+  /**
+   * Clears all lines from local storage
+   * @throws Error if clearing lines fails after retries
+   */
+  async clearAllLines(): Promise<void> {
+    console.log('=== Clearing all lines ===');
+    return this._withRetry(async () => {
+      await AsyncStorage.removeItem(STORAGE_KEYS.COLLECTED_LINES);
+      this.linesCache = [];
+      console.log('All lines cleared successfully');
+    }, 'clearing all lines');
   }
 
   /**
@@ -249,6 +343,21 @@ class StorageService {
     this.pointsCache = points;
     this.cacheTimestamp = Date.now();
     console.log('Points saved to storage successfully');
+  }
+
+  /**
+   * Helper method to save lines to storage and update cache
+   * @param lines - Array of lines to save
+   * @private
+   */
+  private async _saveLinesToStorage(lines: LineCollected[]): Promise<void> {
+    console.log('=== Saving lines to storage ===');
+    console.log('Number of lines to save:', lines.length);
+    await AsyncStorage.setItem(STORAGE_KEYS.COLLECTED_LINES, JSON.stringify(lines));
+    // Update cache
+    this.linesCache = lines;
+    this.cacheTimestamp = Date.now();
+    console.log('Lines saved to storage successfully');
   }
 
   /**

@@ -109,7 +109,7 @@ function mapReducer(state: MapState, action: MapAction): MapState {
 export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(mapReducer, initialState);
   const { activeProject } = useProjectContext();
-  const { featureTypes, getFeatureTypeByName } = useFeatureTypeContext();
+  const { featureTypes, getFeatureTypeByName, selectedFeatureType } = useFeatureTypeContext();
 
   // Validate coordinates for both points and lines
   const isValidCoords = useCallback((coords: any): boolean => {
@@ -150,7 +150,10 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         type: 'Point',
         coordinates
       },
-      properties
+      properties: {
+        ...properties,
+        client_id: id
+      }
     };
     
     dispatch({ type: 'ADD_FEATURE', payload: pointFeature });
@@ -158,28 +161,35 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [isValidCoords]);
 
   // Add a line to the map
-  const addLine = useCallback((coordinates: Coordinate[], properties: GeoJsonProperties = {}) => {
-    if (!isValidCoords(coordinates)) {
-      console.warn('Invalid coordinates provided to addLine');
-      dispatch({ type: 'SET_ERROR', payload: 'Invalid coordinates provided to addLine' });
+  const addLine = useCallback((coordinates: Coordinate[], properties?: GeoJsonProperties) => {
+    if (!coordinates || coordinates.length < 2) {
+      console.error('Invalid coordinates for line');
       return null;
     }
 
     const id = generateId();
-    
+    const style = properties?.style as { color?: string; lineWeight?: number; dashPattern?: number[] } | undefined;
+
     const lineFeature: Feature<LineString> = {
       type: 'Feature',
       id,
       geometry: {
         type: 'LineString',
-        coordinates
+        coordinates: coordinates
       },
-      properties
+      properties: {
+        featureTypeName: properties?.featureTypeName || '',
+        color: style?.color || '#000000',
+        lineWeight: style?.lineWeight || 2,
+        dashPattern: style?.dashPattern || [1, 0],
+        isPreview: properties?.isPreview || false
+      }
     };
-    
+
+    console.log('Adding line feature:', lineFeature);
     dispatch({ type: 'ADD_FEATURE', payload: lineFeature });
     return id;
-  }, [isValidCoords]);
+  }, [dispatch]);
 
   // Update an existing feature
   const updateFeature = useCallback((id: string, coordinates: Coordinate | Coordinate[]) => {
@@ -238,7 +248,14 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     coordinates: Coordinate | Coordinate[], 
     type: FeatureType
   ) => {
-    const previewProps = { isPreview: true, previewStyle: true };
+    const previewProps = {
+      isPreview: true,
+      style: {
+        color: '#000000',
+        lineWeight: 2,
+        dashPattern: [2, 2]
+      }
+    };
     
     if (type === 'point') {
       return addPoint(coordinates as Coordinate, previewProps);
@@ -246,8 +263,6 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return addLine(coordinates as Coordinate[], previewProps);
     }
     
-    console.warn(`Unsupported preview type: ${type}`);
-    dispatch({ type: 'SET_ERROR', payload: `Unsupported preview type: ${type}` });
     return null;
   }, [addPoint, addLine]);
 

@@ -90,7 +90,9 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
         return null;
       }
       
-      const markerSize = 32; // Standard size for all markers
+      // Use smaller size for line points, larger for current location
+      const isLinePoint = props.isLinePoint;
+      const markerSize = isLinePoint ? 16 : 32; // 16px for line points, 32px for current location
       
       // Get the color from the feature type or style
       const color = props.style?.color || featureType.color || '#FF6B00';
