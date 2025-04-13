@@ -51,10 +51,38 @@ export const collectedFeatureService = {
         console.log('Feature properties:', JSON.stringify(feature.properties, null, 2));
         console.log('Feature data:', JSON.stringify(feature.data, null, 2));
         
+        // Extract NMEA data from the first point if available
+        const firstPoint = feature.points?.[0];
+        const nmeaData = firstPoint?.attributes?.nmeaData || {
+          gga: {
+            time: new Date().toISOString(),
+            latitude: firstPoint?.coordinates?.[1] || 0,
+            longitude: firstPoint?.coordinates?.[0] || 0,
+            quality: 1,
+            satellites: 8,
+            hdop: 1.0,
+            altitude: 0,
+            altitudeUnit: 'M',
+            geoidHeight: 0,
+            geoidHeightUnit: 'M'
+          },
+          gst: {
+            time: new Date().toISOString(),
+            rmsTotal: 0,
+            semiMajor: 0,
+            semiMinor: 0,
+            orientation: 0,
+            latitudeError: 0,
+            longitudeError: 0,
+            heightError: 0
+          }
+        };
+
         return {
           properties: {
-            client_id: feature.client_id || generateId(),
+            client_id: feature.client_id,
             points: feature.points || [],
+            nmeaData: nmeaData,
             ...feature
           },
           data: feature.data || {},

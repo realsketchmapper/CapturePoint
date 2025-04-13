@@ -35,10 +35,6 @@ interface FormattedPoint {
       created_at: string;
       updated_at: string;
       attributes: Record<string, any>;
-      nmea_data: {
-        gga: any;
-        gst: any;
-      };
     }[];
     created_at: string;
     updated_at: string;
@@ -76,10 +72,11 @@ const formatPointForAPI = (point: PointCollected): FormattedPoint | null => {
         coords: [longitude, latitude],
         created_at: point.created_at,
         updated_at: point.updated_at,
-        attributes: {}, // Empty attributes object for future use
-        nmea_data: {
-          gga: point.nmeaData.gga,
-          gst: point.nmeaData.gst
+        attributes: {
+          nmeaData: {
+            gga: point.nmeaData.gga,
+            gst: point.nmeaData.gst
+          }
         }
       }],
       created_at: point.created_at,

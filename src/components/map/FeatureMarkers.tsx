@@ -15,6 +15,10 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
 
   // Convert and filter features to points
   const pointFeatures = useMemo(() => {
+    console.log('=== FeatureMarkers Debug ===');
+    console.log('Available feature types:', featureTypes.map(f => f.name));
+    console.log('Input features:', features);
+
     const convertedFeatures = features.map(feature => {
       if ('geometry' in feature) {
         // It's already a GeoJSON Feature
@@ -38,6 +42,8 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
 
         // Get feature type using the new helper method
         const featureType = getFeatureTypeByName(collectedFeature.name);
+        console.log(`Looking up feature type for "${collectedFeature.name}":`, featureType);
+        
         if (!featureType) {
           console.warn(`Feature type "${collectedFeature.name}" not found in available types:`, featureTypes.map(f => f.name));
           return null;
@@ -59,10 +65,12 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
           }
         };
       }
-    }).filter(Boolean); // Remove null features
+    }).filter(Boolean);
 
     // Filter for point features
-    return convertedFeatures.filter(f => f?.geometry.type === 'Point');
+    const filteredFeatures = convertedFeatures.filter(f => f?.geometry.type === 'Point');
+    console.log('Converted and filtered features:', filteredFeatures);
+    return filteredFeatures;
   }, [features, getFeatureTypeByName, featureTypes]);
 
   // Memoize the rendered markers

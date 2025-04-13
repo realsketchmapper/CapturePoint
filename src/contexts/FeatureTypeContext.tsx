@@ -66,7 +66,8 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
   const fetchFeatureTypes = useCallback(async (projectId: number): Promise<void> => {
     // Always fetch feature types for the project, even if already loaded
     // This ensures we have the latest data when switching projects
-    console.log('Starting feature types fetch for project:', projectId);
+    console.log('=== Fetching Feature Types ===');
+    console.log('Project ID:', projectId);
     setIsLoading(true);
     setError(null);
     setImagesPreloaded(false); // Reset preload flag when fetching new feature types
@@ -74,6 +75,7 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
     try {
       const data = await featureTypeService.fetchFeatureTypes(projectId);
       console.log('Successfully fetched feature types:', data.length);
+      console.log('Feature types:', data.map(f => f.name));
       setFeatureTypes(data);
       setFeatureTypesLoaded(true);
       setCurrentProjectId(projectId);
@@ -97,7 +99,12 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
   // Get a feature type by name (case-insensitive)
   const getFeatureTypeByName = useCallback((name: string): FeatureType | undefined => {
     if (!name) return undefined;
-    return featureTypes.find(f => f.name.toLowerCase() === name.toLowerCase());
+    console.log('=== FeatureTypeContext Debug ===');
+    console.log('Looking up feature type for name:', name);
+    console.log('Available feature types:', featureTypes.map(f => f.name));
+    const found = featureTypes.find(f => f.name.toLowerCase() === name.toLowerCase());
+    console.log('Found feature type:', found);
+    return found;
   }, [featureTypes]);
 
   // Memoize the context value to prevent unnecessary re-renders

@@ -8,6 +8,8 @@ import { PointCollected } from '@/types/pointCollected.types';
 import { generateId } from '@/utils/collections';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiFeature } from '@/types/currentFeatures.types';
+import { syncLogger } from '../logging/syncLogger';
+import { backupService } from '../storage/backupService';
 
 // Storage key for last sync timestamp
 const LAST_SYNC_TIMESTAMP_KEY = 'last_sync_timestamp';
@@ -27,6 +29,10 @@ export interface BiDirectionalSyncResult {
  * Service for handling bi-directional syncing between local storage and server
  */
 class BiDirectionalSyncService {
+  private readonly MAX_RETRIES = 3;
+  private readonly INITIAL_RETRY_DELAY = 1000; // 1 second
+  private readonly MAX_RETRY_DELAY = 30000; // 30 seconds
+
   /**
    * Checks if the device is online
    * @returns Promise resolving to boolean indicating online status
@@ -63,69 +69,77 @@ class BiDirectionalSyncService {
   }
 
   /**
+   * Executes an operation with retry logic and exponential backoff
+   * @param operation - The async operation to execute
+   * @param operationName - Name of the operation for logging
+   * @private
+   */
+  private async executeWithRetry<T>(
+    operation: () => Promise<T>,
+    operationName: string,
+    projectId: number
+  ): Promise<T> {
+    let lastError: Error | null = null;
+    let delay = this.INITIAL_RETRY_DELAY;
+
+    for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+      try {
+        const result = await operation();
+        if (attempt > 1) {
+          await syncLogger.logSyncOperation('retry_success', projectId, {
+            operation: operationName,
+            attempt,
+            delay
+          });
+        }
+        return result;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        await syncLogger.logSyncOperation('retry_failed', projectId, {
+          operation: operationName,
+          attempt,
+          error: lastError.message,
+          delay
+        });
+
+        if (attempt < this.MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay = Math.min(delay * 2, this.MAX_RETRY_DELAY);
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
    * Syncs features from the server to local storage for a specific project
    * @param projectId - The project ID to sync features for
    * @returns Promise resolving to the number of features synced from server to local
    */
   async syncFromServerToLocal(projectId: number): Promise<number> {
-    try {
-      console.log('=== Starting syncFromServerToLocal ===');
-      console.log('Project ID:', projectId);
-      
-      // Verify project ID
-      if (!projectId) {
-        console.log('Sync failed: No project ID provided');
-        return 0;
-      }
-      
-      // Check if online
-      const online = await this.isOnline();
-      console.log('Online status:', online);
-      if (!online) {
-        console.log('Sync failed: Device is offline');
-        return 0;
-      }
-      
-      // Fetch active features from server
-      const activeFeatures = await collectedFeatureService.fetchActiveFeatures(projectId);
-      console.log('Active features from server:', activeFeatures.length);
-      
-      if (activeFeatures.length === 0) {
-        console.log('No features to sync from server');
-        return 0;
-      }
-      
-      // Get existing points from local storage
-      const existingPoints = await storageService.getAllPoints();
-      const existingPointMap = new Map(
-        existingPoints.map(point => [point.client_id, point])
-      );
-      
-      // Track new and updated features
-      const newFeatures: PointCollected[] = [];
-      const updatedFeatures: PointCollected[] = [];
-      
-      // Process each feature from the server
-      for (const feature of activeFeatures) {
-        // Get the first point's coordinates if available
-        const firstPoint = feature.properties?.points?.[0];
-        console.log('Processing feature for sync:', JSON.stringify(feature, null, 2));
-        console.log('First point data:', JSON.stringify(firstPoint, null, 2));
-        
-        // Extract coordinates from the first point
-        const coordinates = firstPoint?.coordinates || [0, 0];
-        
-        // Ensure coordinates are in [longitude, latitude] format
-        // Server sends coordinates in [longitude, latitude] format
-        const [longitude, latitude] = coordinates;
-        
-        // Convert ApiFeature to PointCollected
-        const pointCollected: PointCollected = {
-          client_id: feature.properties?.client_id || generateId(),
-          name: feature.featureType?.name || 'Unknown Feature',
-          description: feature.featureType?.description || 'No description available',
-          draw_layer: feature.data?.draw_layer || feature.featureType?.draw_layer || 'default',
-          nmeaData: {
+    return this.executeWithRetry(
+      async () => {
+        await syncLogger.logSyncOperation('server_to_local_start', projectId, {
+          timestamp: new Date().toISOString()
+        });
+
+        const activeFeatures = await collectedFeatureService.fetchActiveFeatures(projectId);
+        const existingPoints = await storageService.getAllPoints();
+        const existingPointMap = new Map(
+          existingPoints.map(point => [point.client_id, point])
+        );
+
+        const newFeatures: PointCollected[] = [];
+        const updatedFeatures: PointCollected[] = [];
+
+        for (const feature of activeFeatures) {
+          const firstPoint = feature.properties?.points?.[0];
+          const coordinates = firstPoint?.coordinates || [0, 0];
+          const [longitude, latitude] = coordinates;
+
+          // Extract NMEA data from the point's attributes
+          const nmeaData = firstPoint?.attributes?.nmeaData || {
             gga: {
               latitude: latitude,
               longitude: longitude,
@@ -148,65 +162,64 @@ class BiDirectionalSyncService {
               semiMinor: 0,
               orientation: 0
             }
-          },
-          attributes: {
-            featureTypeName: feature.featureType?.name || 'Unknown Feature'
-          },
-          created_by: feature.created_by?.toString() || '1',
-          created_at: feature.created_at || new Date().toISOString(),
-          updated_at: feature.updated_at || new Date().toISOString(),
-          updated_by: feature.updated_by?.toString() || '1',
-          synced: true,
-          feature_id: Number(feature.featureTypeId) || 0,
-          project_id: projectId
-        };
-        
-        console.log('Feature type info:', {
-          name: feature.featureType?.name,
-          id: feature.featureTypeId,
-          type: feature.featureType,
-          draw_layer: feature.data?.draw_layer || feature.featureType?.draw_layer
-        });
-        console.log('Converted to PointCollected:', JSON.stringify(pointCollected, null, 2));
-        
-        const existingPoint = existingPointMap.get(pointCollected.client_id);
-        
-        if (!existingPoint) {
-          // This is a new feature from the server
-          newFeatures.push(pointCollected);
-        } else {
-          // Check if the server version is newer
-          const serverUpdatedAt = new Date(feature.updated_at || '').getTime();
-          const localUpdatedAt = new Date(existingPoint.updated_at).getTime();
-          
-          if (serverUpdatedAt > localUpdatedAt) {
-            // Server version is newer, update local
-            updatedFeatures.push(pointCollected);
+          };
+
+          const pointCollected: PointCollected = {
+            client_id: feature.properties?.client_id || generateId(),
+            name: feature.featureType?.name || 'Unknown Feature',
+            description: feature.featureType?.description || 'No description available',
+            draw_layer: feature.data?.draw_layer || feature.featureType?.draw_layer || 'default',
+            nmeaData: nmeaData,
+            attributes: {
+              featureTypeName: feature.featureType?.name || 'Unknown Feature'
+            },
+            created_by: feature.created_by?.toString() || '1',
+            created_at: feature.created_at || new Date().toISOString(),
+            updated_at: feature.updated_at || new Date().toISOString(),
+            updated_by: feature.updated_by?.toString() || '1',
+            synced: true,
+            feature_id: Number(feature.featureTypeId) || 0,
+            project_id: projectId
+          };
+
+          const existingPoint = existingPointMap.get(pointCollected.client_id);
+
+          if (!existingPoint) {
+            newFeatures.push(pointCollected);
+          } else {
+            const serverUpdatedAt = new Date(feature.updated_at || '').getTime();
+            const localUpdatedAt = new Date(existingPoint.updated_at).getTime();
+
+            if (serverUpdatedAt > localUpdatedAt) {
+              updatedFeatures.push(pointCollected);
+            }
           }
         }
-      }
-      
-      console.log('New features to add:', newFeatures.length);
-      console.log('Features to update:', updatedFeatures.length);
-      
-      // Add new features to local storage
-      for (const feature of newFeatures) {
-        await storageService.savePoint(feature);
-      }
-      
-      // Update existing features in local storage
-      for (const feature of updatedFeatures) {
-        await storageService.updatePoint(feature);
-      }
-      
-      console.log('=== Server to local sync completed ===');
-      return newFeatures.length + updatedFeatures.length;
-    } catch (error) {
-      console.error('Error in syncFromServerToLocal:', error);
-      return 0;
-    }
+
+        // Add new features
+        for (const feature of newFeatures) {
+          await storageService.savePoint(feature);
+        }
+
+        // Update existing features
+        for (const feature of updatedFeatures) {
+          await storageService.updatePoint(feature);
+        }
+
+        const totalSynced = newFeatures.length + updatedFeatures.length;
+        await syncLogger.logSyncOperation('server_to_local_complete', projectId, {
+          newFeatures: newFeatures.length,
+          updatedFeatures: updatedFeatures.length,
+          totalSynced
+        });
+
+        return totalSynced;
+      },
+      'syncFromServerToLocal',
+      projectId
+    );
   }
-  
+
   /**
    * Performs a complete bi-directional sync for a specific project
    * @param projectId - The project ID to sync
@@ -214,11 +227,16 @@ class BiDirectionalSyncService {
    */
   async syncProject(projectId: number): Promise<BiDirectionalSyncResult> {
     try {
-      console.log('=== Starting bi-directional sync for project:', projectId);
-      
+      await syncLogger.logSyncOperation('sync_start', projectId, {
+        timestamp: new Date().toISOString()
+      });
+
       // Check if online
       const online = await this.isOnline();
       if (!online) {
+        await syncLogger.logSyncOperation('sync_offline', projectId, {
+          error: 'Device is offline'
+        });
         return {
           success: false,
           localToServerSynced: 0,
@@ -227,47 +245,79 @@ class BiDirectionalSyncService {
           errorMessage: 'Device is offline'
         };
       }
-      
+
+      // Create backup before sync
+      const points = await storageService.getPointsForProject(projectId);
+      await backupService.createBackup(points, projectId);
+
       // Step 1: Sync from local to server
-      const localToServerResult = await syncService.syncPoints(projectId);
-      
+      const localToServerResult = await this.executeWithRetry(
+        () => syncService.syncPoints(projectId),
+        'syncPoints',
+        projectId
+      );
+
       // Step 2: Sync from server to local
       const serverToLocalSynced = await this.syncFromServerToLocal(projectId);
-      
+
       // Update last sync timestamp
       await this.updateLastSyncTimestamp();
-      
-      console.log('=== Bi-directional sync completed ===');
-      return {
+
+      const result = {
         success: localToServerResult.success,
         localToServerSynced: localToServerResult.syncedCount,
         serverToLocalSynced,
         failedCount: localToServerResult.failedCount,
         errorMessage: localToServerResult.errorMessage
       };
+
+      await syncLogger.logSyncOperation('sync_complete', projectId, {
+        result
+      });
+
+      return result;
     } catch (error) {
-      console.error('Error in syncProject:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await syncLogger.logSyncOperation('sync_error', projectId, {
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
+      // Attempt to restore from backup if sync failed
+      try {
+        const backups = await backupService.getBackupsForProject(projectId);
+        if (backups.length > 0) {
+          await backupService.restoreFromBackup(backups[0].timestamp, projectId);
+        }
+      } catch (restoreError) {
+        console.error('Failed to restore from backup:', restoreError);
+      }
+
       return {
         success: false,
         localToServerSynced: 0,
         serverToLocalSynced: 0,
         failedCount: 0,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        errorMessage
       };
     }
   }
-  
+
   /**
    * Performs a complete bi-directional sync for all projects
    * @returns Promise resolving to BiDirectionalSyncResult
    */
   async syncAllProjects(): Promise<BiDirectionalSyncResult> {
     try {
-      console.log('=== Starting bi-directional sync for all projects ===');
-      
-      // Check if online
+      await syncLogger.logSyncOperation('sync_all_start', 0, {
+        timestamp: new Date().toISOString()
+      });
+
       const online = await this.isOnline();
       if (!online) {
+        await syncLogger.logSyncOperation('sync_all_offline', 0, {
+          error: 'Device is offline'
+        });
         return {
           success: false,
           localToServerSynced: 0,
@@ -276,43 +326,54 @@ class BiDirectionalSyncService {
           errorMessage: 'Device is offline'
         };
       }
-      
-      // Step 1: Sync from local to server for all projects
-      const localToServerResult = await syncService.syncAllPoints();
-      
-      // Step 2: Get all projects and sync each one from server to local
+
+      const localToServerResult = await this.executeWithRetry(
+        () => syncService.syncAllPoints(),
+        'syncAllPoints',
+        0
+      );
+
       const projectsResponse = await api.get(API_ENDPOINTS.PROJECTS);
       if (!projectsResponse.data.success) {
         throw new Error('Failed to fetch projects');
       }
-      
+
       const projects = projectsResponse.data.projects || [];
       let totalServerToLocalSynced = 0;
-      
+
       for (const project of projects) {
         const syncedCount = await this.syncFromServerToLocal(project.id);
         totalServerToLocalSynced += syncedCount;
       }
-      
-      // Update last sync timestamp
+
       await this.updateLastSyncTimestamp();
-      
-      console.log('=== Bi-directional sync for all projects completed ===');
-      return {
+
+      const result = {
         success: localToServerResult.success,
         localToServerSynced: localToServerResult.syncedCount,
         serverToLocalSynced: totalServerToLocalSynced,
         failedCount: localToServerResult.failedCount,
         errorMessage: localToServerResult.errorMessage
       };
+
+      await syncLogger.logSyncOperation('sync_all_complete', 0, {
+        result
+      });
+
+      return result;
     } catch (error) {
-      console.error('Error in syncAllProjects:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await syncLogger.logSyncOperation('sync_all_error', 0, {
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
       return {
         success: false,
         localToServerSynced: 0,
         serverToLocalSynced: 0,
         failedCount: 0,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        errorMessage
       };
     }
   }
