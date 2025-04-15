@@ -1,120 +1,109 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PointCollected } from '@/types/pointCollected.types';
-import { syncLogger } from '../logging/syncLogger';
+import { ProjectId, toProjectIdString } from '@/utils/projectId';
 
-interface Backup {
+interface BackupData {
   timestamp: string;
   points: PointCollected[];
-  version: string;
-  projectId: number;
-  metadata: {
-    pointCount: number;
-    lastSyncTimestamp?: string;
-  };
 }
 
 class BackupService {
-  private static readonly BACKUP_KEY = '@points_backup';
-  private static readonly MAX_BACKUPS = 5;
-  private static readonly BACKUP_RETENTION_DAYS = 30;
+  private readonly BACKUP_PREFIX = '@backup_';
+  private readonly MAX_BACKUPS = 5; // Keep last 5 backups
 
-  static async createBackup(points: PointCollected[], projectId: number): Promise<void> {
-    try {
-      const timestamp = new Date().toISOString();
-      const backup: Backup = {
-        timestamp,
-        points,
-        version: '1.0',
-        projectId,
-        metadata: {
-          pointCount: points.length,
-          lastSyncTimestamp: new Date().toISOString()
-        }
-      };
-
-      const existingBackups = await this.getBackups();
-      const newBackups = [backup, ...existingBackups].slice(0, this.MAX_BACKUPS);
-
-      await AsyncStorage.setItem(this.BACKUP_KEY, JSON.stringify(newBackups));
-      
-      await syncLogger.logSyncOperation('backup_created', projectId, {
-        backupTimestamp: timestamp,
-        pointCount: points.length
-      });
-    } catch (error) {
-      console.error('Failed to create backup:', error);
-      await syncLogger.logSyncOperation('backup_error', projectId, {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
+  /**
+   * Gets the storage key for a project backup
+   */
+  private getBackupKey(projectId: string, timestamp: string): string {
+    return `${this.BACKUP_PREFIX}${projectId}_${timestamp}`;
   }
 
-  static async getBackups(): Promise<Backup[]> {
-    try {
-      const backupsJson = await AsyncStorage.getItem(this.BACKUP_KEY);
-      if (!backupsJson) return [];
+  /**
+   * Creates a backup of project points
+   */
+  async createBackup(points: PointCollected[], projectId: ProjectId): Promise<void> {
+    const projectIdStr = toProjectIdString(projectId);
+    const timestamp = new Date().toISOString();
+    const backupKey = this.getBackupKey(projectIdStr, timestamp);
 
-      const backups: Backup[] = JSON.parse(backupsJson);
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - this.BACKUP_RETENTION_DAYS);
+    const backupData: BackupData = {
+      timestamp,
+      points
+    };
 
-      // Filter out old backups
-      return backups.filter(backup => new Date(backup.timestamp) > cutoffDate);
-    } catch (error) {
-      console.error('Failed to get backups:', error);
-      return [];
-    }
+    await AsyncStorage.setItem(backupKey, JSON.stringify(backupData));
+    await this.cleanupOldBackups(projectIdStr);
   }
 
-  static async getBackupsForProject(projectId: number): Promise<Backup[]> {
-    const backups = await this.getBackups();
-    return backups.filter(backup => backup.projectId === projectId);
-  }
+  /**
+   * Gets all backups for a project
+   */
+  async getBackupsForProject(projectId: ProjectId): Promise<BackupData[]> {
+    const projectIdStr = toProjectIdString(projectId);
+    const allKeys = await AsyncStorage.getAllKeys();
+    const backupKeys = allKeys.filter(key => 
+      key.startsWith(`${this.BACKUP_PREFIX}${projectIdStr}_`)
+    );
 
-  static async restoreFromBackup(backupTimestamp: string, projectId: number): Promise<boolean> {
-    try {
-      const backups = await this.getBackups();
-      const backup = backups.find(b => 
-        b.timestamp === backupTimestamp && b.projectId === projectId
-      );
-      
-      if (!backup) {
-        await syncLogger.logSyncOperation('backup_restore_failed', projectId, {
-          error: 'Backup not found',
-          backupTimestamp
-        });
-        return false;
+    const backups: BackupData[] = [];
+    for (const key of backupKeys) {
+      const backupJson = await AsyncStorage.getItem(key);
+      if (backupJson) {
+        backups.push(JSON.parse(backupJson));
       }
+    }
 
-      // Restore points
-      await AsyncStorage.setItem(
-        `@project_${projectId}_points`,
-        JSON.stringify(backup.points)
-      );
+    // Sort by timestamp, newest first
+    return backups.sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }
 
-      await syncLogger.logSyncOperation('backup_restored', projectId, {
-        backupTimestamp,
-        pointCount: backup.points.length
-      });
+  /**
+   * Restores a project from a specific backup
+   */
+  async restoreFromBackup(timestamp: string, projectId: ProjectId): Promise<BackupData> {
+    const projectIdStr = toProjectIdString(projectId);
+    const backupKey = this.getBackupKey(projectIdStr, timestamp);
+    const backupJson = await AsyncStorage.getItem(backupKey);
 
-      return true;
-    } catch (error) {
-      console.error('Failed to restore from backup:', error);
-      await syncLogger.logSyncOperation('backup_restore_error', projectId, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        backupTimestamp
-      });
-      return false;
+    if (!backupJson) {
+      throw new Error(`Backup not found for timestamp ${timestamp}`);
+    }
+
+    const backupData: BackupData = JSON.parse(backupJson);
+    return backupData;
+  }
+
+  /**
+   * Cleans up old backups, keeping only the most recent ones
+   */
+  private async cleanupOldBackups(projectId: string): Promise<void> {
+    const backups = await this.getBackupsForProject(projectId);
+    if (backups.length <= this.MAX_BACKUPS) return;
+
+    // Delete oldest backups
+    const backupsToDelete = backups.slice(this.MAX_BACKUPS);
+    for (const backup of backupsToDelete) {
+      const backupKey = this.getBackupKey(projectId, backup.timestamp);
+      await AsyncStorage.removeItem(backupKey);
     }
   }
 
-  static async clearBackups(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(this.BACKUP_KEY);
-    } catch (error) {
-      console.error('Failed to clear backups:', error);
+  /**
+   * Deletes all backups for a project
+   */
+  async deleteProjectBackups(projectId: ProjectId): Promise<void> {
+    const projectIdStr = toProjectIdString(projectId);
+    const allKeys = await AsyncStorage.getAllKeys();
+    const backupKeys = allKeys.filter(key => 
+      key.startsWith(`${this.BACKUP_PREFIX}${projectIdStr}_`)
+    );
+
+    for (const key of backupKeys) {
+      await AsyncStorage.removeItem(key);
     }
   }
 }
 
-export const backupService = BackupService; 
+export const backupService = new BackupService(); 

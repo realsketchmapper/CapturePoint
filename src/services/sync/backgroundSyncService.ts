@@ -1,22 +1,22 @@
 import { biDirectionalSyncService } from './biDirectionalSyncService';
 import { syncLogger } from '../logging/syncLogger';
 import { AppState, AppStateStatus } from 'react-native';
+import { projectStorageService } from '../storage/projectStorageService';
+import { ProjectId, toProjectIdNumber, toProjectIdString } from '@/utils/projectId';
 
 class BackgroundSyncService {
   private syncInterval: NodeJS.Timeout | null = null;
   private readonly SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
-  private currentProjectId: number | null = null;
+  private currentProjectId: ProjectId | null = null;
   private appState: AppStateStatus = 'active';
   private appStateSubscription: { remove: () => void } | null = null;
 
   constructor() {
-    // Listen to app state changes
     this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
   }
 
   private handleAppStateChange = (nextAppState: AppStateStatus) => {
     if (this.appState === 'active' && nextAppState === 'background') {
-      // App is going to background, perform final sync
       this.syncBeforeClose();
     }
     this.appState = nextAppState;
@@ -24,14 +24,12 @@ class BackgroundSyncService {
 
   /**
    * Starts the background sync service for a specific project
-   * @param projectId - The project ID to sync
    */
-  start(projectId: number) {
+  async start(projectId: ProjectId) {
     this.currentProjectId = projectId;
+    await biDirectionalSyncService.initializeProject(projectId);
     this.syncInterval = setInterval(() => this.autoSync(), this.SYNC_INTERVAL);
-    
-    // Initial sync
-    this.autoSync();
+    await this.autoSync();
   }
 
   /**
@@ -46,65 +44,54 @@ class BackgroundSyncService {
   }
 
   /**
-   * Performs an automatic sync if conditions are met
+   * Performs a sync operation with proper error handling and logging
    */
-  private async autoSync() {
+  private async performSync(operationType: 'auto' | 'close'): Promise<void> {
     if (!this.currentProjectId) return;
+
+    const projectIdStr = toProjectIdString(this.currentProjectId);
+    const projectIdNum = toProjectIdNumber(this.currentProjectId);
     
     try {
-      await syncLogger.logSyncOperation('auto_sync_start', this.currentProjectId, {
+      const projectData = await projectStorageService.getProjectData(projectIdStr);
+      if (!projectData || !projectData.isActive) {
+        if (operationType === 'auto') this.stop();
+        return;
+      }
+
+      await syncLogger.logSyncOperation(`${operationType}_sync_start`, projectIdNum, {
         timestamp: new Date().toISOString()
       });
 
       const online = await biDirectionalSyncService.isOnline();
       if (!online) {
-        await syncLogger.logSyncOperation('auto_sync_offline', this.currentProjectId, {
+        await syncLogger.logSyncOperation(`${operationType}_sync_offline`, projectIdNum, {
           error: 'Device is offline'
         });
         return;
       }
 
       const result = await biDirectionalSyncService.syncProject(this.currentProjectId);
-      
-      await syncLogger.logSyncOperation('auto_sync_complete', this.currentProjectId, {
-        result
-      });
+      await syncLogger.logSyncOperation(`${operationType}_sync_complete`, projectIdNum, { result });
     } catch (error) {
-      await syncLogger.logSyncOperation('auto_sync_error', this.currentProjectId, {
+      await syncLogger.logSyncOperation(`${operationType}_sync_error`, projectIdNum, {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   }
 
   /**
+   * Performs an automatic sync if conditions are met
+   */
+  private async autoSync(): Promise<void> {
+    await this.performSync('auto');
+  }
+
+  /**
    * Performs a sync before the app closes
    */
-  private async syncBeforeClose() {
-    if (!this.currentProjectId) return;
-
-    try {
-      await syncLogger.logSyncOperation('close_sync_start', this.currentProjectId, {
-        timestamp: new Date().toISOString()
-      });
-
-      const online = await biDirectionalSyncService.isOnline();
-      if (!online) {
-        await syncLogger.logSyncOperation('close_sync_offline', this.currentProjectId, {
-          error: 'Device is offline'
-        });
-        return;
-      }
-
-      const result = await biDirectionalSyncService.syncProject(this.currentProjectId);
-      
-      await syncLogger.logSyncOperation('close_sync_complete', this.currentProjectId, {
-        result
-      });
-    } catch (error) {
-      await syncLogger.logSyncOperation('close_sync_error', this.currentProjectId, {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
+  private async syncBeforeClose(): Promise<void> {
+    await this.performSync('close');
   }
 
   /**
