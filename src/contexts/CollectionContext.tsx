@@ -1,17 +1,18 @@
 // contexts/CollectionContext.tsx
-import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import { Position, CollectionContextType, CollectionState, Coordinates, CollectionMetadata } from '@/types/collection.types';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useState } from 'react';
+import { Position, CollectionContextType, CollectionState, Coordinates, CollectionMetadata, CollectionOptions } from '@/types/collection.types';
 import { FeatureType } from '@/types/featureType.types';
 import { PointCollected } from '@/types/pointCollected.types';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { AuthContext } from '@/contexts/AuthContext';
 import { ProjectContext } from '@/contexts/ProjectContext';
-import { storageService } from '@/services/storage/storageService';
+import { featureStorageService } from '@/services/storage/featureStorageService';
 import { syncService } from '@/services/sync/syncService';
 // Replace v4 import with a more React Native friendly approach
 import 'react-native-get-random-values'; // Add this import at the top
 import { v4 as uuidv4 } from 'uuid';
+import { generateId } from '@/utils/collections';
 
 // Extended interface to include all functionality
 interface ExtendedCollectionContextType extends CollectionContextType {
@@ -27,7 +28,7 @@ interface ExtendedCollectionContextType extends CollectionContextType {
   
   // Saving operations
   isSaving: boolean;
-  saveCurrentPoint: (properties?: Record<string, any>, state?: CollectionState) => Promise<boolean>;
+  saveCurrentPoint: (pointData: Partial<PointCollected>, state: CollectionState) => Promise<boolean>;
   
   // Sync operations
   syncStatus: {
@@ -36,6 +37,7 @@ interface ExtendedCollectionContextType extends CollectionContextType {
     unsyncedCount: number;
   };
   syncPoints: () => Promise<boolean>;
+  syncUnsyncedPoints: () => Promise<void>;
 }
 
 // Define action types
@@ -156,7 +158,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       try {
-        const unsyncedPoints = await storageService.getUnsyncedPoints();
+        const unsyncedPoints = await featureStorageService.getUnsyncedFeatures(activeProject.id);
         dispatch({ 
           type: 'UPDATE_UNSYNCED_COUNT', 
           payload: unsyncedPoints.length 
@@ -272,143 +274,81 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     dispatch({ type: 'CLEAR_COLLECTION' });
   }, []);
   
-  // Generate a simple ID if UUID fails as fallback
-  const generateSimpleId = () => {
-    return `manual-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-  };
-  
   // Save the current point with all metadata
-  const saveCurrentPoint = useCallback(async (properties: Record<string, any> = {}, stateOverride?: CollectionState): Promise<boolean> => {
-    const activeFeatureType = stateOverride?.activeFeatureType || state.collectionState.activeFeatureType;
-    
-    if (!activeFeatureType) {
-      console.error('No active feature type');
-      return false;
-    }
-    
-    dispatch({ type: 'SET_SAVING', payload: true });
-    
-    const points = stateOverride?.points || state.collectionState.points;
-    if (!points || points.length === 0) {
-      console.error('No points to save');
-      dispatch({ type: 'SET_SAVING', payload: false });
-      return false;
-    }
-    
+  const saveCurrentPoint = useCallback(async (pointData: Partial<PointCollected>, state: CollectionState) => {
+    if (!state.isActive || !state.points.length) return false;
+
     try {
-      let result;
-      
-      // Only attempt sync if we're logged in and have a project
-      if (user?.id && activeProject?.id) {
-        if (activeProject) {
-          // If we have an active project, sync points for that project
-          result = await syncService.syncPoints(activeProject.id);
-        } else {
-          // If no active project, sync all points across all projects
-          result = await syncService.syncAllPoints();
-        }
-        
-        // Update syncing state and last sync time
-        dispatch({ 
-          type: 'SET_SYNC_STATUS', 
-          payload: {
-            ...state.syncStatus,
-            isSyncing: false,
-            lastSyncTime: new Date()
+      const point: PointCollected = {
+        client_id: generateId(),
+        name: pointData.name || state.activeFeatureType.name,
+        description: pointData.description || '',
+        draw_layer: pointData.draw_layer || state.activeFeatureType.draw_layer,
+        nmeaData: pointData.nmeaData || {
+          gga: {
+            latitude: state.points[0][1],
+            longitude: state.points[0][0],
+            altitude: 0,
+            altitudeUnit: 'M',
+            geoidHeight: 0,
+            geoidHeightUnit: 'M',
+            hdop: 0,
+            quality: 0,
+            satellites: 0,
+            time: new Date().toISOString()
+          },
+          gst: {
+            latitudeError: 0,
+            longitudeError: 0,
+            heightError: 0,
+            time: new Date().toISOString(),
+            rmsTotal: 0,
+            semiMajor: 0,
+            semiMinor: 0,
+            orientation: 0
           }
-        });
-        
-        // Update unsynced count separately
-        if (result.success) {
-          // Get the current unsynced count from storage to ensure accuracy
-          const unsyncedPoints = await storageService.getUnsyncedPoints();
-          dispatch({ 
-            type: 'UPDATE_UNSYNCED_COUNT', 
-            payload: unsyncedPoints.length
-          });
-        }
-        
-        return result.success;
-      }
-      
-      return true; // Return true if we skipped sync due to no auth/project
+        },
+        attributes: pointData.attributes || {},
+        created_by: state.metadata.created_by,
+        created_at: state.metadata.created_at,
+        updated_at: new Date().toISOString(),
+        updated_by: state.metadata.updated_by,
+        synced: false,
+        feature_id: 0, // We'll set this when syncing with the server
+        project_id: state.metadata.project_id
+      };
+
+      await featureStorageService.savePoint(point);
+      return true;
     } catch (error) {
-      console.error('Error syncing points:', error);
-      
-      dispatch({ 
-        type: 'SET_SYNC_STATUS', 
-        payload: { 
-          ...state.syncStatus, 
-          isSyncing: false 
-        } 
-      });
-      
+      console.error('Error saving point:', error);
       return false;
-    } finally {
-      dispatch({ type: 'SET_SAVING', payload: false });
     }
-  }, [state.syncStatus.isSyncing, state.syncStatus, activeProject, user?.id]);
+  }, []);
   
   // Sync points with the server
-  const syncPoints = useCallback(async (): Promise<boolean> => {
-    if (state.syncStatus.isSyncing) {
-      return false; // Already syncing
-    }
-    
-    dispatch({ 
-      type: 'SET_SYNC_STATUS', 
-      payload: { 
-        ...state.syncStatus, 
-        isSyncing: true 
-      } 
-    });
-    
+  const syncPoints = useCallback(async () => {
+    if (!activeProject) return false;
+
     try {
-      let result;
-      
-      if (activeProject) {
-        // If we have an active project, sync points for that project
-        result = await syncService.syncPoints(activeProject.id);
-      } else {
-        // If no active project, sync all points across all projects
-        result = await syncService.syncAllPoints();
-      }
-      
-      // Update syncing state and last sync time
-      dispatch({ 
-        type: 'SET_SYNC_STATUS', 
-        payload: {
-          ...state.syncStatus,
-          isSyncing: false,
-          lastSyncTime: new Date()
-        }
-      });
-      
-      // Update unsynced count separately
-      if (result.success) {
-        // Get the current unsynced count from storage to ensure accuracy
-        const unsyncedPoints = await storageService.getUnsyncedPoints();
-        dispatch({ 
-          type: 'UPDATE_UNSYNCED_COUNT', 
-          payload: unsyncedPoints.length
-        });
-      }
-      
+      const result = await syncService.syncProject(activeProject.id);
       return result.success;
     } catch (error) {
       console.error('Error syncing points:', error);
-      
-      dispatch({ 
-        type: 'SET_SYNC_STATUS', 
-        payload: { 
-          ...state.syncStatus, 
-          isSyncing: false 
-        } 
-      });
-      
       return false;
     }
-  }, [state.syncStatus.isSyncing, state.syncStatus, activeProject]);
+  }, [activeProject]);
+
+  const syncUnsyncedPoints = useCallback(async () => {
+    try {
+      const unsyncedFeatures = await featureStorageService.getUnsyncedFeatures(state.collectionState.metadata.project_id || 0);
+      if (unsyncedFeatures.length > 0) {
+        await syncService.syncProject(state.collectionState.metadata.project_id || 0);
+      }
+    } catch (error) {
+      console.error('Error syncing unsynced points:', error);
+    }
+  }, [state.collectionState.metadata.project_id]);
 
   return (
     <CollectionContext.Provider
@@ -429,7 +369,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         
         // Sync operations
         syncStatus: state.syncStatus,
-        syncPoints
+        syncPoints,
+        syncUnsyncedPoints
       }}
     >
       {children}

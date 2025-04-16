@@ -19,7 +19,7 @@ import { getMapStyle } from '@/services/maplibre/maplibre_helpers';
 import CurrentPositionMarker from './CurrentPositionMarker';
 import FeatureMarkers from './FeatureMarkers';
 import MapPointDetails from '@/components/modals/PointModals/MapPointDetails';
-import { storageService } from '@/services/storage/storageService';
+import { featureStorageService } from '@/services/storage/featureStorageService';
 import { PointCollected } from '@/types/pointCollected.types';
 import { CollectedFeature } from '@/types/currentFeatures.types';
 import { Colors } from '@/theme/colors';
@@ -30,7 +30,7 @@ import { FeatureToRender } from '@/types/featuresToRender.types';
 import { Feature, Point } from 'geojson';
 import { generateId } from '@/utils/collections';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
-import { biDirectionalSyncService } from '@/services/sync/biDirectionalSyncService';
+
 
 // Helper function to convert Position to coordinates array
 const positionToCoordinates = (position: Position): [number, number] => {
@@ -163,27 +163,30 @@ export const MapControls: React.FC = () => {
           return;
         }
 
-        // Get features from storage
-        const featuresJson = await AsyncStorage.getItem(STORAGE_KEYS.COLLECTED_POINTS);
+        // Get features from storage using the correct project-specific key
+        const storageKey = `${STORAGE_KEYS.COLLECTED_FEATURES}_${activeProject.id}`;
+        console.log('Fetching features with key:', storageKey);
+        const featuresJson = await AsyncStorage.getItem(storageKey);
         if (!featuresJson) {
           console.log('No features found in storage');
           return;
         }
 
-        const storedPoints: PointCollected[] = JSON.parse(featuresJson);
+        const storedFeatures: CollectedFeature[] = JSON.parse(featuresJson);
+        console.log('Features loaded from storage:', storedFeatures.length);
         
         // Find the point directly by client_id
-        const matchedPoint = storedPoints.find(p => 
-          p.client_id === closestFeature?.properties?.client_id
+        const matchedFeature = storedFeatures.find(f => 
+          f.client_id === closestFeature?.properties?.client_id
         );
         
-        console.log('Matched point from storage:', matchedPoint);
+        console.log('Matched feature from storage:', matchedFeature);
         
-        if (matchedPoint) {
-          setSelectedPoint(matchedPoint);
+        if (matchedFeature) {
+          setSelectedPoint(matchedFeature.points[0]);
           setIsModalVisible(true);
         } else {
-          console.log('No matching point found in storage');
+          console.log('No matching feature found in storage');
         }
       } else {
         // Process features found by queryRenderedFeaturesAtPoint
@@ -207,27 +210,30 @@ export const MapControls: React.FC = () => {
 
         console.log('Selected feature:', clickedFeature);
 
-        // Get features from storage
-        const featuresJson = await AsyncStorage.getItem(STORAGE_KEYS.COLLECTED_POINTS);
+        // Get features from storage using the correct project-specific key
+        const storageKey = `${STORAGE_KEYS.COLLECTED_FEATURES}_${activeProject.id}`;
+        console.log('Fetching features with key:', storageKey);
+        const featuresJson = await AsyncStorage.getItem(storageKey);
         if (!featuresJson) {
           console.log('No features found in storage');
           return;
         }
 
-        const storedPoints: PointCollected[] = JSON.parse(featuresJson);
+        const storedFeatures: CollectedFeature[] = JSON.parse(featuresJson);
+        console.log('Features loaded from storage:', storedFeatures.length);
         
         // Find the point directly by client_id
-        const matchedPoint = storedPoints.find(p => 
-          p.client_id === clickedFeature?.properties?.client_id
+        const matchedFeature = storedFeatures.find(f => 
+          f.client_id === clickedFeature?.properties?.client_id
         );
         
-        console.log('Matched point from storage:', matchedPoint);
+        console.log('Matched feature from storage:', matchedFeature);
         
-        if (matchedPoint) {
-          setSelectedPoint(matchedPoint);
+        if (matchedFeature) {
+          setSelectedPoint(matchedFeature.points[0]);
           setIsModalVisible(true);
         } else {
-          console.log('No matching point found in storage');
+          console.log('No matching feature found in storage');
         }
       }
     } catch (error) {
@@ -252,7 +258,7 @@ export const MapControls: React.FC = () => {
       console.log('\n=== Starting Clear Storage ===');
       
       // Clear all points
-      await storageService.clearAllPoints();
+      await featureStorageService.clearProjectFeatures(activeProject.id);
       
       // Clear features from map
       clearFeatures();
@@ -284,20 +290,26 @@ export const MapControls: React.FC = () => {
         return;
       }
 
-      const projectPoints = await storageService.getPointsForProject(activeProject.id);
-      console.log('Points loaded from storage:', projectPoints.length);
+      const projectFeatures = await featureStorageService.getFeaturesForProject(activeProject.id);
+      console.log('Features loaded from storage:', projectFeatures.length);
 
       // Clear existing features
       clearFeatures();
 
       // Add each point to the map
-      for (const point of projectPoints) {
-        // Extract coordinates from NMEA data
-        const longitude = point.nmeaData?.gga?.longitude || 0;
-        const latitude = point.nmeaData?.gga?.latitude || 0;
+      for (const collectedFeature of projectFeatures) {
+        if (!collectedFeature.points || collectedFeature.points.length === 0) {
+          console.warn('Feature has no points:', collectedFeature.client_id);
+          continue;
+        }
+
+        // Extract coordinates from NMEA data of the first point
+        const point = collectedFeature.points[0];
+        const longitude = point?.nmeaData?.gga?.longitude || 0;
+        const latitude = point?.nmeaData?.gga?.latitude || 0;
         
-        // Find the feature type by name using the new helper method
-        const featureTypeName = point.name;
+        // Find the feature type by name
+        const featureTypeName = collectedFeature.name;
         console.log('Looking for feature type by name:', featureTypeName);
         const featureType = getFeatureTypeByName(featureTypeName);
         
@@ -309,20 +321,20 @@ export const MapControls: React.FC = () => {
         // Create a feature for the map
         const feature: Feature = {
           type: 'Feature',
-          id: point.client_id, // Use client_id as the feature id for MapLibre
+          id: collectedFeature.client_id,
           geometry: {
             type: 'Point',
-            coordinates: [longitude, latitude] // Ensure coordinates are in [longitude, latitude] format
+            coordinates: [longitude, latitude]
           },
           properties: {
             type: 'Point',
-            client_id: point.client_id,
-            name: point.name,
-            description: point.description,
-            feature_id: point.feature_id,
+            client_id: collectedFeature.client_id,
+            name: collectedFeature.name,
+            description: point?.description || '',
+            feature_id: point?.feature_id || 0,
             featureType: featureType,
-            draw_layer: point.draw_layer,
-            style: point.attributes?.style || {},
+            draw_layer: collectedFeature.draw_layer,
+            style: collectedFeature.attributes?.style || {},
             color: featureType.color
           }
         };

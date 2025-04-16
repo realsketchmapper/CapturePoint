@@ -1,20 +1,24 @@
 import React, { createContext, useReducer, useCallback, useContext } from 'react';
 import { Project, ProjectContextType } from '@/types/project.types';
+import { projectService } from '@/services/project/projectService';
 
 // Define action types
 type ProjectAction = 
   | { type: 'SET_ACTIVE_PROJECT'; payload: Project | null }
   | { type: 'CLEAR_ACTIVE_PROJECT' }
-  | { type: 'SET_ERROR'; payload: string | null };
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_PROJECTS'; payload: Project[] };
 
 // Define initial state
 interface ProjectState {
   activeProject: Project | null;
+  projects: Project[];
   error: string | null;
 }
 
 const initialState: ProjectState = {
   activeProject: null,
+  projects: [],
   error: null
 };
 
@@ -38,6 +42,12 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
         ...state, 
         error: action.payload 
       };
+    case 'SET_PROJECTS':
+      return {
+        ...state,
+        projects: action.payload,
+        error: null
+      };
     default:
       return state;
   }
@@ -45,7 +55,9 @@ function projectReducer(state: ProjectState, action: ProjectAction): ProjectStat
 
 export const ProjectContext = createContext<ProjectContextType>({
   activeProject: null,
+  projects: [],
   setActiveProject: () => {},
+  fetchProjects: async () => {},
 });
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -58,11 +70,25 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const clearActiveProject = useCallback(() => {
     dispatch({ type: 'CLEAR_ACTIVE_PROJECT' });
   }, []);
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      const projects = await projectService.fetchProjects();
+      dispatch({ type: 'SET_PROJECTS', payload: projects });
+    } catch (error) {
+      dispatch({ 
+        type: 'SET_ERROR', 
+        payload: error instanceof Error ? error.message : 'Failed to fetch projects' 
+      });
+    }
+  }, []);
   
   const value = {
     activeProject: state.activeProject,
+    projects: state.projects,
     setActiveProject,
     clearActiveProject,
+    fetchProjects,
     error: state.error
   };
 

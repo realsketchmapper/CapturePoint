@@ -9,10 +9,21 @@ export interface DeviceTypeOption {
   gnssHeight: number;
 }
 
+export type BluetoothAction =
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_SCANNING'; payload: boolean }
+  | { type: 'SET_CONNECTING'; payload: boolean }
+  | { type: 'SET_DISCONNECTING'; payload: boolean }
+  | { type: 'SET_CONNECTION_ERROR'; payload: string | null }
+  | { type: 'SET_CONNECTED_DEVICE'; payload: BluetoothDevice | null }
+  | { type: 'SET_BLUETOOTH_ENABLED'; payload: boolean }
+  | { type: 'CLEAR_ERRORS' };
+
 export interface BluetoothState {
-  isScanning: boolean;
   error: string | null;
+  isScanning: boolean;
   isConnecting: boolean;
+  isDisconnecting: boolean;
   connectionError: string | null;
   connectedDevice: BluetoothDevice | null;
   isBluetoothEnabled: boolean;
@@ -21,7 +32,7 @@ export interface BluetoothState {
 export interface BluetoothActions {
   scanDevices: (deviceType: BluetoothDeviceType) => Promise<BluetoothDevice[]>;
   connectToDevice: (device: BluetoothDevice) => Promise<boolean>;
-  disconnectDevice: (address: string) => Promise<void>;  // Added this line
+  disconnectDevice: (address: string) => Promise<void>;
   clearErrors: () => void;
 }
 
@@ -45,4 +56,18 @@ export interface DeviceSelectionModalProps {
   deviceType: BluetoothDeviceType;
 }
 
-export type BluetoothContextType = BluetoothState & BluetoothActions;
+export interface BluetoothContextType {
+  error: string | null;
+  isScanning: boolean;
+  isConnecting: boolean;
+  isDisconnecting: boolean;
+  connectionError: string | null;
+  connectedDevice: BluetoothDevice | null;
+  isBluetoothEnabled: boolean;
+  scanDevices: () => Promise<void>;
+  connectToDevice: (device: BluetoothDevice) => Promise<void>;
+  connectToLastDevice: () => Promise<void>;
+  disconnectDevice: (address: string) => Promise<void>;
+  disconnectFromDevice: () => Promise<void>;
+  clearErrors: () => void;
+}

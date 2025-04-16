@@ -5,6 +5,9 @@ import { BluetoothManager } from '@/services/bluetooth/bluetoothManager';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { useLocationContext } from '@/contexts/LocationContext';
 import RNBluetoothClassic from 'react-native-bluetooth-classic';
+import { deviceStorage } from '@/services/storage/deviceStorage';
+import { syncService } from '@/services/sync/syncService';
+import { useProjectContext } from './ProjectContext';
 
 const BluetoothContext = createContext<BluetoothContextType | null>(null);
 
@@ -58,6 +61,7 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
   const { setUsingNMEA } = useLocationContext();
   const bluetoothStateListener = useRef<any>(null);
   const bluetoothManager = BluetoothManager.getInstance();
+  const { activeProject } = useProjectContext();
 
   // Monitor Bluetooth state changes
   useEffect(() => {
@@ -145,6 +149,25 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [startListening, setUsingNMEA]);
 
+  const connectToLastDevice = useCallback(async () => {
+    try {
+      dispatch({ type: 'SET_CONNECTING', payload: true });
+      
+      const lastDevice = await deviceStorage.getLastConnectedDevice();
+      if (!lastDevice) {
+        dispatch({ type: 'SET_ERROR', payload: 'No last connected device found' });
+        return;
+      }
+      
+      await connectToDevice(lastDevice);
+    } catch (error) {
+      console.error('Error connecting to last device:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to connect to last device' });
+    } finally {
+      dispatch({ type: 'SET_CONNECTING', payload: false });
+    }
+  }, [connectToDevice]);
+
   const disconnectDevice = useCallback(async (address: string) => {
     try {
       await stopListening(address);
@@ -158,6 +181,28 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [stopListening, setUsingNMEA]);
 
+  const disconnectFromDevice = useCallback(async () => {
+    try {
+      dispatch({ type: 'SET_DISCONNECTING', payload: true });
+      
+      if (!state.connectedDevice) {
+        dispatch({ type: 'SET_ERROR', payload: 'No device connected' });
+        return;
+      }
+      
+      await state.connectedDevice.disconnect();
+      await deviceStorage.clearLastConnectedDevice();
+      
+      dispatch({ type: 'SET_CONNECTED_DEVICE', payload: null });
+      dispatch({ type: 'SET_ERROR', payload: null });
+    } catch (error) {
+      console.error('Error disconnecting from device:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to disconnect from device' });
+    } finally {
+      dispatch({ type: 'SET_DISCONNECTING', payload: false });
+    }
+  }, [state.connectedDevice]);
+
   const clearErrors = useCallback(() => {
     dispatch({ type: 'CLEAR_ERRORS' });
   }, []);
@@ -166,9 +211,22 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
     ...state,
     scanDevices,
     connectToDevice,
+    connectToLastDevice,
     disconnectDevice,
+    disconnectFromDevice,
     clearErrors
   };
+
+  // Start sync service when a project is active
+  useEffect(() => {
+    if (activeProject?.id) {
+      syncService.start(activeProject.id);
+    }
+    
+    return () => {
+      syncService.stop();
+    };
+  }, [activeProject?.id]);
 
   return (
     <BluetoothContext.Provider value={value}>

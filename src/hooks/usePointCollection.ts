@@ -5,7 +5,7 @@ import { useMapContext } from '@/contexts/MapDisplayContext';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { useProjectContext } from '@/contexts/ProjectContext';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { storageService } from '@/services/storage/storageService';
+import { featureStorageService } from '@/services/storage/featureStorageService';
 import { generateId } from '@/utils/collections';
 
 /**
@@ -56,7 +56,7 @@ export const usePointCollection = () => {
       renderFeature(featureToRender);
 
       // Save the point to storage
-      await storageService.savePoint({
+      await featureStorageService.savePoint({
         client_id: clientId,
         name: selectedFeatureType.name,
         description: '',

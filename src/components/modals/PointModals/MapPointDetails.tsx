@@ -3,7 +3,7 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
 import { Colors } from '@/theme/colors';
 import { PointCollected } from '@/types/pointCollected.types';
 import { formatDate } from '@/utils/date';
-import { storageService } from '@/services/storage/storageService';
+import { featureStorageService } from '@/services/storage/featureStorageService';
 import { AuthContext } from '@/contexts/AuthContext';
 import { AuthContextState } from '@/types/auth.types';
 import { featureTypeService } from '@/services/features/featureTypeService';
@@ -13,43 +13,13 @@ import { FeatureToRender } from '@/types/featuresToRender.types';
 import { collectedFeatureService } from '@/services/features/collectedFeatureService';
 import { Feature } from 'geojson';
 
+const MAX_DESCRIPTION_LENGTH = 500;
+
 interface MapPointDetailsProps {
   isVisible: boolean;
   onClose: () => void;
   point: PointCollected | null;
 }
-
-const MAX_DESCRIPTION_LENGTH = 50;
-
-const formatNMEATime = (time: string): string => {
-  // NMEA time format is HHMMSS.SS
-  let hours = parseInt(time.substring(0, 2));
-  const minutes = time.substring(2, 4);
-  const seconds = time.substring(4, 6);
-  const period = hours >= 12 ? 'PM' : 'AM';
-  
-  // Convert to 12-hour format
-  if (hours > 12) {
-    hours -= 12;
-  } else if (hours === 0) {
-    hours = 12;
-  }
-  
-  return `${hours}:${minutes}:${seconds} ${period}`;
-};
-
-const getFixQualityText = (quality: number): string => {
-  switch (quality) {
-    case 0: return 'Invalid';
-    case 1: return 'GPS';
-    case 2: return 'DGPS';
-    case 3: return 'PPS';
-    case 4: return 'RTK Fixed';
-    case 5: return 'RTK Float';
-    case 6: return 'Estimated (Dead Reckoning)';
-    default: return `Unknown (${quality})`;
-  }
-};
 
 const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   isVisible,
@@ -80,29 +50,18 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
     return JSON.stringify(value);
   };
 
-  // Get NMEA data from either point.nmeaData or point.attributes.nmeaData
-  const nmeaData = point.nmeaData || point.attributes?.nmeaData || {
-    gga: {
-      time: new Date().toISOString(),
-      latitude: 0,
-      longitude: 0,
-      quality: 1,
-      satellites: 0,
-      hdop: 0,
-      altitude: 0,
-      altitudeUnit: 'M',
-      geoidHeight: 0,
-      geoidHeightUnit: 'M'
-    },
-    gst: {
-      time: new Date().toISOString(),
-      rmsTotal: 0,
-      semiMajor: 0,
-      semiMinor: 0,
-      orientation: 0,
-      latitudeError: 0,
-      longitudeError: 0,
-      heightError: 0
+  const getFixQualityText = (quality: number): string => {
+    switch (quality) {
+      case 0: return 'Invalid';
+      case 1: return 'GPS Fix';
+      case 2: return 'DGPS Fix';
+      case 3: return 'PPS Fix';
+      case 4: return 'RTK Fixed';
+      case 5: return 'RTK Float';
+      case 6: return 'Estimated';
+      case 7: return 'Manual';
+      case 8: return 'Simulation';
+      default: return 'Unknown';
     }
   };
 
@@ -112,20 +71,35 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
     try {
       setIsSaving(true);
       // Update the point with new description
-      const updatedPoint = {
-        ...point,
-        description
+      const updatedFeature = {
+        name: point.name,
+        draw_layer: point.draw_layer,
+        client_id: point.client_id,
+        project_id: point.project_id,
+        points: [{
+          ...point,
+          description,
+          updated_at: new Date().toISOString(),
+          updated_by: String(user?.id || point.updated_by)
+        }],
+        attributes: point.attributes || {},
+        is_active: true,
+        created_by: Number(point.created_by),
+        created_at: point.created_at,
+        updated_by: user?.id || null,
+        updated_at: new Date().toISOString()
       };
       
-      // Save back to storage using updatePoint
-      await storageService.updatePoint(updatedPoint);
+      // Save back to storage using updateFeature
+      await featureStorageService.updateFeature(updatedFeature);
       setIsEditing(false);
     } catch (error) {
       console.error('Error saving description:', error);
+      Alert.alert('Error', 'Failed to save description. Please try again.');
     } finally {
       setIsSaving(false);
     }
-  }, [point, description, isSaving]);
+  }, [point, description, isSaving, user?.id]);
 
   const handleDelete = useCallback(async () => {
     if (!point || !activeProject || isDeleting) return;
@@ -145,62 +119,47 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
             try {
               setIsDeleting(true);
               
-              // Try to inactivate the feature - this might succeed or fail if already inactive
+              // Try to inactivate the feature
               try {
                 await collectedFeatureService.inactivateFeature(activeProject.id, point.feature_id.toString());
               } catch (error) {
                 console.log('Error inactivating feature:', error);
-                // Continue with refresh even if inactivation failed - the feature might already be inactive
               }
               
-              // Always refresh the features to ensure map is in sync with backend
-              try {
-                // Clear existing features first
-                clearFeatures();
-                // Fetch and update with active features
-                const activeFeatures = await collectedFeatureService.fetchActiveFeatures(activeProject.id);
-                // Render each active feature on the map
-                activeFeatures.forEach((feature: any) => {
-                  // Skip features without valid coordinates
-                  if (!feature.nmeaData || !feature.nmeaData.gga) {
-                    console.warn('Skipping feature with invalid NMEA data:', feature.client_id);
-                    return;
-                  }
+              // Clear existing features and refresh
+              clearFeatures();
+              const activeFeatures = await collectedFeatureService.fetchActiveFeatures(activeProject.id);
+              
+              // Render each active feature on the map
+              activeFeatures.forEach((feature: any) => {
+                if (!feature.nmeaData?.gga) {
+                  console.warn('Skipping feature with invalid NMEA data:', feature.client_id);
+                  return;
+                }
 
-                  try {
-                    // Ensure coordinates are in the correct format
-                    let formattedCoordinates: [number, number] | [number, number][];
-                    
-                    // For points, we'll use the GGA data for coordinates
-                    const lon = feature.nmeaData.gga.longitude;
-                    const lat = feature.nmeaData.gga.latitude;
-                    
-                    if (lon !== undefined && lat !== undefined) {
-                      formattedCoordinates = [lon, lat] as [number, number];
-                      
-                      const featureToRender: FeatureToRender = {
-                        type: 'Point',
-                        coordinates: formattedCoordinates,
-                        properties: {
-                          featureId: feature.feature_id,
-                          name: feature.name,
-                          description: feature.description,
-                          draw_layer: feature.draw_layer,
-                          ...feature.attributes
-                        }
-                      };
-                      renderFeature(featureToRender);
-                    }
-                  } catch (error) {
-                    console.error('Error formatting coordinates for feature:', feature.client_id, error);
-                  }
-                });
+                const lon = feature.nmeaData.gga.longitude;
+                const lat = feature.nmeaData.gga.latitude;
                 
-                onClose();
-              } catch (error) {
-                console.error('Error refreshing features:', error);
-                Alert.alert('Warning', 'The map may need to be refreshed manually.');
-              }
+                if (lon !== undefined && lat !== undefined) {
+                  const featureToRender: FeatureToRender = {
+                    type: 'Point',
+                    coordinates: [lon, lat],
+                    properties: {
+                      featureId: feature.feature_id,
+                      name: feature.name,
+                      description: feature.description,
+                      draw_layer: feature.draw_layer,
+                      ...feature.attributes
+                    }
+                  };
+                  renderFeature(featureToRender);
+                }
+              });
+              
+              onClose();
+            } catch (error) {
+              console.error('Error refreshing features:', error);
+              Alert.alert('Warning', 'The map may need to be refreshed manually.');
             } finally {
               setIsDeleting(false);
             }
@@ -259,7 +218,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 </View>
                 
                 {/* Description Field */}
-                <View style={styles.detailRow}>
+                <View style={styles.descriptionRow}>
                   <Text style={styles.label}>Description:</Text>
                   <View style={styles.descriptionContainer}>
                     {isEditing ? (
@@ -324,51 +283,51 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 {/* Position */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Longitude:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData.gga.longitude)}</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.longitude)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Latitude:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData.gga.latitude)}</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.latitude)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Altitude:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData.gga.altitude)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.altitude)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Geoid Height:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData.gga.geoidHeight)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.geoidHeight)} m</Text>
                 </View>
 
                 {/* Quality Indicators */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Fix Quality:</Text>
-                  <Text style={styles.value}>{getFixQualityText(nmeaData.gga.quality)}</Text>
+                  <Text style={styles.value}>{getFixQualityText(point.nmeaData.gga.quality)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Satellites:</Text>
-                  <Text style={styles.value}>{nmeaData.gga.satellites}</Text>
+                  <Text style={styles.value}>{point.nmeaData.gga.satellites}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>HDOP:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData.gga.hdop)}</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.hdop)}</Text>
                 </View>
 
                 {/* Error Estimates */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>RMS Total:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData.gst.rmsTotal)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.rmsTotal)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Lat Error:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData.gst.latitudeError)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.latitudeError)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Lon Error:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData.gst.longitudeError)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.longitudeError)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Height Error:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData.gst.heightError)} m</Text>
+                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.heightError)} m</Text>
                 </View>
               </View>
             </View>
@@ -424,6 +383,14 @@ const styles = StyleSheet.create({
   headerButton: {
     padding: 8,
     borderRadius: 5,
+  },
+  deleteButton: {
+    backgroundColor: Colors.BrightRed,
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
   closeButtonText: {
     color: Colors.DarkBlue,
@@ -482,29 +449,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.Grey,
     borderRadius: 5,
-    padding: 5,
-    fontSize: 14,
-  },
-  characterCount: {
-    fontSize: 12,
-    color: Colors.Grey,
-    alignSelf: 'flex-end',
+    padding: 8,
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
   descriptionButtons: {
     flexDirection: 'row',
-    gap: 5,
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 5,
   },
   descriptionButton: {
-    padding: 5,
+    padding: 8,
     borderRadius: 5,
-    flex: 1,
-  },
-  editButton: {
-    marginLeft: 10,
-  },
-  editButtonText: {
-    color: Colors.DarkBlue,
-    fontSize: 14,
+    minWidth: 80,
+    alignItems: 'center',
   },
   cancelButton: {
     backgroundColor: Colors.Grey,
@@ -513,19 +472,23 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.DarkBlue,
   },
   buttonText: {
-    fontSize: 14,
     color: 'white',
-    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '500',
   },
-  deleteButton: {
-    backgroundColor: Colors.BrightRed,
+  characterCount: {
+    fontSize: 12,
+    color: Colors.Grey,
+    textAlign: 'right',
+  },
+  editButton: {
+    padding: 5,
     borderRadius: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: Colors.DarkBlue,
   },
-  deleteButtonText: {
+  editButtonText: {
     color: 'white',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
   },
 });

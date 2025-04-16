@@ -3,10 +3,10 @@ import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties }
 import { FeatureToRender } from '@/types/featuresToRender.types';
 import { MapContextType, Coordinate, FeatureType } from '@/types/map.types';
 import { generateId } from '@/utils/collections';
-import { biDirectionalSyncService } from '@/services/sync/biDirectionalSyncService';
+import { syncService } from '@/services/sync/syncService';
 import { useProjectContext } from './ProjectContext';
 import { useFeatureTypeContext } from './FeatureTypeContext';
-import { storageService } from '@/services/storage/storageService';
+import { featureStorageService } from '@/services/storage/featureStorageService';
 
 const MapContext = createContext<MapContextType | undefined>(undefined);
 
@@ -260,7 +260,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: true, lastSyncTime: null } });
       
-      const result = await biDirectionalSyncService.syncProject(activeProject.id);
+      const result = await syncService.syncProject(activeProject.id);
       
       if (result.success) {
         // Update last sync time
@@ -279,16 +279,16 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         dispatch({ type: 'CLEAR_FEATURES' });
         
         // Load features from storage
-        const projectPoints = await storageService.getPointsForProject(activeProject.id);
+        const projectFeatures = await featureStorageService.getFeaturesForProject(activeProject.id);
         
-        // Add each point to the map
-        for (const point of projectPoints) {
-          // Extract coordinates from NMEA data
-          const longitude = point.nmeaData?.gga?.longitude || 0;
-          const latitude = point.nmeaData?.gga?.latitude || 0;
+        // Add each feature to the map
+        for (const feature of projectFeatures) {
+          // Extract coordinates from NMEA data of the first point
+          const longitude = feature.points[0]?.nmeaData?.gga?.longitude || 0;
+          const latitude = feature.points[0]?.nmeaData?.gga?.latitude || 0;
           
           // Find the feature type by name using the helper method
-          const featureTypeName = point.name;
+          const featureTypeName = feature.name;
           console.log('Looking for feature type by name:', featureTypeName);
           const featureType = getFeatureTypeByName(featureTypeName);
           
@@ -298,28 +298,28 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           
           // Create a feature for the map
-          const feature: Feature = {
+          const mapFeature: Feature = {
             type: 'Feature',
-            id: point.client_id,
+            id: feature.client_id,
             geometry: {
               type: 'Point',
               coordinates: [longitude, latitude]
             },
             properties: {
               type: 'Point',
-              client_id: point.client_id,
-              name: point.name,
-              description: point.description,
-              feature_id: point.feature_id,
+              client_id: feature.client_id,
+              name: feature.name,
+              description: feature.points[0]?.description || '',
+              feature_id: feature.points[0]?.feature_id || 0,
               featureType: featureType,
-              draw_layer: featureType.draw_layer,
-              style: point.attributes?.style || {},
+              draw_layer: feature.draw_layer,
+              style: feature.attributes?.style || {},
               color: featureType.color
             }
           };
           
           // Add to map
-          dispatch({ type: 'ADD_FEATURE', payload: feature });
+          dispatch({ type: 'ADD_FEATURE', payload: mapFeature });
         }
       }
     } catch (error) {
@@ -334,7 +334,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: true, lastSyncTime: null } });
       
-      const result = await biDirectionalSyncService.syncAllProjects();
+      const result = await syncService.syncProject(activeProject?.id || 0);
       
       if (result.success) {
         // Update last sync time
@@ -368,7 +368,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         payload: { isSyncing: false, lastSyncTime: null } 
       });
     }
-  }, []);
+  }, [activeProject?.id]);
 
   const setIsMapReady = (isReady: boolean) => dispatch({ type: 'SET_MAP_READY', payload: isReady });
   const addFeature = (feature: Feature) => dispatch({ type: 'ADD_FEATURE', payload: feature });

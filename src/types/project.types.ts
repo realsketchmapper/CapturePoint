@@ -33,7 +33,11 @@ export interface ProjectNameDisplayProps {
 
 export interface ProjectContextType {
   activeProject: Project | null;
+  projects: Project[];
   setActiveProject: (project: Project | null) => void;
+  clearActiveProject: () => void;
+  fetchProjects: () => Promise<void>;
+  error: string | null;
 }
 
 export interface ProjectProviderProps {

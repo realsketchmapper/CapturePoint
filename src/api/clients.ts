@@ -4,6 +4,14 @@ import { tokenStorage } from '../services/auth/tokenStorage';
 
 console.log('Clients.ts loaded');
 
+// Helper function to replace placeholders in URL
+const replaceUrlPlaceholders = (url: string, params: Record<string, any>): string => {
+  let result = url;
+  for (const [key, value] of Object.entries(params)) {
+    result = result.replace(`:${key}`, String(value));
+  }
+  return result;
+};
 
 const api = axios.create({
   baseURL: API_ENDPOINTS.BASE_URL,
@@ -22,6 +30,11 @@ api.interceptors.request.use(
       const credentials = await tokenStorage.getStoredCredentials();
       if (credentials?.token) {
         config.headers.Authorization = `Bearer ${credentials.token}`;
+      }
+
+      // Replace placeholders in URL if they exist
+      if (config.url) {
+        config.url = replaceUrlPlaceholders(config.url, config.params || {});
       }
     } catch (error) {
       console.error('Error retrieving token:', error);
