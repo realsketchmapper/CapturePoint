@@ -11,6 +11,7 @@ import {
   CircleLayer,
 } from '@maplibre/maplibre-react-native';
 import { RightSidebarContainer } from './RightSideBar/RightSidebarContainer';
+import { LeftSidebarContainer } from './LeftSideBar/LeftSidebarContainer';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useSettingsContext } from '@/contexts/SettingsContext';
@@ -30,6 +31,7 @@ import { FeatureToRender } from '@/types/featuresToRender.types';
 import { Feature, Point } from 'geojson';
 import { generateId } from '@/utils/collections';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
+import { LayerControl } from './LayerControl';
 
 
 // Helper function to convert Position to coordinates array
@@ -51,7 +53,8 @@ export const MapControls: React.FC = () => {
     error,
     addPoint,
     renderFeature,
-    addFeature
+    addFeature,
+    removeFeature,
   } = useMapContext();
   const { currentLocation } = useLocationContext();
   const { settings } = useSettingsContext();
@@ -377,8 +380,13 @@ export const MapControls: React.FC = () => {
 
   // Memoize feature creation
   const createMapFeature = useCallback((collectedFeature: CollectedFeature, point: PointCollected, featureType: any) => {
-    const longitude = point.nmeaData.gga.longitude;
-    const latitude = point.nmeaData.gga.latitude;
+    const longitude = point.attributes?.nmeaData?.gga?.longitude;
+    const latitude = point.attributes?.nmeaData?.gga?.latitude;
+
+    if (!longitude || !latitude) {
+      console.warn('Invalid coordinates in feature:', collectedFeature.client_id);
+      return null;
+    }
 
     return {
       type: 'Feature',
@@ -422,9 +430,10 @@ export const MapControls: React.FC = () => {
       <MapView
         ref={mapRef}
         style={styles.map}
+        onDidFinishLoadingMap={handleMapReady}
+        onRegionWillChange={handleRegionWillChange}
         mapStyle={getMapStyle(settings.basemapStyle)}
         onPress={handleMapClick}
-        onDidFinishLoadingMap={() => setIsMapReady(true)}
       >
         <Camera
           ref={cameraRef}
@@ -451,6 +460,7 @@ export const MapControls: React.FC = () => {
         <ClearStorageButton />
       </View>
 
+      <LeftSidebarContainer />
       <RightSidebarContainer />
 
       <MapPointDetails

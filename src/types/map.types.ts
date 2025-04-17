@@ -23,6 +23,11 @@ export interface MapContextType {
   renderFeature: (feature: FeatureToRender) => string | null;
   previewFeature: (coordinates: Coordinate | Coordinate[], type: FeatureType) => string | null;
   
+  // Layer visibility
+  visibleLayers: Record<string, boolean>;
+  setVisibleLayers: (layers: Record<string, boolean>) => void;
+  toggleLayer: (layer: string) => void;
+  
   // Sync state and operations
   isSyncing: boolean;
   lastSyncTime: string | null;

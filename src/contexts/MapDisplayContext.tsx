@@ -26,7 +26,9 @@ type MapAction =
   | { type: 'REMOVE_FEATURE'; payload: string }
   | { type: 'CLEAR_FEATURES' }
   | { type: 'SET_ERROR'; payload: string | null }
-  | { type: 'SET_SYNC_STATUS'; payload: { isSyncing: boolean; lastSyncTime: string | null } };
+  | { type: 'SET_SYNC_STATUS'; payload: { isSyncing: boolean; lastSyncTime: string | null } }
+  | { type: 'SET_VISIBLE_LAYERS'; payload: Record<string, boolean> }
+  | { type: 'TOGGLE_LAYER'; payload: string };
 
 // Define initial state
 interface MapState {
@@ -35,6 +37,7 @@ interface MapState {
   error: string | null;
   isSyncing: boolean;
   lastSyncTime: string | null;
+  visibleLayers: Record<string, boolean>;
 }
 
 const initialState: MapState = {
@@ -45,7 +48,8 @@ const initialState: MapState = {
   },
   error: null,
   isSyncing: false,
-  lastSyncTime: null
+  lastSyncTime: null,
+  visibleLayers: {}
 };
 
 // Reducer function
@@ -100,6 +104,19 @@ function mapReducer(state: MapState, action: MapAction): MapState {
         ...state,
         isSyncing: action.payload.isSyncing,
         lastSyncTime: action.payload.lastSyncTime
+      };
+    case 'SET_VISIBLE_LAYERS':
+      return {
+        ...state,
+        visibleLayers: action.payload
+      };
+    case 'TOGGLE_LAYER':
+      return {
+        ...state,
+        visibleLayers: {
+          ...state.visibleLayers,
+          [action.payload]: !state.visibleLayers[action.payload]
+        }
       };
     default:
       return state;
@@ -384,6 +401,14 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addFeature = (feature: Feature) => dispatch({ type: 'ADD_FEATURE', payload: feature });
   const setError = (error: string | null) => dispatch({ type: 'SET_ERROR', payload: error });
 
+  const setVisibleLayers = useCallback((layers: Record<string, boolean>) => {
+    dispatch({ type: 'SET_VISIBLE_LAYERS', payload: layers });
+  }, []);
+
+  const toggleLayer = useCallback((layer: string) => {
+    dispatch({ type: 'TOGGLE_LAYER', payload: layer });
+  }, []);
+
   return (
     <MapContext.Provider value={{
       features: state.features,
@@ -402,7 +427,10 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addPoint,
       addLine,
       renderFeature,
-      previewFeature
+      previewFeature,
+      visibleLayers: state.visibleLayers,
+      setVisibleLayers,
+      toggleLayer
     }}>
       {children}
     </MapContext.Provider>
