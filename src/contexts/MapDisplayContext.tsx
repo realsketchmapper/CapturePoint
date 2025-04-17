@@ -109,7 +109,7 @@ function mapReducer(state: MapState, action: MapAction): MapState {
 export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(mapReducer, initialState);
   const { activeProject } = useProjectContext();
-  const { featureTypes, getFeatureTypeByName } = useFeatureTypeContext();
+  const { featureTypes, getFeatureTypeByName, fetchFeatureTypes } = useFeatureTypeContext();
 
   // Validate coordinates for both points and lines
   const isValidCoords = useCallback((coords: any): boolean => {
@@ -275,7 +275,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Clear any existing error
         dispatch({ type: 'SET_ERROR', payload: null });
         
-        // Clear existing features and reload from storage
+        // Clear existing features
         dispatch({ type: 'CLEAR_FEATURES' });
         
         // Load features from storage
@@ -283,11 +283,21 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         // Add each feature to the map
         for (const feature of projectFeatures) {
-          // Extract coordinates from NMEA data of the first point
-          const longitude = feature.points[0]?.nmeaData?.gga?.longitude || 0;
-          const latitude = feature.points[0]?.nmeaData?.gga?.latitude || 0;
+          if (!feature.points || feature.points.length === 0) {
+            console.warn('Feature has no points:', feature.client_id);
+            continue;
+          }
+
+          const point = feature.points[0];
+          if (!point.attributes?.nmeaData?.gga?.longitude || !point.attributes?.nmeaData?.gga?.latitude) {
+            console.warn('Feature has invalid coordinates:', feature.client_id);
+            continue;
+          }
           
-          // Find the feature type by name using the helper method
+          const longitude = point.attributes.nmeaData.gga.longitude;
+          const latitude = point.attributes.nmeaData.gga.latitude;
+          
+          // Find the feature type by name
           const featureTypeName = feature.name;
           console.log('Looking for feature type by name:', featureTypeName);
           const featureType = getFeatureTypeByName(featureTypeName);
@@ -309,8 +319,8 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               type: 'Point',
               client_id: feature.client_id,
               name: feature.name,
-              description: feature.points[0]?.description || '',
-              feature_id: feature.points[0]?.feature_id || 0,
+              description: point?.description || '',
+              feature_id: point?.feature_id || 0,
               featureType: featureType,
               draw_layer: feature.draw_layer,
               style: feature.attributes?.style || {},
@@ -328,7 +338,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: false, lastSyncTime: null } });
     }
-  }, [activeProject, getFeatureTypeByName, featureTypes]);
+  }, [activeProject, dispatch, featureTypes, getFeatureTypeByName]);
 
   const syncAllProjects = useCallback(async () => {
     try {

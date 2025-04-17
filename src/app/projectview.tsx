@@ -9,11 +9,12 @@ import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { calculateDistance, HALF_MILE_IN_METERS } from '@/utils/distance';
 import { ProjectDistanceWarningModal } from '@/components/modals/ProjectModals/ProjectDistanceWarningModal';
+import { syncService } from '@/services/sync/syncService';
 
 const ProjectView = () => {
   const { projects, loading, error, fetchProjects } = useProjects();
   const { setActiveProject, activeProject } = useContext(ProjectContext);
-  const { fetchFeatureTypes, clearFeatureTypes } = useFeatureTypeContext();
+  const { fetchFeatureTypes, clearFeatureTypes, featureTypesLoaded } = useFeatureTypeContext();
   const { currentLocation } = useLocationContext();
   
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -57,17 +58,29 @@ const ProjectView = () => {
     try {
       console.log('Opening project:', project.name);
       
-      // Clear existing feature types first
-      clearFeatureTypes();
-      console.log('Cleared feature types');
+      // Only clear feature types if switching to a different project
+      if (activeProject?.id !== project.id) {
+        clearFeatureTypes();
+        console.log('Cleared feature types for new project');
+      }
       
       // Set the active project
       setActiveProject(project);
       console.log('Set active project');
       
-      // Fetch feature types for the project
-      await fetchFeatureTypes(project.id);
-      console.log('Fetched feature types');
+      // Initialize sync service for the project and wait for initial sync
+      syncService.start(project.id);
+      console.log('Initialized sync service');
+      
+      // Wait for initial sync to complete
+      const syncResult = await syncService.syncProject(project.id);
+      console.log('Initial sync completed:', syncResult);
+      
+      // Only fetch feature types if we don't have them already
+      if (!featureTypesLoaded) {
+        await fetchFeatureTypes(project.id);
+        console.log('Fetched feature types');
+      }
       
       // Navigate to map view
       router.replace('/mapview');
