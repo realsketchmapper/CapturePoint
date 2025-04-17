@@ -9,6 +9,7 @@ import { AuthContext } from '@/contexts/AuthContext';
 import { ProjectContext } from '@/contexts/ProjectContext';
 import { featureStorageService } from '@/services/storage/featureStorageService';
 import { syncService } from '@/services/sync/syncService';
+import { standardizeDateTime, getCurrentStandardizedTime } from '@/utils/datetime';
 // Replace v4 import with a more React Native friendly approach
 import 'react-native-get-random-values'; // Add this import at the top
 import { v4 as uuidv4 } from 'uuid';
@@ -60,8 +61,8 @@ const initialState = {
       description: '',
       project_id: 0,
       created_by: '',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: getCurrentStandardizedTime(),
+      updated_at: getCurrentStandardizedTime(),
       updated_by: ''
     }
   },
@@ -119,8 +120,8 @@ function collectionReducer(state: typeof initialState, action: CollectionAction)
             description: '',
             project_id: 0,
             created_by: '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            created_at: getCurrentStandardizedTime(),
+            updated_at: getCurrentStandardizedTime(),
             updated_by: ''
           }
         }
@@ -203,8 +204,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           description: '',
           project_id: activeProject?.id || 0,
           created_by: String(user?.id || 'unknown'),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: getCurrentStandardizedTime(),
+          updated_at: getCurrentStandardizedTime(),
           updated_by: String(user?.id || 'unknown')
         }
       };
@@ -219,8 +220,8 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         description: '',
         project_id: activeProject?.id || 0,
         created_by: String(user?.id || 'unknown'),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: getCurrentStandardizedTime(),
+        updated_at: getCurrentStandardizedTime(),
         updated_by: String(user?.id || 'unknown')
       }
     };
@@ -242,7 +243,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       metadata: {
         ...state.collectionState.metadata,
         ...metadata,
-        updated_at: new Date().toISOString(),
+        updated_at: getCurrentStandardizedTime(),
         updated_by: String(user?.id || 'unknown')
       }
     };
@@ -284,34 +285,36 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         name: pointData.name || state.activeFeatureType.name,
         description: pointData.description || '',
         draw_layer: pointData.draw_layer || state.activeFeatureType.draw_layer,
-        nmeaData: pointData.nmeaData || {
-          gga: {
-            latitude: state.points[0][1],
-            longitude: state.points[0][0],
-            altitude: 0,
-            altitudeUnit: 'M',
-            geoidHeight: 0,
-            geoidHeightUnit: 'M',
-            hdop: 0,
-            quality: 0,
-            satellites: 0,
-            time: new Date().toISOString()
-          },
-          gst: {
-            latitudeError: 0,
-            longitudeError: 0,
-            heightError: 0,
-            time: new Date().toISOString(),
-            rmsTotal: 0,
-            semiMajor: 0,
-            semiMinor: 0,
-            orientation: 0
+        attributes: {
+          ...pointData.attributes,
+          nmeaData: pointData.attributes?.nmeaData || {
+            gga: {
+              latitude: state.points[0][1],
+              longitude: state.points[0][0],
+              altitude: 0,
+              altitudeUnit: 'M',
+              geoidHeight: 0,
+              geoidHeightUnit: 'M',
+              hdop: 0,
+              quality: 0,
+              satellites: 0,
+              time: getCurrentStandardizedTime()
+            },
+            gst: {
+              latitudeError: 0,
+              longitudeError: 0,
+              heightError: 0,
+              time: getCurrentStandardizedTime(),
+              rmsTotal: 0,
+              semiMajor: 0,
+              semiMinor: 0,
+              orientation: 0
+            }
           }
         },
-        attributes: pointData.attributes || {},
         created_by: state.metadata.created_by,
         created_at: state.metadata.created_at,
-        updated_at: new Date().toISOString(),
+        updated_at: getCurrentStandardizedTime(),
         updated_by: state.metadata.updated_by,
         synced: false,
         feature_id: 0, // We'll set this when syncing with the server

@@ -7,6 +7,7 @@ import { useProjectContext } from '@/contexts/ProjectContext';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { featureStorageService } from '@/services/storage/featureStorageService';
 import { generateId } from '@/utils/collections';
+import { getCurrentStandardizedTime } from '@/utils/datetime';
 
 /**
  * Hook for collecting point features
@@ -25,7 +26,7 @@ export const usePointCollection = () => {
    */
   const handlePointCollection = useCallback(async () => {
     if (!currentLocation || !selectedFeatureType) {
-      console.warn('Cannot collect point: No location or feature type selected');
+      console.warn('Cannot collect point: Missing location or feature type');
       return;
     }
 
@@ -35,7 +36,6 @@ export const usePointCollection = () => {
         ? currentLocation
         : [currentLocation.longitude, currentLocation.latitude];
 
-      // Create a unique ID for the point
       const clientId = generateId();
 
       // Create the feature to render
@@ -61,36 +61,36 @@ export const usePointCollection = () => {
         name: selectedFeatureType.name,
         description: '',
         draw_layer: selectedFeatureType.draw_layer,
-        nmeaData: {
-          gga: ggaData || {
-            time: new Date().toISOString(),
-            latitude: coordinates[1],
-            longitude: coordinates[0],
-            quality: 1, // GPS
-            satellites: 8,
-            hdop: 1.0,
-            altitude: 0,
-            altitudeUnit: 'M',
-            geoidHeight: 0,
-            geoidHeightUnit: 'M'
-          },
-          gst: gstData || {
-            time: new Date().toISOString(),
-            rmsTotal: 0,
-            semiMajor: 0,
-            semiMinor: 0,
-            orientation: 0,
-            latitudeError: 0,
-            longitudeError: 0,
-            heightError: 0
-          }
-        },
         attributes: {
+          nmeaData: {
+            gga: ggaData || {
+              time: getCurrentStandardizedTime(),
+              latitude: coordinates[1],
+              longitude: coordinates[0],
+              quality: 1, // GPS
+              satellites: 8,
+              hdop: 1.0,
+              altitude: 0,
+              altitudeUnit: 'M',
+              geoidHeight: 0,
+              geoidHeightUnit: 'M'
+            },
+            gst: gstData || {
+              time: getCurrentStandardizedTime(),
+              rmsTotal: 0,
+              semiMajor: 0,
+              semiMinor: 0,
+              orientation: 0,
+              latitudeError: 0,
+              longitudeError: 0,
+              heightError: 0
+            }
+          },
           featureTypeName: selectedFeatureType.name
         },
         created_by: String(user?.id || 'unknown'),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: getCurrentStandardizedTime(),
+        updated_at: getCurrentStandardizedTime(),
         updated_by: String(user?.id || 'unknown'),
         synced: false,
         feature_id: 0,

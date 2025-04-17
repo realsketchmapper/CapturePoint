@@ -1,17 +1,44 @@
 import { GGAData, GSTData } from "./nmea.types";
 
-export interface PointCollected {
+// Common NMEA data structure used throughout
+export interface NmeaData {
+  gga: GGAData;
+  gst: GSTData;
+}
+
+// Structure for a single point
+export interface PointData {
   client_id: string;
-  name: string,
+  coords: [number, number];
+  created_at: string;
+  created_by: number;
+  fcode: string;
+  is_active: boolean;
+  updated_at: string;
+  updated_by: number;
+  attributes?: {
+    nmeaData?: NmeaData;
+    [key: string]: any;  // Additional custom attributes
+  };
+}
+
+export interface PointCollected {
+  // Basic point info
+  client_id: string;
+  name: string;
   description: string;
   draw_layer: string;
-  nmeaData: {
-    gga: GGAData;
-    gst: GSTData;
-  };
+  
+  // Attributes including NMEA data
   attributes?: {
-    [key: string]: any;  // Additional custom attributes that can be added dynamically
+    nmeaData?: NmeaData;
+    [key: string]: any;  // Additional custom attributes
   };
+  
+  // For server-synced points
+  points?: PointData[];
+  
+  // Metadata
   created_by: string;
   created_at: string;
   updated_at: string;

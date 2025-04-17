@@ -36,6 +36,23 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Helper function to get nmeaData regardless of point structure
+  const getNmeaData = (point: PointCollected) => {
+    // Check if nmeaData is directly on the point
+    if (point.attributes?.nmeaData) {
+      return point.attributes.nmeaData;
+    }
+    // Check if nmeaData is in points[0].attributes
+    if (point.points?.[0]?.attributes?.nmeaData) {
+      return point.points[0].attributes.nmeaData;
+    }
+    // Check if nmeaData is in points[0].attributes
+    if (point.points?.[0]?.attributes?.nmeaData) {
+      return point.points[0].attributes.nmeaData;
+    }
+    return null;
+  };
+
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) return 'N/A';
     if (typeof value === 'string') return value;
@@ -283,51 +300,51 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 {/* Position */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Longitude:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.longitude)}</Text>
+                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gga?.longitude)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Latitude:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.latitude)}</Text>
+                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gga?.latitude)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Altitude:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.altitude)} m</Text>
+                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gga?.altitude)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Geoid Height:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.geoidHeight)} m</Text>
+                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gga?.geoidHeight)} m</Text>
                 </View>
 
                 {/* Quality Indicators */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Fix Quality:</Text>
-                  <Text style={styles.value}>{getFixQualityText(point.nmeaData.gga.quality)}</Text>
+                  <Text style={styles.value}>{getFixQualityText(getNmeaData(point)?.gga?.quality ?? 0)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Satellites:</Text>
-                  <Text style={styles.value}>{point.nmeaData.gga.satellites}</Text>
+                  <Text style={styles.value}>{getNmeaData(point)?.gga?.satellites}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>HDOP:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gga.hdop)}</Text>
+                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gga?.hdop)}</Text>
                 </View>
 
                 {/* Error Estimates */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>RMS Total:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.rmsTotal)} m</Text>
+                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gst?.rmsTotal)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Lat Error:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.latitudeError)} m</Text>
+                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gst?.latitudeError)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Lon Error:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.longitudeError)} m</Text>
+                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gst?.longitudeError)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Height Error:</Text>
-                  <Text style={styles.value}>{formatValue(point.nmeaData.gst.heightError)} m</Text>
+                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gst?.heightError)} m</Text>
                 </View>
               </View>
             </View>

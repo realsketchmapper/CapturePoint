@@ -2,10 +2,11 @@ import { api } from '@/api/clients';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { featureStorageService } from '../storage/featureStorageService';
 import NetInfo from '@react-native-community/netinfo';
-import { PointCollected } from '@/types/pointCollected.types';
+import { PointCollected, PointData } from '@/types/pointCollected.types';
 import { AxiosError } from 'axios';
 import { syncLogger } from '../logging/syncLogger';
 import { AppState, AppStateStatus } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * Interface representing the result of a sync operation
@@ -57,6 +58,88 @@ class SyncService {
   private readonly MAX_RETRIES = 3;
   private readonly INITIAL_RETRY_DELAY = 1000; // 1 second
   private readonly MAX_RETRY_DELAY = 30000; // 30 seconds
+
+  /**
+   * Standardizes a datetime string to ISO format without timezone offset
+   * @param date - Date string or Date object
+   * @returns ISO string without timezone offset
+   */
+  private standardizeDateTime(date: string | Date): string {
+    try {
+      if (!date) {
+        return new Date().toISOString().split('.')[0] + 'Z';
+      }
+      
+      // If it's already a Date object, use it directly
+      if (date instanceof Date) {
+        return date.toISOString().split('.')[0] + 'Z';
+      }
+      
+      // Try to parse the date string
+      const parsedDate = new Date(date);
+      
+      // Check if the date is valid
+      if (isNaN(parsedDate.getTime())) {
+        console.warn('Invalid date string:', date);
+        return new Date().toISOString().split('.')[0] + 'Z';
+      }
+      
+      return parsedDate.toISOString().split('.')[0] + 'Z';
+    } catch (error) {
+      console.warn('Error standardizing date:', error);
+      return new Date().toISOString().split('.')[0] + 'Z';
+    }
+  }
+
+  /**
+   * Standardizes all datetime values in a point object
+   * @param point - The point to standardize
+   * @returns Point with standardized datetime values
+   */
+  private standardizePointDatetimes(point: PointCollected): PointCollected {
+    const standardizedPoint: PointCollected = {
+      ...point,
+      created_at: this.standardizeDateTime(point.created_at),
+      updated_at: this.standardizeDateTime(point.updated_at)
+    };
+
+    if (point.points) {
+      standardizedPoint.points = point.points.map(p => {
+        const standardizedPointData: PointData = {
+          ...p,
+          created_at: this.standardizeDateTime(p.created_at),
+          updated_at: this.standardizeDateTime(p.updated_at)
+        };
+
+        if (p.attributes?.nmeaData) {
+          const nmeaData = { ...p.attributes.nmeaData };
+          
+          if (nmeaData.gga) {
+            nmeaData.gga = {
+              ...nmeaData.gga,
+              time: this.standardizeDateTime(nmeaData.gga.time)
+            };
+          }
+          
+          if (nmeaData.gst) {
+            nmeaData.gst = {
+              ...nmeaData.gst,
+              time: this.standardizeDateTime(nmeaData.gst.time)
+            };
+          }
+
+          standardizedPointData.attributes = {
+            ...p.attributes,
+            nmeaData
+          };
+        }
+
+        return standardizedPointData;
+      });
+    }
+
+    return standardizedPoint;
+  }
 
   constructor() {
     // Listen to app state changes
@@ -172,8 +255,8 @@ class SyncService {
    */
   private formatPointForAPI(point: PointCollected): FormattedPoint | null {
     // Extract coordinates from NMEA data
-    const longitude = point.nmeaData?.gga?.longitude;
-    const latitude = point.nmeaData?.gga?.latitude;
+    const longitude = point.attributes?.nmeaData?.gga?.longitude;
+    const latitude = point.attributes?.nmeaData?.gga?.latitude;
     
     // Skip points with missing coordinates
     if (longitude === undefined || latitude === undefined || longitude === null || latitude === null) {
@@ -183,7 +266,7 @@ class SyncService {
     
     return {
       clientId: String(point.client_id),
-      lastModified: point.updated_at,
+      lastModified: this.standardizeDateTime(point.updated_at),
       data: {
         name: point.name,
         description: point.description,
@@ -193,17 +276,17 @@ class SyncService {
         points: [{
           client_id: point.client_id,
           coords: [longitude, latitude],
-          created_at: point.created_at,
-          updated_at: point.updated_at,
+          created_at: this.standardizeDateTime(point.created_at),
+          updated_at: this.standardizeDateTime(point.updated_at),
           attributes: {
             nmeaData: {
-              gga: point.nmeaData.gga,
-              gst: point.nmeaData.gst
+              gga: point.attributes?.nmeaData?.gga,
+              gst: point.attributes?.nmeaData?.gst
             }
           }
         }],
-        created_at: point.created_at,
-        updated_at: point.updated_at,
+        created_at: this.standardizeDateTime(point.created_at),
+        updated_at: this.standardizeDateTime(point.updated_at),
         attributes: {}
       }
     };
@@ -259,58 +342,155 @@ class SyncService {
    * @returns Promise resolving to the number of features synced from server to local
    */
   private async syncFromServerToLocal(projectId: number): Promise<number> {
-    return this.executeWithRetry(
-      async () => {
-        await syncLogger.logSyncOperation('server_to_local_start', projectId, {
-          timestamp: new Date().toISOString()
-        });
+    console.log('=== Starting syncFromServerToLocal ===');
+    console.log('Project ID:', projectId);
 
-        const endpoint = API_ENDPOINTS.SYNC_COLLECTED_FEATURES.replace(':projectId', projectId.toString());
-        const response = await api.post(endpoint, {
-          features: [],
-          lastSyncTimestamp: new Date().toISOString()
-        });
+    try {
+      // Get the last sync timestamp from storage
+      const lastSyncTime = await this.getLastSyncTimestamp(projectId);
+      const startTime = lastSyncTime || '1970-01-01T00:00:00Z';
+      console.log('Using epoch start time for full sync:', startTime);
 
-        if (!response.data.success) {
-          throw new Error('Failed to fetch features from server');
+      // Make the sync request to the server
+      const response = await api.post(`/${projectId}/sync`, {
+        lastSyncTime: startTime
+      });
+
+      console.log('Sync response:', response.data);
+
+      if (!response.data.success) {
+        throw new Error('Server sync failed');
+      }
+
+      const serverChanges = response.data.changes || [];
+      console.log('Server changes:', serverChanges.length);
+
+      // Process each change from the server
+      for (const change of serverChanges) {
+        if (change.deleted) {
+          await this.handleDeletedFeature(projectId, change.clientId);
+        } else {
+          await this.handleServerFeature(projectId, change);
         }
+      }
 
-        const serverFeatures = response.data.features || [];
-        const localFeatures = await featureStorageService.getFeaturesForProject(projectId);
-        const localFeatureMap = new Map(
-          localFeatures.map(feature => [feature.client_id, feature])
-        );
+      // Update the last sync timestamp
+      const serverTimestamp = response.data.serverTimestamp;
+      console.log('Updating last sync timestamp:', serverTimestamp);
+      await this.setLastSyncTimestamp(projectId, serverTimestamp);
 
-        let syncedCount = 0;
+      console.log('=== Completed syncFromServerToLocal ===');
+      console.log('Synced count:', serverChanges.length);
+      return serverChanges.length;
+    } catch (error) {
+      console.error('Error in syncFromServerToLocal:', error);
+      throw error;
+    }
+  }
 
-        for (const serverFeature of serverFeatures) {
-          const localFeature = localFeatureMap.get(serverFeature.client_id);
+  private async handleServerFeature(projectId: number, change: any) {
+    console.log('Processing server feature:', change.clientId);
+    const feature = change.data;
 
-          if (!localFeature) {
-            // New feature from server
-            await featureStorageService.saveLine(serverFeature);
-            syncedCount++;
-          } else {
-            // Update existing feature if server version is newer
-            const serverUpdatedAt = new Date(serverFeature.updated_at).getTime();
-            const localUpdatedAt = new Date(localFeature.updated_at).getTime();
-
-            if (serverUpdatedAt > localUpdatedAt) {
-              await featureStorageService.updateFeature(serverFeature);
-              syncedCount++;
-            }
+    if (feature.type === 'Point') {
+      console.log('Processing point:', change.clientId);
+      const point = feature.points[0];
+      
+      // Convert server timestamps to standardized format
+      const standardizedPoint = {
+        ...point,
+        created_at: this.standardizeDateTime(point.created_at),
+        updated_at: this.standardizeDateTime(point.updated_at),
+        attributes: {
+          ...point.attributes,
+          nmeaData: {
+            ...point.attributes?.nmeaData,
+            gga: point.attributes?.nmeaData?.gga ? {
+              ...point.attributes.nmeaData.gga,
+              time: this.standardizeDateTime(point.attributes.nmeaData.gga.time)
+            } : undefined,
+            gst: point.attributes?.nmeaData?.gst ? {
+              ...point.attributes.nmeaData.gst,
+              time: this.standardizeDateTime(point.attributes.nmeaData.gst.time)
+            } : undefined
           }
         }
+      };
 
-        await syncLogger.logSyncOperation('server_to_local_complete', projectId, {
-          syncedCount
-        });
+      // Get existing features
+      const existingFeatures = await featureStorageService.getUnsyncedFeatures(projectId);
+      console.log('Getting features for project:', projectId);
+      console.log('Returning cached features:', existingFeatures.length);
 
-        return syncedCount;
-      },
-      'syncFromServerToLocal',
-      projectId
-    );
+      // Check if the feature already exists
+      const existingFeatureIndex = existingFeatures.findIndex(f => f.client_id === change.clientId);
+      
+      if (existingFeatureIndex >= 0) {
+        // Update existing feature
+        const pointToSave: PointCollected = {
+          client_id: existingFeatures[existingFeatureIndex].client_id,
+          name: existingFeatures[existingFeatureIndex].name,
+          description: existingFeatures[existingFeatureIndex].points[0]?.description || '',
+          draw_layer: existingFeatures[existingFeatureIndex].draw_layer,
+          attributes: existingFeatures[existingFeatureIndex].points[0]?.attributes || {},
+          created_by: String(existingFeatures[existingFeatureIndex].created_by),
+          created_at: standardizedPoint.created_at,
+          updated_at: standardizedPoint.updated_at,
+          updated_by: String(existingFeatures[existingFeatureIndex].updated_by),
+          synced: true,
+          feature_id: point.id || 0,
+          project_id: projectId
+        };
+        await featureStorageService.savePoint(pointToSave);
+      } else {
+        // Add new feature
+        const pointToSave: PointCollected = {
+          client_id: change.clientId,
+          name: feature.name,
+          description: feature.description || '',
+          draw_layer: feature.draw_layer,
+          attributes: standardizedPoint.attributes,
+          created_by: String(point.created_by),
+          created_at: standardizedPoint.created_at,
+          updated_at: standardizedPoint.updated_at,
+          updated_by: String(point.updated_by),
+          synced: true,
+          feature_id: point.id || 0,
+          project_id: projectId
+        };
+        await featureStorageService.savePoint(pointToSave);
+      }
+    }
+  }
+
+  /**
+   * Gets the last sync timestamp for a project
+   * @param projectId - The project ID
+   * @returns Promise resolving to the last sync timestamp or null if not found
+   */
+  private async getLastSyncTimestamp(projectId: number): Promise<string | null> {
+    try {
+      const key = `last_sync_${projectId}`;
+      const timestamp = await AsyncStorage.getItem(key);
+      return timestamp ? this.standardizeDateTime(timestamp) : null;
+    } catch (error) {
+      console.error('Error getting last sync timestamp:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Sets the last sync timestamp for a project
+   * @param projectId - The project ID
+   * @param timestamp - The timestamp to set
+   */
+  private async setLastSyncTimestamp(projectId: number, timestamp: string): Promise<void> {
+    try {
+      const key = `last_sync_${projectId}`;
+      await AsyncStorage.setItem(key, this.standardizeDateTime(timestamp));
+    } catch (error) {
+      console.error('Error setting last sync timestamp:', error);
+    }
   }
 
   /**
@@ -322,7 +502,7 @@ class SyncService {
     return this.executeWithRetry(
       async () => {
         await syncLogger.logSyncOperation('local_to_server_start', projectId, {
-          timestamp: new Date().toISOString()
+          timestamp: this.standardizeDateTime(new Date())
         });
 
         const unsyncedFeatures = await featureStorageService.getUnsyncedFeatures(projectId);
@@ -337,7 +517,7 @@ class SyncService {
         // Format points for API
         const formattedPoints = unsyncedFeatures
           .flatMap(feature => feature.points)
-          .map(this.formatPointForAPI)
+          .map(point => this.formatPointForAPI(this.standardizePointDatetimes(point)))
           .filter((point): point is FormattedPoint => point !== null);
 
         if (formattedPoints.length === 0) {
@@ -352,7 +532,7 @@ class SyncService {
         const endpoint = API_ENDPOINTS.SYNC_COLLECTED_FEATURES.replace(':projectId', projectId.toString());
         const response = await api.post(endpoint, {
           features: formattedPoints,
-          lastSyncTimestamp: new Date().toISOString()
+          lastSyncTimestamp: this.standardizeDateTime(new Date())
         });
 
         if (response.data && response.data.success) {
@@ -390,13 +570,19 @@ class SyncService {
    */
   async syncProject(projectId: number): Promise<SyncResult> {
     try {
+      console.log('=== Starting syncProject ===');
+      console.log('Project ID:', projectId);
+      
       await syncLogger.logSyncOperation('sync_start', projectId, {
         timestamp: new Date().toISOString()
       });
 
       // Check if online
       const online = await this.isOnline();
+      console.log('Online status:', online);
+      
       if (!online) {
+        console.log('Device is offline, skipping sync');
         await syncLogger.logSyncOperation('sync_offline', projectId, {
           error: 'Device is offline'
         });
@@ -409,10 +595,14 @@ class SyncService {
       }
 
       // Step 1: Sync from local to server
+      console.log('Starting local to server sync');
       const localToServerResult = await this.syncFromLocalToServer(projectId);
+      console.log('Local to server result:', localToServerResult);
 
       // Step 2: Sync from server to local
+      console.log('Starting server to local sync');
       const serverToLocalSynced = await this.syncFromServerToLocal(projectId);
+      console.log('Server to local synced count:', serverToLocalSynced);
 
       const result = {
         success: localToServerResult.success,
@@ -421,12 +611,16 @@ class SyncService {
         errorMessage: localToServerResult.errorMessage
       };
 
+      console.log('=== Completed syncProject ===');
+      console.log('Final result:', result);
+
       await syncLogger.logSyncOperation('sync_complete', projectId, {
         result
       });
 
       return result;
     } catch (error) {
+      console.error('Error in syncProject:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await syncLogger.logSyncOperation('sync_error', projectId, {
         error: errorMessage,
@@ -450,6 +644,42 @@ class SyncService {
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
+    }
+  }
+
+  private async handleDeletedFeature(projectId: number, clientId: string): Promise<void> {
+    console.log('Handling deleted feature:', clientId);
+    try {
+      // Get existing features
+      const existingFeatures = await featureStorageService.getUnsyncedFeatures(projectId);
+      
+      // Filter out the deleted feature
+      const updatedFeatures = existingFeatures.filter((f: any) => f.client_id !== clientId);
+      
+      // Save the updated features
+      if (updatedFeatures.length < existingFeatures.length) {
+        const firstFeature = updatedFeatures[0];
+        const firstPoint = firstFeature.points[0];
+        
+        const pointToSave: PointCollected = {
+          client_id: firstFeature.client_id,
+          name: firstFeature.name,
+          description: firstPoint?.description || '',
+          draw_layer: firstFeature.draw_layer,
+          attributes: firstPoint?.attributes || {},
+          created_by: firstFeature.created_by?.toString() || '',
+          created_at: firstFeature.created_at,
+          updated_at: firstFeature.updated_at,
+          updated_by: firstFeature.updated_by?.toString() || '',
+          synced: false,
+          feature_id: 0,
+          project_id: projectId
+        };
+        await featureStorageService.savePoint(pointToSave);
+      }
+    } catch (error) {
+      console.error('Error handling deleted feature:', error);
+      throw error;
     }
   }
 }

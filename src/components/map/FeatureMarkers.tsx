@@ -19,9 +19,16 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
     console.log('Available feature types:', featureTypes.map(f => f.name));
     console.log('Input features:', features);
 
+    // Create a map to track unique features by client_id
+    const uniqueFeatures = new Map();
+
     const convertedFeatures = features.map(feature => {
       if ('geometry' in feature) {
         // It's already a GeoJSON Feature
+        const clientId = feature.properties?.client_id;
+        if (clientId && !uniqueFeatures.has(clientId)) {
+          uniqueFeatures.set(clientId, feature);
+        }
         return feature;
       } else {
         // It's a CollectedFeature, convert to GeoJSON
@@ -33,8 +40,18 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
           return null;
         }
 
+        // Skip if we've already processed this client_id
+        if (uniqueFeatures.has(collectedFeature.client_id)) {
+          return null;
+        }
+
         // Validate NMEA data
-        const nmeaCoordinates = NMEAParser.ggaToMaplibreCoordinates(collectedFeature.points[0].nmeaData.gga);
+        const nmeaData = collectedFeature.points[0].attributes?.nmeaData;
+        if (!nmeaData?.gga) {
+          console.warn('Skipping feature with invalid NMEA data:', collectedFeature);
+          return null;
+        }
+        const nmeaCoordinates = NMEAParser.ggaToMaplibreCoordinates(nmeaData.gga);
         if (!nmeaCoordinates) {
           console.warn('Skipping feature with invalid NMEA data:', collectedFeature);
           return null;
@@ -49,7 +66,7 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
           return null;
         }
 
-        return {
+        const convertedFeature = {
           type: 'Feature' as const,
           geometry: {
             type: 'Point' as const,
@@ -64,6 +81,9 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
             points: collectedFeature.points
           }
         };
+
+        uniqueFeatures.set(collectedFeature.client_id, convertedFeature);
+        return convertedFeature;
       }
     }).filter(Boolean);
 

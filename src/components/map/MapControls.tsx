@@ -303,14 +303,18 @@ export const MapControls: React.FC = () => {
           continue;
         }
 
-        // Extract coordinates from NMEA data of the first point
+        // Extract coordinates from NMEA data
         const point = collectedFeature.points[0];
-        const longitude = point?.nmeaData?.gga?.longitude || 0;
-        const latitude = point?.nmeaData?.gga?.latitude || 0;
+        if (!point.attributes?.nmeaData?.gga?.longitude || !point.attributes?.nmeaData?.gga?.latitude) {
+          console.warn('Feature has invalid coordinates:', collectedFeature.client_id);
+          continue;
+        }
+        
+        const longitude = point.attributes.nmeaData.gga.longitude;
+        const latitude = point.attributes.nmeaData.gga.latitude;
         
         // Find the feature type by name
         const featureTypeName = collectedFeature.name;
-        console.log('Looking for feature type by name:', featureTypeName);
         const featureType = getFeatureTypeByName(featureTypeName);
         
         if (!featureType) {
@@ -340,18 +344,12 @@ export const MapControls: React.FC = () => {
         };
         
         // Add to map using addFeature
-        console.log('Adding feature to map:', {
-          name: feature.properties?.name,
-          coordinates: (feature.geometry as Point).coordinates,
-          featureType: feature.properties?.featureType?.name
-        });
         addFeature(feature);
       }
       
       console.log('Features loaded and added to map');
-      featuresLoadedRef.current = true;
     } catch (error) {
-      console.error('Error loading features from storage:', error);
+      console.error('Error loading features:', error);
     } finally {
       setIsLoadingFeatures(false);
     }
@@ -368,8 +366,40 @@ export const MapControls: React.FC = () => {
     if (!featuresLoadedRef.current && !isLoadingFeatures) {
       console.log('Initial feature load');
       loadFeaturesFromStorage();
+      featuresLoadedRef.current = true;
     }
   }, [isMapReady, activeProject, loadFeaturesFromStorage, isLoadingFeatures]);
+
+  // Memoize feature type lookup
+  const memoizedGetFeatureTypeByName = useCallback((name: string) => {
+    return getFeatureTypeByName(name);
+  }, [getFeatureTypeByName, featureTypes]);
+
+  // Memoize feature creation
+  const createMapFeature = useCallback((collectedFeature: CollectedFeature, point: PointCollected, featureType: any) => {
+    const longitude = point.nmeaData.gga.longitude;
+    const latitude = point.nmeaData.gga.latitude;
+
+    return {
+      type: 'Feature',
+      id: collectedFeature.client_id,
+      geometry: {
+        type: 'Point',
+        coordinates: [longitude, latitude]
+      },
+      properties: {
+        type: 'Point',
+        client_id: collectedFeature.client_id,
+        name: collectedFeature.name,
+        description: point?.description || '',
+        feature_id: point?.feature_id || 0,
+        featureType: featureType,
+        draw_layer: collectedFeature.draw_layer,
+        style: collectedFeature.attributes?.style || {},
+        color: featureType.color
+      }
+    };
+  }, []);
 
   // Add clear storage button component
   const ClearStorageButton = () => (

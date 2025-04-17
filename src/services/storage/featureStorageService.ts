@@ -43,19 +43,39 @@ class FeatureStorageService {
       const features = await this.getFeaturesForProject(point.project_id);
       console.log('Current features in storage:', features.length);
       
-      const updatedFeatures = [...features, {
-        name: point.name,
-        draw_layer: point.draw_layer,
-        client_id: point.client_id,
-        project_id: point.project_id,
-        points: [point],
-        attributes: point.attributes || {},
-        is_active: true,
-        created_by: Number(point.created_by),
-        created_at: point.created_at,
-        updated_by: Number(point.updated_by),
-        updated_at: point.updated_at
-      }];
+      // Check if feature already exists
+      const existingIndex = features.findIndex(f => f.client_id === point.client_id);
+      
+      let updatedFeatures: CollectedFeature[];
+      if (existingIndex >= 0) {
+        // Update existing feature
+        const existingFeature = features[existingIndex];
+        updatedFeatures = [
+          ...features.slice(0, existingIndex),
+          {
+            ...existingFeature,
+            points: [point],
+            updated_at: point.updated_at,
+            updated_by: Number(point.updated_by)
+          },
+          ...features.slice(existingIndex + 1)
+        ];
+      } else {
+        // Add new feature
+        updatedFeatures = [...features, {
+          name: point.name,
+          draw_layer: point.draw_layer,
+          client_id: point.client_id,
+          project_id: point.project_id,
+          points: [point],
+          attributes: point.attributes || {},
+          is_active: true,
+          created_by: Number(point.created_by),
+          created_at: point.created_at,
+          updated_by: Number(point.updated_by),
+          updated_at: point.updated_at
+        }];
+      }
       
       console.log('Saving updated features:', updatedFeatures.length);
       await this._saveFeaturesToStorage(point.project_id, updatedFeatures);
@@ -71,7 +91,23 @@ class FeatureStorageService {
   async saveLine(line: CollectedFeature): Promise<void> {
     return this._withRetry(async () => {
       const features = await this.getFeaturesForProject(line.project_id);
-      const updatedFeatures = [...features, line];
+      
+      // Check if feature already exists
+      const existingIndex = features.findIndex(f => f.client_id === line.client_id);
+      
+      let updatedFeatures: CollectedFeature[];
+      if (existingIndex >= 0) {
+        // Update existing feature
+        updatedFeatures = [
+          ...features.slice(0, existingIndex),
+          line,
+          ...features.slice(existingIndex + 1)
+        ];
+      } else {
+        // Add new feature
+        updatedFeatures = [...features, line];
+      }
+      
       await this._saveFeaturesToStorage(line.project_id, updatedFeatures);
     }, 'saving line');
   }
