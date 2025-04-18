@@ -19,6 +19,7 @@ import { useProjectContext } from '@/contexts/ProjectContext';
 import { getMapStyle } from '@/services/maplibre/maplibre_helpers';
 import CurrentPositionMarker from './CurrentPositionMarker';
 import FeatureMarkers from './FeatureMarkers';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import MapPointDetails from '@/components/modals/PointModals/MapPointDetails';
 import { featureStorageService } from '@/services/storage/featureStorageService';
 import { PointCollected } from '@/types/pointCollected.types';
@@ -30,9 +31,6 @@ import { Position } from '@/types/collection.types';
 import { FeatureToRender } from '@/types/featuresToRender.types';
 import { Feature, Point } from 'geojson';
 import { generateId } from '@/utils/collections';
-import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
-import { LayerControl } from './LayerControl';
-
 
 // Helper function to convert Position to coordinates array
 const positionToCoordinates = (position: Position): [number, number] => {
@@ -55,6 +53,7 @@ export const MapControls: React.FC = () => {
     renderFeature,
     addFeature,
     removeFeature,
+    visibleLayers,
   } = useMapContext();
   const { currentLocation } = useLocationContext();
   const { settings } = useSettingsContext();
@@ -80,14 +79,24 @@ export const MapControls: React.FC = () => {
 
   // Initial centering
   useEffect(() => {
-    if (isMapReady && currentLocation && !initialCenterDone.current && cameraRef.current) {
-      console.log("setting initial position");
-      cameraRef.current.setCamera({
-        centerCoordinate: positionToCoordinates(currentLocation),
-        zoomLevel: 18,
-        animationDuration: 500,
-      });
-      initialCenterDone.current = true;
+    if (isMapReady && cameraRef.current) {
+      if (currentLocation && !initialCenterDone.current) {
+        console.log("setting initial position");
+        cameraRef.current.setCamera({
+          centerCoordinate: positionToCoordinates(currentLocation),
+          zoomLevel: 18,
+          animationDuration: 500,
+        });
+        initialCenterDone.current = true;
+      } else if (!initialCenterDone.current) {
+        // Set a default zoom level even without location
+        console.log("setting default zoom level");
+        cameraRef.current.setCamera({
+          zoomLevel: 18,
+          animationDuration: 500,
+        });
+        initialCenterDone.current = true;
+      }
     }
   }, [isMapReady, currentLocation]);
 
@@ -150,7 +159,7 @@ export const MapControls: React.FC = () => {
           );
           console.log('Distance to feature:', distance);
 
-          if (distance < minDistance && distance < 0.0001) { // About 11 meters at equator
+          if (distance < minDistance && distance < 0.00001) { // About 1.1 meters at equator
             minDistance = distance;
             closestFeature = feature;
           }
@@ -341,7 +350,6 @@ export const MapControls: React.FC = () => {
             feature_id: point?.feature_id || 0,
             featureType: featureType,
             draw_layer: collectedFeature.draw_layer,
-            style: collectedFeature.attributes?.style || {},
             color: featureType.color
           }
         };
@@ -403,8 +411,15 @@ export const MapControls: React.FC = () => {
         feature_id: point?.feature_id || 0,
         featureType: featureType,
         draw_layer: collectedFeature.draw_layer,
-        style: collectedFeature.attributes?.style || {},
-        color: featureType.color
+        color: featureType.color,
+        style: {
+          circleColor: featureType.color,
+          circleStrokeColor: featureType.color,
+          circleRadius: 6,
+          circleOpacity: 1,
+          circleStrokeWidth: 2,
+          circleStrokeOpacity: 1
+        }
       }
     };
   }, []);
@@ -432,27 +447,58 @@ export const MapControls: React.FC = () => {
         style={styles.map}
         onDidFinishLoadingMap={handleMapReady}
         onRegionWillChange={handleRegionWillChange}
-        mapStyle={getMapStyle(settings.basemapStyle)}
         onPress={handleMapClick}
+        mapStyle={getMapStyle(settings.basemapStyle)}
       >
         <Camera
           ref={cameraRef}
-          defaultSettings={{
-            centerCoordinate: currentLocation ? positionToCoordinates(currentLocation) : [-122.4194, 37.7749],
-            zoomLevel: 18,         
-          }} 
+          zoomLevel={18}
+          animationDuration={500}
         />
 
+        {/* Render current position marker */}
         {currentLocation && (
-          <CurrentPositionMarker 
+          <CurrentPositionMarker
             position={positionToCoordinates(currentLocation)}
-            color="#FF6B00"
-            size={0.8}
             isLocationMarker={true}
           />
         )}
 
-        {/* Use FeatureMarkers for rendering features */}
+        {/* Render all features */}
+        <ShapeSource
+          id="features"
+          shape={features}
+        >
+          {/* Render lines */}
+          <LineLayer
+            id="line-features"
+            sourceID="features"
+            filter={['==', ['geometry-type'], 'LineString']}
+            style={{
+              lineColor: [
+                'case',
+                ['has', 'lineColor', ['get', 'style']],
+                ['get', 'lineColor', ['get', 'style']],
+                ['get', 'color']
+              ],
+              lineWidth: [
+                'case',
+                ['has', 'lineWidth', ['get', 'style']],
+                ['get', 'lineWidth', ['get', 'style']],
+                2
+              ],
+              lineOpacity: [
+                'case',
+                ['has', 'lineOpacity', ['get', 'style']],
+                ['get', 'lineOpacity', ['get', 'style']],
+                1
+              ],
+              lineDasharray: [4, 4] // Set a default dash pattern for all lines
+            }}
+          />
+        </ShapeSource>
+
+        {/* Render feature markers */}
         <FeatureMarkers features={features.features} />
       </MapView>
       

@@ -8,34 +8,39 @@ interface LineCollectionControlsProps {
   onUndo: () => void;
   onCancel: () => void;
   canUndo: boolean;
+  canComplete: boolean;
 }
 
 export const LineCollectionControls = ({
   onComplete,
   onUndo,
   onCancel,
-  canUndo
+  canUndo,
+  canComplete
 }: LineCollectionControlsProps) => {
   return (
     <View style={styles.lineControls}>
-      <TouchableOpacity 
-        style={[styles.button, styles.controlButton]}
-        onPress={onComplete}
-      >
-        <MaterialIcons name="check" size={24} color={Colors.BrightGreen} />
-      </TouchableOpacity>
+      {canComplete && (
+        <TouchableOpacity 
+          style={[styles.button, styles.controlButton]}
+          onPress={onComplete}
+        >
+          <MaterialIcons name="check" size={24} color={Colors.BrightGreen} />
+        </TouchableOpacity>
+      )}
       
-      <TouchableOpacity 
-        style={[styles.button, styles.controlButton]}
-        onPress={onUndo}
-        disabled={!canUndo}
-      >
-        <MaterialIcons 
-          name="undo" 
-          size={24} 
-          color={canUndo ? Colors.Yellow : Colors.Grey} 
-        />
-      </TouchableOpacity>
+      {canUndo && (
+        <TouchableOpacity 
+          style={[styles.button, styles.controlButton]}
+          onPress={onUndo}
+        >
+          <MaterialIcons 
+            name="undo" 
+            size={24} 
+            color={Colors.Yellow}
+          />
+        </TouchableOpacity>
+      )}
       
       <TouchableOpacity 
         style={[styles.button, styles.controlButton]}

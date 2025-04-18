@@ -34,33 +34,31 @@ const CollectionButton = () => {
         handlePointCollection();
         break;
       case 'Line':
-        if (!isCollectingLine) {
-          handleLinePointCollection();
-        }
+        handleLinePointCollection();
         break;
     }
   };
 
   return (
     <View style={styles.container}>
-      {!isCollectingLine ? (
-        <TouchableOpacity 
-          style={styles.button}
-          onPress={handleCollect}
-          disabled={!selectedFeatureType}
-        >
-          <MaterialIcons
-            name={selectedFeatureType?.type === 'Line' ? 'timeline' : 'add-location'}
-            size={24}
-            color={Colors.DarkBlue}
-          />
-        </TouchableOpacity>
-      ) : (
+      <TouchableOpacity
+        style={[styles.button, isCollectingLine && styles.activeButton]}
+        onPress={handleCollect}
+      >
+        <MaterialIcons 
+          name="add-location" 
+          size={24} 
+          color={isCollectingLine ? Colors.BrightGreen : Colors.DarkBlue} 
+        />
+      </TouchableOpacity>
+
+      {isCollectingLine && (
         <LineCollectionControls
           onComplete={handleCompleteLine}
           onUndo={handleUndoPoint}
           onCancel={handleCancelLine}
           canUndo={linePoints.length > 0}
+          canComplete={linePoints.length >= 2}
         />
       )}
     </View>
@@ -69,7 +67,8 @@ const CollectionButton = () => {
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center'
+    flexDirection: 'column',
+    alignItems: 'center',
   },
   button: {
     backgroundColor: 'white',
@@ -84,6 +83,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  activeButton: {
+    backgroundColor: Colors.OffWhite,
   }
 });
 

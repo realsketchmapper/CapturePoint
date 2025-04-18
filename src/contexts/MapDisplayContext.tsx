@@ -159,6 +159,8 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const id = generateId();
+    const props = properties || {};
+    const featureType = props.featureType || {};
     
     const pointFeature: Feature<Point> = {
       type: 'Feature',
@@ -167,7 +169,19 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         type: 'Point',
         coordinates
       },
-      properties
+      properties: {
+        ...props,
+        color: props.color || featureType.color || '#000000',
+        style: {
+          ...(props.style || {}),
+          circleColor: props.color || featureType.color || '#000000',
+          circleStrokeColor: props.color || featureType.color || '#000000',
+          circleRadius: props.style?.circleRadius || 6,
+          circleOpacity: props.style?.circleOpacity || 1,
+          circleStrokeWidth: props.style?.circleStrokeWidth || 2,
+          circleStrokeOpacity: props.style?.circleStrokeOpacity || 1
+        }
+      }
     };
     
     dispatch({ type: 'ADD_FEATURE', payload: pointFeature });

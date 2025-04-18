@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { useCollectionContext } from '../contexts/CollectionContext';
 import { useFeatureTypeContext } from '../contexts/FeatureTypeContext';
@@ -8,17 +8,19 @@ import { LINE_POINT_FEATURE } from '../constants/features';
 import { Position } from '../types/collection.types';
 import { Coordinate } from '../types/map.types';
 import { FeatureType } from '../types/featureType.types';
+import { Colors } from '@/theme/colors';
 
 export const useLineCollection = () => {
   const { startCollection, saveCurrentPoint } = useCollectionContext();
   const { selectedFeatureType } = useFeatureTypeContext();
   const { currentLocation } = useLocationContext();
-  const { addPoint, addLine, removeFeature } = useMapContext();
+  const { addPoint, addLine, removeFeature, setVisibleLayers, visibleLayers } = useMapContext();
   
   // State to track line collection points and IDs of all features created during line collection
   const [linePoints, setLinePoints] = useState<{ id: string; coordinates: Coordinate }[]>([]);
   const [lineFeatureIds, setLineFeatureIds] = useState<string[]>([]);
   const [isCollectingLine, setIsCollectingLine] = useState(false);
+  const [tempLineId, setTempLineId] = useState<string | null>(null);
 
   // Helper to convert Position to Coordinate
   const positionToCoordinate = (pos: Position): Coordinate => {
@@ -31,10 +33,58 @@ export const useLineCollection = () => {
   // Helper to clean up line collection
   const cleanupLineCollection = () => {
     lineFeatureIds.forEach(id => removeFeature(id));
+    if (tempLineId) {
+      removeFeature(tempLineId);
+      setTempLineId(null);
+    }
     setLinePoints([]);
     setLineFeatureIds([]);
     setIsCollectingLine(false);
   };
+
+  // Update temporary line when current location changes
+  useEffect(() => {
+    if (!isCollectingLine || linePoints.length === 0 || !currentLocation) return;
+
+    const currentCoordinate = positionToCoordinate(currentLocation);
+    const lastPoint = linePoints[linePoints.length - 1];
+
+    // Remove old temporary line if it exists
+    if (tempLineId) {
+      removeFeature(tempLineId);
+    }
+
+    // Add new temporary line
+    const newTempLineId = addLine([lastPoint.coordinates, currentCoordinate], {
+      featureTypeId: 'temp-line',
+      name: 'Temporary Line',
+      draw_layer: 'temp_lines',
+      isLinePart: true,
+      isOpenLine: true,
+      properties: {
+        style: {
+          lineColor: selectedFeatureType?.color || Colors.Aqua,
+          lineWidth: 2,
+          lineOpacity: 0.8,
+          lineDasharray: [4, 4] // Dashed line for temporary
+        }
+      }
+    });
+
+    if (newTempLineId) {
+      setTempLineId(newTempLineId);
+    }
+  }, [currentLocation, isCollectingLine, linePoints]);
+
+  // Ensure temp_lines layer is visible when collecting
+  useEffect(() => {
+    if (isCollectingLine && !visibleLayers['temp_lines']) {
+      setVisibleLayers({
+        ...visibleLayers,
+        'temp_lines': true
+      });
+    }
+  }, [isCollectingLine, setVisibleLayers]);
 
   // Handle line point collection
   const handleLinePointCollection = async () => {
@@ -48,7 +98,10 @@ export const useLineCollection = () => {
       return;
     }
 
-    setIsCollectingLine(true);
+    if (!isCollectingLine) {
+      setIsCollectingLine(true);
+    }
+
     const currentCoordinate = positionToCoordinate(currentLocation);
     
     // Add a Line Point at the current location
@@ -56,26 +109,46 @@ export const useLineCollection = () => {
     const linePointUniqueId = `linepoint-${Date.now()}-${pointIndex}`;
     
     const linePointId = addPoint(currentCoordinate, {
-      featureTypeId: LINE_POINT_FEATURE.name,
-      name: `${LINE_POINT_FEATURE.name} ${pointIndex + 1}`,
+      featureTypeId: selectedFeatureType.name,
+      name: `${selectedFeatureType.name} ${pointIndex + 1}`,
       isLinePoint: true,
       pointIndex: pointIndex,
       lineTypeId: selectedFeatureType.name,
       uniqueId: linePointUniqueId,
-      color: selectedFeatureType?.color,
+      color: selectedFeatureType.color,
+      draw_layer: selectedFeatureType.draw_layer,
+      featureType: selectedFeatureType,
       properties: {
         isLinePoint: true,
         pointIndex: pointIndex,
         lineTypeId: selectedFeatureType.name,
         uniqueId: linePointUniqueId,
+        color: selectedFeatureType.color,
+        featureType: selectedFeatureType,
+        style: {
+          circleRadius: 6,
+          circleColor: selectedFeatureType.color,
+          circleOpacity: 1,
+          circleStrokeWidth: 2,
+          circleStrokeColor: selectedFeatureType.color,
+          circleStrokeOpacity: 1
+        }
       },
+      style: {
+        circleRadius: 6,
+        circleColor: selectedFeatureType.color,
+        circleOpacity: 1,
+        circleStrokeWidth: 2,
+        circleStrokeColor: selectedFeatureType.color,
+        circleStrokeOpacity: 1
+      }
     });
 
     if (linePointId) {
       setLinePoints(prev => [...prev, { id: linePointId, coordinates: currentCoordinate }]);
       setLineFeatureIds(prev => [...prev, linePointId]);
       
-      // If we have at least 2 points, draw a line between the last two points
+      // If we have at least 2 points, draw a permanent line between the last two points
       if (linePoints.length > 0) {
         const lastPoint = linePoints[linePoints.length - 1];
         const lineId = addLine([lastPoint.coordinates, currentCoordinate], {
@@ -84,6 +157,16 @@ export const useLineCollection = () => {
           draw_layer: selectedFeatureType.draw_layer,
           isLinePart: true,
           isOpenLine: true,
+          color: selectedFeatureType.color,
+          properties: {
+            color: selectedFeatureType.color,
+            style: {
+              lineColor: selectedFeatureType.color,
+              lineWidth: 2,
+              lineOpacity: 1,
+              lineDasharray: selectedFeatureType.dash_pattern ? selectedFeatureType.dash_pattern.split(',').map(Number) : [] // Use feature type's dash pattern or solid line
+            }
+          }
         });
         
         if (lineId) {
@@ -93,95 +176,68 @@ export const useLineCollection = () => {
     }
   };
 
-  // Handle completing line collection
+  // Handle completing the line
   const handleCompleteLine = async () => {
     if (linePoints.length < 2) {
-      Alert.alert("Invalid Line", "A line must have at least 2 points.");
+      Alert.alert("Not Enough Points", "You need at least 2 points to complete a line.");
       return;
     }
 
-    try {
-      const lineUniqueId = `line-${Date.now()}`;
-      
-      // Save all line points as regular points
-      for (let i = 0; i < linePoints.length; i++) {
-        const point = linePoints[i];
-        const uniqueId = `${lineUniqueId}-point-${i}`;
-        
-        if (!selectedFeatureType) continue;
-        const newState = startCollection(point.coordinates, selectedFeatureType);
-        if (!newState.isActive) continue;
-
-        await saveCurrentPoint({
-          name: `${LINE_POINT_FEATURE.name} ${i + 1}`,
-          featureTypeId: LINE_POINT_FEATURE.name,
-          draw_layer: LINE_POINT_FEATURE.draw_layer,
-          pointId: uniqueId,
-          isLinePoint: true,
-          pointIndex: i,
-          lineTypeId: selectedFeatureType.name,
-          lineUniqueId: lineUniqueId,
-          style: {
-            color: selectedFeatureType.color,
-            svg: LINE_POINT_FEATURE.svg
-          }
-        }, newState);
+    // Save the line to storage
+    const lineCoordinates = linePoints.map(point => point.coordinates);
+    await saveCurrentPoint({
+      name: selectedFeatureType?.name || 'Line',
+      draw_layer: selectedFeatureType?.draw_layer || 'default',
+      attributes: {
+        coordinates: lineCoordinates,
+        featureTypeName: selectedFeatureType?.name
       }
-
-      // Save the line itself
-      const lineCoordinates = linePoints.map(p => p.coordinates);
-      const lineId = addLine(lineCoordinates, {
-        featureTypeId: selectedFeatureType?.name,
-        name: selectedFeatureType?.name,
-        draw_layer: selectedFeatureType?.draw_layer,
-        isOpenLine: true,
-        lineUniqueId: lineUniqueId,
-        color: selectedFeatureType?.color
-      });
-
-      if (lineId) {
-        setLineFeatureIds(prev => [...prev, lineId]);
-        Alert.alert("Success", "Line collection completed successfully.");
+    }, {
+      points: lineCoordinates,
+      isActive: true,
+      activeFeatureType: selectedFeatureType as FeatureType,
+      metadata: {
+        name: selectedFeatureType?.name || 'Line',
+        description: '',
+        project_id: 0,
+        created_by: 'unknown',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        updated_by: 'unknown'
       }
-    } catch (error) {
-      console.error('Error saving line:', error);
-      Alert.alert("Error", "Failed to save line. Please try again.");
-    } finally {
-      setIsCollectingLine(false);
-      setLinePoints([]);
-      setLineFeatureIds([]);
+    });
+
+    // Only clean up temporary features
+    if (tempLineId) {
+      removeFeature(tempLineId);
+      setTempLineId(null);
     }
+    setIsCollectingLine(false);
   };
 
-  // Handle undoing last point
+  // Handle undoing the last point
   const handleUndoPoint = () => {
     if (linePoints.length === 0) return;
 
+    // Remove the last point and its associated line
     const lastPoint = linePoints[linePoints.length - 1];
-    removeFeature(lastPoint.id);
+    const lastPointId = lastPoint.id;
+    removeFeature(lastPointId);
     
-    const lastLineId = lineFeatureIds[lineFeatureIds.length - 1];
-    if (lastLineId) {
+    // Remove the line if it exists
+    if (linePoints.length > 1) {
+      const lastLineId = lineFeatureIds[lineFeatureIds.length - 1];
       removeFeature(lastLineId);
       setLineFeatureIds(prev => prev.slice(0, -1));
     }
 
     setLinePoints(prev => prev.slice(0, -1));
+    setLineFeatureIds(prev => prev.filter(id => id !== lastPointId));
   };
 
   // Handle canceling line collection
   const handleCancelLine = () => {
-    Alert.alert(
-      "Cancel Line Collection",
-      "Are you sure you want to cancel? All collected points will be removed.",
-      [
-        { text: "No", style: "cancel" },
-        { 
-          text: "Yes",
-          onPress: cleanupLineCollection
-        }
-      ]
-    );
+    cleanupLineCollection();
   };
 
   return {

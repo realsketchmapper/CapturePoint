@@ -12,7 +12,7 @@ type CurrentPositionMarkerProps = {
 const CurrentPositionMarker: React.FC<CurrentPositionMarkerProps> = ({
   position,
   color = '#FF6B00',
-  size = 1.2,
+  size = .8,
   isLocationMarker = false
 }) => {
   // Create GeoJSON feature for the position

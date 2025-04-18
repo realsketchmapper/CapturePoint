@@ -75,6 +75,16 @@ class SyncService {
         return date.toISOString().split('.')[0] + 'Z';
       }
       
+      // Handle NMEA time format (HHMMSS.ss)
+      if (/^\d{6}\.\d{2}$/.test(date)) {
+        const hours = parseInt(date.substring(0, 2));
+        const minutes = parseInt(date.substring(2, 4));
+        const seconds = parseFloat(date.substring(4));
+        const now = new Date();
+        now.setHours(hours, minutes, seconds);
+        return now.toISOString().split('.')[0] + 'Z';
+      }
+      
       // Try to parse the date string
       const parsedDate = new Date(date);
       
