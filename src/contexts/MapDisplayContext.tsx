@@ -184,9 +184,17 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
     
+    // Update visible layers if this is a new layer
+    if (props.draw_layer && !state.visibleLayers[props.draw_layer]) {
+      dispatch({ 
+        type: 'SET_VISIBLE_LAYERS', 
+        payload: { ...state.visibleLayers, [props.draw_layer]: true } 
+      });
+    }
+    
     dispatch({ type: 'ADD_FEATURE', payload: pointFeature });
     return id;
-  }, [isValidCoords]);
+  }, [isValidCoords, state.visibleLayers]);
 
   // Add a line to the map
   const addLine = useCallback((coordinates: Coordinate[], properties: GeoJsonProperties = {}) => {
@@ -197,6 +205,8 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const id = generateId();
+    const props = properties || {};
+    const featureType = props.featureType || {};
     
     const lineFeature: Feature<LineString> = {
       type: 'Feature',
@@ -205,12 +215,30 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         type: 'LineString',
         coordinates
       },
-      properties
+      properties: {
+        ...props,
+        color: props.color || featureType.color || '#000000',
+        style: {
+          ...(props.style || {}),
+          lineColor: props.color || featureType.color || '#000000',
+          lineWidth: props.style?.lineWidth || 2,
+          lineOpacity: props.style?.lineOpacity || 1,
+          lineDasharray: props.style?.lineDasharray || []
+        }
+      }
     };
+
+    // Update visible layers if this is a new layer
+    if (props.draw_layer && !state.visibleLayers[props.draw_layer]) {
+      dispatch({ 
+        type: 'SET_VISIBLE_LAYERS', 
+        payload: { ...state.visibleLayers, [props.draw_layer]: true } 
+      });
+    }
     
     dispatch({ type: 'ADD_FEATURE', payload: lineFeature });
     return id;
-  }, [isValidCoords]);
+  }, [isValidCoords, state.visibleLayers]);
 
   // Update an existing feature
   const updateFeature = useCallback((id: string, coordinates: Coordinate | Coordinate[]) => {
@@ -244,8 +272,27 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Remove a feature
   const removeFeature = useCallback((id: string) => {
+    // Find the feature being removed to check its layer
+    const featureToRemove = state.features.features.find(f => f.id === id);
+    const layerToCheck = featureToRemove?.properties?.draw_layer;
+
+    // Remove the feature
     dispatch({ type: 'REMOVE_FEATURE', payload: id });
-  }, []);
+
+    // If the feature had a layer, check if it was the last one
+    if (layerToCheck) {
+      const remainingFeaturesInLayer = state.features.features.filter(
+        f => f.properties?.draw_layer === layerToCheck && f.id !== id
+      );
+
+      // If this was the last feature in the layer, remove the layer from visibleLayers
+      if (remainingFeaturesInLayer.length === 0) {
+        const newVisibleLayers = { ...state.visibleLayers };
+        delete newVisibleLayers[layerToCheck];
+        dispatch({ type: 'SET_VISIBLE_LAYERS', payload: newVisibleLayers });
+      }
+    }
+  }, [state.features.features, state.visibleLayers]);
 
   // Clear all features
   const clearFeatures = useCallback(() => {
@@ -255,9 +302,17 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Render any type of feature
   const renderFeature = useCallback((feature: FeatureToRender) => {
     if (feature.type === 'Point') {
-      return addPoint(feature.coordinates as Coordinate, feature.properties);
+      const id = addPoint(feature.coordinates as Coordinate, {
+        ...feature.properties,
+        draw_layer: feature.properties?.draw_layer
+      });
+      return id;
     } else if (feature.type === 'Line') {
-      return addLine(feature.coordinates as Coordinate[], feature.properties);
+      const id = addLine(feature.coordinates as Coordinate[], {
+        ...feature.properties,
+        draw_layer: feature.properties?.draw_layer
+      });
+      return id;
     }
     console.warn(`Unsupported feature type: ${feature.type}`);
     dispatch({ type: 'SET_ERROR', payload: `Unsupported feature type: ${feature.type}` });
@@ -312,6 +367,9 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Load features from storage
         const projectFeatures = await featureStorageService.getFeaturesForProject(activeProject.id);
         
+        // Track unique layers to update visibility state
+        const uniqueLayers = new Set<string>();
+        
         // Add each feature to the map
         for (const feature of projectFeatures) {
           if (!feature.points || feature.points.length === 0) {
@@ -338,6 +396,11 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             continue;
           }
           
+          // Track the layer
+          if (feature.draw_layer) {
+            uniqueLayers.add(feature.draw_layer);
+          }
+          
           // Create a feature for the map
           const mapFeature: Feature = {
             type: 'Feature',
@@ -362,6 +425,23 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // Add to map
           dispatch({ type: 'ADD_FEATURE', payload: mapFeature });
         }
+
+        // Update visible layers for any new layers found
+        if (uniqueLayers.size > 0) {
+          const newVisibleLayers = { ...state.visibleLayers };
+          let needsUpdate = false;
+          
+          for (const layer of uniqueLayers) {
+            if (newVisibleLayers[layer] === undefined) {
+              newVisibleLayers[layer] = true;
+              needsUpdate = true;
+            }
+          }
+          
+          if (needsUpdate) {
+            dispatch({ type: 'SET_VISIBLE_LAYERS', payload: newVisibleLayers });
+          }
+        }
       }
     } catch (error) {
       console.error('Error syncing features:', error);
@@ -369,7 +449,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: false, lastSyncTime: null } });
     }
-  }, [activeProject, dispatch, featureTypes, getFeatureTypeByName]);
+  }, [activeProject, dispatch, featureTypes, getFeatureTypeByName, state.visibleLayers]);
 
   const syncAllProjects = useCallback(async () => {
     try {
@@ -412,7 +492,18 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [activeProject?.id]);
 
   const setIsMapReady = (isReady: boolean) => dispatch({ type: 'SET_MAP_READY', payload: isReady });
-  const addFeature = (feature: Feature) => dispatch({ type: 'ADD_FEATURE', payload: feature });
+  const addFeature = useCallback((feature: Feature) => {
+    // Update visible layers if this is a new layer
+    const drawLayer = feature.properties?.draw_layer;
+    if (drawLayer && !state.visibleLayers[drawLayer]) {
+      dispatch({ 
+        type: 'SET_VISIBLE_LAYERS', 
+        payload: { ...state.visibleLayers, [drawLayer]: true } 
+      });
+    }
+    
+    dispatch({ type: 'ADD_FEATURE', payload: feature });
+  }, [state.visibleLayers]);
   const setError = (error: string | null) => dispatch({ type: 'SET_ERROR', payload: error });
 
   const setVisibleLayers = useCallback((layers: Record<string, boolean>) => {

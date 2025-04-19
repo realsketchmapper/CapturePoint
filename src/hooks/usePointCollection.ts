@@ -16,7 +16,7 @@ import { getCurrentStandardizedTime } from '@/utils/datetime';
 export const usePointCollection = () => {
   const { currentLocation } = useLocationContext();
   const { selectedFeatureType } = useFeatureTypeContext();
-  const { renderFeature } = useMapContext();
+  const { renderFeature, addPoint } = useMapContext();
   const { ggaData, gstData } = useNMEAContext();
   const { activeProject } = useProjectContext();
   const { user } = useAuthContext();
@@ -46,6 +46,7 @@ export const usePointCollection = () => {
           client_id: clientId,
           name: selectedFeatureType.name,
           featureType: selectedFeatureType,
+          draw_layer: selectedFeatureType.draw_layer,
           style: {
             color: selectedFeatureType.color
           }
@@ -53,7 +54,12 @@ export const usePointCollection = () => {
       };
 
       // Render the feature on the map
-      renderFeature(featureToRender);
+      const featureId = renderFeature(featureToRender);
+      
+      if (!featureId) {
+        console.warn('Failed to render feature');
+        return;
+      }
 
       // Save the point to storage
       await featureStorageService.savePoint({

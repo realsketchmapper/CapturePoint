@@ -8,7 +8,7 @@ export const LayerControl: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { features, visibleLayers, setVisibleLayers, toggleLayer } = useMapContext();
 
-  // Get unique layers from features
+  // Get unique layers from features and ensure they're in visibleLayers
   const layers = React.useMemo(() => {
     const uniqueLayers = new Set<string>();
     features.features.forEach(feature => {
@@ -18,23 +18,33 @@ export const LayerControl: React.FC = () => {
       }
     });
     return Array.from(uniqueLayers);
-  }, [features.features]);
+  }, [features]);
 
-  // Initialize layer visibility state
+  // Update visible layers whenever features change
   useEffect(() => {
-    const initialVisibility: Record<string, boolean> = {};
+    const newVisibleLayers = { ...visibleLayers };
+    let needsUpdate = false;
+
+    // Add any new layers that aren't in visibleLayers
     layers.forEach(layer => {
-      if (visibleLayers[layer] === undefined) {
-        initialVisibility[layer] = true;
+      if (newVisibleLayers[layer] === undefined) {
+        newVisibleLayers[layer] = true;
+        needsUpdate = true;
       }
     });
-    if (Object.keys(initialVisibility).length > 0) {
-      setVisibleLayers({
-        ...visibleLayers,
-        ...initialVisibility
-      });
+
+    // Remove any layers that no longer have features
+    Object.keys(newVisibleLayers).forEach(layer => {
+      if (!layers.includes(layer)) {
+        delete newVisibleLayers[layer];
+        needsUpdate = true;
+      }
+    });
+
+    if (needsUpdate) {
+      setVisibleLayers(newVisibleLayers);
     }
-  }, [layers]);
+  }, [layers, visibleLayers, setVisibleLayers]);
 
   const handleToggleLayer = useCallback((layer: string) => {
     toggleLayer(layer);

@@ -125,6 +125,7 @@ export const useLineCollection = () => {
         uniqueId: linePointUniqueId,
         color: selectedFeatureType.color,
         featureType: selectedFeatureType,
+        draw_layer: selectedFeatureType.draw_layer,
         style: {
           circleRadius: 6,
           circleColor: selectedFeatureType.color,
@@ -160,6 +161,7 @@ export const useLineCollection = () => {
           color: selectedFeatureType.color,
           properties: {
             color: selectedFeatureType.color,
+            draw_layer: selectedFeatureType.draw_layer,
             style: {
               lineColor: selectedFeatureType.color,
               lineWidth: 2,
