@@ -1,7 +1,5 @@
 import { api } from "@/api/clients";
-import { PointCollected } from "@/types/pointCollected.types";
 import { API_ENDPOINTS } from "@/api/endpoints";
-import { generateId } from "@/utils/collections";
 import { ApiFeature } from "@/types/currentFeatures.types";
 
 // Helper function to handle API errors

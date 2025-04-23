@@ -26,7 +26,7 @@ export interface CollectionContextType {
 export interface CollectionMetadata {
   name: string;
   description: string;
-  project_id: number;
+  project_id: number | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -43,6 +43,6 @@ export interface CollectionOptions {
 export interface CollectionState {
     points: Coordinates[];
     isActive: boolean;
-    activeFeatureType: FeatureType;
+    activeFeatureType: FeatureType | null;
     metadata: CollectionMetadata;
 }

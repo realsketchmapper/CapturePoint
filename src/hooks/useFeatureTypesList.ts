@@ -10,7 +10,7 @@ export const useFeatureTypesList = () => {
     featureTypes, 
     isLoading, 
     error, 
-    fetchFeatureTypes,
+    loadFeatureTypesForProject,
     featureTypesLoaded 
   } = useFeatureTypeContext();
   
@@ -18,7 +18,7 @@ export const useFeatureTypesList = () => {
     featureTypes,
     isLoading,
     error,
-    refreshFeatureTypes: fetchFeatureTypes,
+    refreshFeatureTypes: loadFeatureTypesForProject,
     featureTypesLoaded
   };
 }; 

@@ -63,9 +63,14 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   }, [featureTypes, imagesPreloaded]);
 
-  const fetchFeatureTypes = useCallback(async (projectId: number): Promise<void> => {
-    // Always fetch feature types for the project, even if already loaded
-    // This ensures we have the latest data when switching projects
+  // Private function to fetch feature types
+  const _fetchFeatureTypes = useCallback(async (projectId: number): Promise<void> => {
+    // Only fetch if we don't have feature types for this project
+    if (currentProjectId === projectId && featureTypesLoaded) {
+      console.log('Feature types already loaded for project:', projectId);
+      return;
+    }
+
     console.log('=== Fetching Feature Types ===');
     console.log('Project ID:', projectId);
     setIsLoading(true);
@@ -86,7 +91,12 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentProjectId, featureTypesLoaded]);
+
+  // Public function to load feature types for a project
+  const loadFeatureTypesForProject = useCallback(async (projectId: number): Promise<void> => {
+    await _fetchFeatureTypes(projectId);
+  }, [_fetchFeatureTypes]);
 
   const clearFeatureTypes = useCallback(() => {
     setFeatureTypes([]);
@@ -116,7 +126,7 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
     featureTypes,
     isLoading,
     error,
-    fetchFeatureTypes,
+    loadFeatureTypesForProject, // Expose loadFeatureTypesForProject instead of fetchFeatureTypes
     clearFeatureTypes,
     featureTypesLoaded,
     imagesPreloaded,
@@ -129,7 +139,7 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
     featureTypes,
     isLoading,
     error,
-    fetchFeatureTypes,
+    loadFeatureTypesForProject,
     clearFeatureTypes,
     featureTypesLoaded,
     imagesPreloaded,

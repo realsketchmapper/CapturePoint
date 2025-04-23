@@ -21,13 +21,13 @@ export interface FeatureType {
   
 export interface FeatureTypeContextType {
     selectedFeatureType: FeatureType | null;
-    setSelectedFeatureType: (featureType: FeatureType | null) => void;
+    setSelectedFeatureType: React.Dispatch<React.SetStateAction<FeatureType | null>>;
     expandedLayers: Set<string>;
     toggleLayer: (layerName: string) => void;
     featureTypes: FeatureType[];
     isLoading: boolean;
     error: string | null;
-    fetchFeatureTypes: (projectId: number) => Promise<void>;
+    loadFeatureTypesForProject: (projectId: number) => Promise<void>;
     clearFeatureTypes: () => void;
     featureTypesLoaded: boolean;
     imagesPreloaded: boolean;

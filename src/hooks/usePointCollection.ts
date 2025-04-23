@@ -69,28 +69,8 @@ export const usePointCollection = () => {
         draw_layer: selectedFeatureType.draw_layer,
         attributes: {
           nmeaData: {
-            gga: ggaData || {
-              time: getCurrentStandardizedTime(),
-              latitude: coordinates[1],
-              longitude: coordinates[0],
-              quality: 1, // GPS
-              satellites: 8,
-              hdop: 1.0,
-              altitude: 0,
-              altitudeUnit: 'M',
-              geoidHeight: 0,
-              geoidHeightUnit: 'M'
-            },
-            gst: gstData || {
-              time: getCurrentStandardizedTime(),
-              rmsTotal: 0,
-              semiMajor: 0,
-              semiMinor: 0,
-              orientation: 0,
-              latitudeError: 0,
-              longitudeError: 0,
-              heightError: 0
-            }
+            gga: ggaData as NonNullable<typeof ggaData>,
+            gst: gstData as NonNullable<typeof gstData>
           },
           featureTypeName: selectedFeatureType.name
         },

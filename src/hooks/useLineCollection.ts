@@ -4,14 +4,13 @@ import { useCollectionContext } from '../contexts/CollectionContext';
 import { useFeatureTypeContext } from '../contexts/FeatureTypeContext';
 import { useLocationContext } from '../contexts/LocationContext';
 import { useMapContext } from '../contexts/MapDisplayContext';
-import { LINE_POINT_FEATURE } from '../constants/features';
 import { Position } from '../types/collection.types';
 import { Coordinate } from '../types/map.types';
 import { FeatureType } from '../types/featureType.types';
 import { Colors } from '@/theme/colors';
 
 export const useLineCollection = () => {
-  const { startCollection, saveCurrentPoint } = useCollectionContext();
+  const { saveCurrentPoint } = useCollectionContext();
   const { selectedFeatureType } = useFeatureTypeContext();
   const { currentLocation } = useLocationContext();
   const { addPoint, addLine, removeFeature, setVisibleLayers, visibleLayers } = useMapContext();
@@ -188,8 +187,8 @@ export const useLineCollection = () => {
     // Save the line to storage
     const lineCoordinates = linePoints.map(point => point.coordinates);
     await saveCurrentPoint({
-      name: selectedFeatureType?.name || 'Line',
-      draw_layer: selectedFeatureType?.draw_layer || 'default',
+      name: selectedFeatureType?.name || '',
+      draw_layer: selectedFeatureType?.draw_layer,
       attributes: {
         coordinates: lineCoordinates,
         featureTypeName: selectedFeatureType?.name
@@ -199,7 +198,7 @@ export const useLineCollection = () => {
       isActive: true,
       activeFeatureType: selectedFeatureType as FeatureType,
       metadata: {
-        name: selectedFeatureType?.name || 'Line',
+        name: selectedFeatureType?.name || '',
         description: '',
         project_id: 0,
         created_by: 'unknown',

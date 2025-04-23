@@ -14,7 +14,7 @@ import { syncService } from '@/services/sync/syncService';
 const ProjectView = () => {
   const { projects, loading, error, fetchProjects } = useProjects();
   const { setActiveProject, activeProject } = useContext(ProjectContext);
-  const { fetchFeatureTypes, clearFeatureTypes, featureTypesLoaded } = useFeatureTypeContext();
+  const { loadFeatureTypesForProject, clearFeatureTypes, featureTypesLoaded } = useFeatureTypeContext();
   const { currentLocation } = useLocationContext();
   
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -78,7 +78,7 @@ const ProjectView = () => {
       
       // Only fetch feature types if we don't have them already
       if (!featureTypesLoaded) {
-        await fetchFeatureTypes(project.id);
+        await loadFeatureTypesForProject(project.id);
         console.log('Fetched feature types');
       }
       

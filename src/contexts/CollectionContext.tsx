@@ -1,6 +1,6 @@
 // contexts/CollectionContext.tsx
-import React, { createContext, useContext, useReducer, useCallback, useEffect, useState } from 'react';
-import { Position, CollectionContextType, CollectionState, Coordinates, CollectionMetadata, CollectionOptions } from '@/types/collection.types';
+import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import { Position, CollectionContextType, CollectionState, Coordinates, CollectionMetadata } from '@/types/collection.types';
 import { FeatureType } from '@/types/featureType.types';
 import { PointCollected } from '@/types/pointCollected.types';
 import { useLocationContext } from '@/contexts/LocationContext';
@@ -9,10 +9,7 @@ import { AuthContext } from '@/contexts/AuthContext';
 import { ProjectContext } from '@/contexts/ProjectContext';
 import { featureStorageService } from '@/services/storage/featureStorageService';
 import { syncService } from '@/services/sync/syncService';
-import { standardizeDateTime, getCurrentStandardizedTime } from '@/utils/datetime';
-// Replace v4 import with a more React Native friendly approach
-import 'react-native-get-random-values'; // Add this import at the top
-import { v4 as uuidv4 } from 'uuid';
+import { getCurrentStandardizedTime } from '@/utils/datetime';
 import { generateId } from '@/utils/collections';
 
 // Extended interface to include all functionality
@@ -51,15 +48,23 @@ type CollectionAction =
   | { type: 'CLEAR_COLLECTION' };
 
 // Define initial state
-const initialState = {
+const initialState: {
+  collectionState: CollectionState;
+  isSaving: boolean;
+  syncStatus: {
+    isSyncing: boolean;
+    lastSyncTime: Date | null;
+    unsyncedCount: number;
+  };
+} = {
   collectionState: {
     points: [] as Coordinates[],
     isActive: false,
-    activeFeatureType: null as FeatureType | null,
+    activeFeatureType: null,
     metadata: {
       name: '',
       description: '',
-      project_id: 0,
+      project_id: null,
       created_by: '',
       created_at: getCurrentStandardizedTime(),
       updated_at: getCurrentStandardizedTime(),
@@ -69,13 +74,16 @@ const initialState = {
   isSaving: false,
   syncStatus: {
     isSyncing: false,
-    lastSyncTime: null as Date | null,
+    lastSyncTime: null,
     unsyncedCount: 0
   }
 };
 
 // Reducer function
-function collectionReducer(state: typeof initialState, action: CollectionAction): typeof initialState {
+function collectionReducer(
+  state: typeof initialState, 
+  action: CollectionAction
+): typeof initialState {
   switch (action.type) {
     case 'SET_COLLECTION_STATE':
       return { 
@@ -118,7 +126,7 @@ function collectionReducer(state: typeof initialState, action: CollectionAction)
           metadata: {
             name: '',
             description: '',
-            project_id: 0,
+            project_id: null,
             created_by: '',
             created_at: getCurrentStandardizedTime(),
             updated_at: getCurrentStandardizedTime(),
@@ -191,24 +199,13 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   
   // Start collecting points
   const startCollection = useCallback((initialPosition: Position, featureType: FeatureType): CollectionState => {
-    const pointCoordinates = getValidCoordinates(initialPosition);
+    if (!activeProject?.id) {
+      throw new Error("Cannot start collection without an active project");
+    }
     
+    const pointCoordinates = getValidCoordinates(initialPosition);
     if (!pointCoordinates) {
-      console.warn("Could not start collection: Invalid coordinates");
-      return {
-        points: [],
-        isActive: false,
-        activeFeatureType: featureType,
-        metadata: {
-          name: '',
-          description: '',
-          project_id: activeProject?.id || 0,
-          created_by: String(user?.id || 'unknown'),
-          created_at: getCurrentStandardizedTime(),
-          updated_at: getCurrentStandardizedTime(),
-          updated_by: String(user?.id || 'unknown')
-        }
-      };
+      throw new Error("Could not start collection: Invalid coordinates");
     }
     
     const newState: CollectionState = {
@@ -218,11 +215,11 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       metadata: {
         name: '',
         description: '',
-        project_id: activeProject?.id || 0,
-        created_by: String(user?.id || 'unknown'),
+        project_id: activeProject.id,
+        created_by: String(user?.id),
         created_at: getCurrentStandardizedTime(),
         updated_at: getCurrentStandardizedTime(),
-        updated_by: String(user?.id || 'unknown')
+        updated_by: String(user?.id)
       }
     };
     
@@ -244,7 +241,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         ...state.collectionState.metadata,
         ...metadata,
         updated_at: getCurrentStandardizedTime(),
-        updated_by: String(user?.id || 'unknown')
+        updated_by: String(user?.id)
       }
     };
 
@@ -277,39 +274,19 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   
   // Save the current point with all metadata
   const saveCurrentPoint = useCallback(async (pointData: Partial<PointCollected>, state: CollectionState) => {
-    if (!state.isActive || !state.points.length) return false;
+    if (!state.isActive || !state.points.length || !state.activeFeatureType || !state.metadata.project_id || !ggaData || !gstData) return false;
 
     try {
       const point: PointCollected = {
         client_id: generateId(),
-        name: pointData.name || state.activeFeatureType.name,
+        name: state.activeFeatureType.name,
         description: pointData.description || '',
-        draw_layer: pointData.draw_layer || state.activeFeatureType.draw_layer,
+        draw_layer: state.activeFeatureType.draw_layer,
         attributes: {
           ...pointData.attributes,
           nmeaData: pointData.attributes?.nmeaData || {
-            gga: {
-              latitude: state.points[0][1],
-              longitude: state.points[0][0],
-              altitude: 0,
-              altitudeUnit: 'M',
-              geoidHeight: 0,
-              geoidHeightUnit: 'M',
-              hdop: 0,
-              quality: 0,
-              satellites: 0,
-              time: getCurrentStandardizedTime()
-            },
-            gst: {
-              latitudeError: 0,
-              longitudeError: 0,
-              heightError: 0,
-              time: getCurrentStandardizedTime(),
-              rmsTotal: 0,
-              semiMajor: 0,
-              semiMinor: 0,
-              orientation: 0
-            }
+            gga: ggaData,
+            gst: gstData
           }
         },
         created_by: state.metadata.created_by,
@@ -317,7 +294,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         updated_at: getCurrentStandardizedTime(),
         updated_by: state.metadata.updated_by,
         synced: false,
-        feature_id: 0, // We'll set this when syncing with the server
+        feature_id: 0, // This is fine as it indicates unsynced state
         project_id: state.metadata.project_id
       };
 
@@ -327,7 +304,7 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       console.error('Error saving point:', error);
       return false;
     }
-  }, []);
+  }, [ggaData, gstData]);
   
   // Sync points with the server
   const syncPoints = useCallback(async () => {

@@ -2,7 +2,6 @@ import React, { createContext, useContext, useReducer, useCallback } from 'react
 import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
 import { FeatureToRender } from '@/types/featuresToRender.types';
 import { MapContextType, Coordinate, FeatureType } from '@/types/map.types';
-import { generateId } from '@/utils/collections';
 import { syncService } from '@/services/sync/syncService';
 import { useProjectContext } from './ProjectContext';
 import { useFeatureTypeContext } from './FeatureTypeContext';
@@ -126,7 +125,7 @@ function mapReducer(state: MapState, action: MapAction): MapState {
 export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(mapReducer, initialState);
   const { activeProject } = useProjectContext();
-  const { featureTypes, getFeatureTypeByName, fetchFeatureTypes } = useFeatureTypeContext();
+  const { featureTypes, getFeatureTypeByName } = useFeatureTypeContext();
 
   // Validate coordinates for both points and lines
   const isValidCoords = useCallback((coords: any): boolean => {
@@ -158,13 +157,12 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     }
 
-    const id = generateId();
     const props = properties || {};
     const featureType = props.featureType || {};
     
     const pointFeature: Feature<Point> = {
       type: 'Feature',
-      id,
+      id: properties?.client_id,
       geometry: {
         type: 'Point',
         coordinates
@@ -193,7 +191,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     
     dispatch({ type: 'ADD_FEATURE', payload: pointFeature });
-    return id;
+    return properties?.client_id;
   }, [isValidCoords, state.visibleLayers]);
 
   // Add a line to the map
@@ -204,13 +202,12 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     }
 
-    const id = generateId();
     const props = properties || {};
     const featureType = props.featureType || {};
     
     const lineFeature: Feature<LineString> = {
       type: 'Feature',
-      id,
+      id: properties?.client_id,
       geometry: {
         type: 'LineString',
         coordinates
@@ -237,7 +234,7 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     
     dispatch({ type: 'ADD_FEATURE', payload: lineFeature });
-    return id;
+    return properties?.client_id;
   }, [isValidCoords, state.visibleLayers]);
 
   // Update an existing feature
