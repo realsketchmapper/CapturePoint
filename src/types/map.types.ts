@@ -3,12 +3,11 @@ import { FeatureToRender } from './featuresToRender.types';
 
 // Simplified type definitions
 export type Coordinate = [number, number];
-export type FeatureType = 'point' | 'line' | 'polygon';
+export type FeatureType = 'point' | 'polygon';
 
 export interface MapContextType {
   // Feature management
   addPoint: (coordinates: Coordinate, properties?: GeoJsonProperties) => string | null;
-  addLine: (coordinates: Coordinate[], properties?: GeoJsonProperties) => string | null;
   addFeature: (feature: Feature) => void;
   updateFeature: (id: string, coordinates: Coordinate | Coordinate[]) => void;
   removeFeature: (id: string) => void;

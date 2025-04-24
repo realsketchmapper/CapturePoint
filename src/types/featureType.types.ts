@@ -2,21 +2,18 @@ import type { Feature, GeoJsonProperties } from 'geojson';
 import { ReactNode } from 'react';
 
 export interface FeatureType {
-    svg: string; // svg for the feature type
-    name: string; // name for the feature type
-    type: FeatureTypeGeometry; // type for the feature type
-    color: string; // color for the feature type
+    id: string;           // Unique identifier
+    name: string;         // Display name
+    type: FeatureTypeGeometry; // Point/Polygon
+    color: string;        // Color for styling
     line_weight: number; // line weight for the feature type
     dash_pattern: string; // dash pattern for the feature type
-    label: string; // label for the feature type
-    z_value: number; // z-value for the feature type
-    draw_layer: string; // draw layer for the feature type also called Category
-    created_by: string; // created by for the feature type
-    created_at: string; // created at for the feature type
-    updated_by: string; // updated by for the feature type
-    updated_at: string; // updated at for the feature type
-    is_active: boolean; // is active for the feature type
-    image_url: string; // image url for the feature type
+    label: string;        // Display label
+    svg: string;         // SVG for icons
+    draw_layer: string;   // Category/layer grouping
+    z_value: number;      // Rendering order
+    is_active: boolean;   // Visibility control
+    image_url: string;    // URL for point markers
 }
   
 export interface FeatureTypeContextType {
@@ -35,7 +32,7 @@ export interface FeatureTypeContextType {
     getFeatureTypeByName: (name: string) => FeatureType | undefined;
 }
 
-export type FeatureTypeGeometry = 'Point' | 'Line' | 'Polygon';
+export type FeatureTypeGeometry = 'Point' | 'Polygon';
 
 export interface FeatureButtonProps {
     onPress: () => void;

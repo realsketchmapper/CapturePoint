@@ -1,6 +1,6 @@
 import { api } from "@/api/clients";
 import { API_ENDPOINTS } from "@/api/endpoints";
-import { ApiFeature } from "@/types/currentFeatures.types";
+import { CollectedFeature } from "@/types/currentFeatures.types";
 
 // Helper function to handle API errors
 const handleApiError = (error: unknown, operation: string): never => {
@@ -31,72 +31,37 @@ export const collectedFeatureService = {
     }
   },
 
-  fetchActiveFeatures: async (projectId: number): Promise<ApiFeature[]> => {
+  fetchActiveFeatures: async (projectId: number): Promise<CollectedFeature[]> => {
     try {
       const endpoint = buildEndpoint(API_ENDPOINTS.ACTIVE_FEATURES, { projectId });
       const response = await api.get(endpoint);
       
-      if (!response.data.success) {
+      if (!response.data.success || !response.data.features) {
         throw new Error('Failed to fetch active features');
       }
 
-      console.log('Raw server response:', JSON.stringify(response.data.features, null, 2));
-
       return response.data.features.map((feature: any) => {
-        console.log('Processing feature:', JSON.stringify(feature, null, 2));
-        console.log('Feature points:', JSON.stringify(feature.points, null, 2));
-        console.log('Feature coordinates:', JSON.stringify(feature.coordinates, null, 2));
-        console.log('Feature properties:', JSON.stringify(feature.properties, null, 2));
-        console.log('Feature data:', JSON.stringify(feature.data, null, 2));
-        
-        // Extract NMEA data from the first point if available
-        const firstPoint = feature.points?.[0];
-        const nmeaData = firstPoint?.attributes?.nmeaData || {
-          gga: {
-            time: new Date().toISOString(),
-            latitude: firstPoint?.coordinates?.[1] || 0,
-            longitude: firstPoint?.coordinates?.[0] || 0,
-            quality: 1,
-            satellites: 8,
-            hdop: 1.0,
-            altitude: 0,
-            altitudeUnit: 'M',
-            geoidHeight: 0,
-            geoidHeightUnit: 'M'
-          },
-          gst: {
-            time: new Date().toISOString(),
-            rmsTotal: 0,
-            semiMajor: 0,
-            semiMinor: 0,
-            orientation: 0,
-            latitudeError: 0,
-            longitudeError: 0,
-            heightError: 0
-          }
-        };
+        if (!feature.created_by || !feature.updated_by) {
+          throw new Error(`Invalid feature data: missing required user information for feature ${feature.id}`);
+        }
 
         return {
-          properties: {
-            client_id: feature.client_id,
-            points: feature.points || [],
-            nmeaData: nmeaData,
-            ...feature
-          },
-          data: feature.data || {},
-          featureTypeId: feature.featureTypeId || feature.id,
-          featureType: feature.featureType || feature,
-          id: feature.id,
-          is_active: feature.is_active !== false,
-          created_by: feature.created_by || null,
-          created_at: feature.created_at || new Date().toISOString(),
-          updated_by: feature.updated_by || null,
-          updated_at: feature.updated_at || new Date().toISOString()
+          name: feature.name,
+          draw_layer: feature.draw_layer,
+          client_id: feature.client_id,
+          project_id: feature.project_id,
+          points: feature.points || [],
+          attributes: feature.attributes || {},
+          is_active: true,
+          created_by: feature.created_by,
+          created_at: feature.created_at,
+          updated_by: feature.updated_by,
+          updated_at: feature.updated_at
         };
       });
     } catch (error) {
       handleApiError(error, 'fetchActiveFeatures');
-      return []; // Return empty array in case of error
+      return [];
     }
   }
 }; 

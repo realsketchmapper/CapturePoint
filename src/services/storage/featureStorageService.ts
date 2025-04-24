@@ -83,34 +83,7 @@ class FeatureStorageService {
     }, 'saving point');
   }
 
-  /**
-   * Saves a line feature to local storage
-   * @param line - The line feature to save
-   * @throws Error if saving fails after retries
-   */
-  async saveLine(line: CollectedFeature): Promise<void> {
-    return this._withRetry(async () => {
-      const features = await this.getFeaturesForProject(line.project_id);
-      
-      // Check if feature already exists
-      const existingIndex = features.findIndex(f => f.client_id === line.client_id);
-      
-      let updatedFeatures: CollectedFeature[];
-      if (existingIndex >= 0) {
-        // Update existing feature
-        updatedFeatures = [
-          ...features.slice(0, existingIndex),
-          line,
-          ...features.slice(existingIndex + 1)
-        ];
-      } else {
-        // Add new feature
-        updatedFeatures = [...features, line];
-      }
-      
-      await this._saveFeaturesToStorage(line.project_id, updatedFeatures);
-    }, 'saving line');
-  }
+ 
 
   /**
    * Updates a feature in local storage

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
-import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties } from 'geojson';
+import type { Feature, Point, FeatureCollection, GeoJsonProperties } from 'geojson';
 import { FeatureToRender } from '@/types/featuresToRender.types';
 import { MapContextType, Coordinate, FeatureType } from '@/types/map.types';
 import { syncService } from '@/services/sync/syncService';
@@ -127,36 +127,8 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const { activeProject } = useProjectContext();
   const { featureTypes, getFeatureTypeByName } = useFeatureTypeContext();
 
-  // Validate coordinates for both points and lines
-  const isValidCoords = useCallback((coords: any): boolean => {
-    if (!Array.isArray(coords)) return false;
-    
-    // Point coordinate [lng, lat]
-    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
-      return !isNaN(coords[0]) && !isNaN(coords[1]);
-    }
-    
-    // Line coordinates [[lng, lat], [lng, lat], ...]
-    if (Array.isArray(coords[0])) {
-      return coords.every(point => 
-        Array.isArray(point) && 
-        point.length === 2 && 
-        !isNaN(point[0]) && 
-        !isNaN(point[1])
-      );
-    }
-    
-    return false;
-  }, []);
-
   // Add a point to the map
   const addPoint = useCallback((coordinates: Coordinate, properties: GeoJsonProperties = {}) => {
-    if (!isValidCoords(coordinates)) {
-      console.warn('Invalid coordinates provided to addPoint');
-      dispatch({ type: 'SET_ERROR', payload: 'Invalid coordinates provided to addPoint' });
-      return null;
-    }
-
     const props = properties || {};
     const featureType = props.featureType || {};
     
@@ -192,59 +164,10 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     dispatch({ type: 'ADD_FEATURE', payload: pointFeature });
     return properties?.client_id;
-  }, [isValidCoords, state.visibleLayers]);
-
-  // Add a line to the map
-  const addLine = useCallback((coordinates: Coordinate[], properties: GeoJsonProperties = {}) => {
-    if (!isValidCoords(coordinates)) {
-      console.warn('Invalid coordinates provided to addLine');
-      dispatch({ type: 'SET_ERROR', payload: 'Invalid coordinates provided to addLine' });
-      return null;
-    }
-
-    const props = properties || {};
-    const featureType = props.featureType || {};
-    
-    const lineFeature: Feature<LineString> = {
-      type: 'Feature',
-      id: properties?.client_id,
-      geometry: {
-        type: 'LineString',
-        coordinates
-      },
-      properties: {
-        ...props,
-        color: props.color || featureType.color || '#000000',
-        style: {
-          ...(props.style || {}),
-          lineColor: props.color || featureType.color || '#000000',
-          lineWidth: props.style?.lineWidth || 2,
-          lineOpacity: props.style?.lineOpacity || 1,
-          lineDasharray: props.style?.lineDasharray || []
-        }
-      }
-    };
-
-    // Update visible layers if this is a new layer
-    if (props.draw_layer && !state.visibleLayers[props.draw_layer]) {
-      dispatch({ 
-        type: 'SET_VISIBLE_LAYERS', 
-        payload: { ...state.visibleLayers, [props.draw_layer]: true } 
-      });
-    }
-    
-    dispatch({ type: 'ADD_FEATURE', payload: lineFeature });
-    return properties?.client_id;
-  }, [isValidCoords, state.visibleLayers]);
+  }, [state.visibleLayers]);
 
   // Update an existing feature
   const updateFeature = useCallback((id: string, coordinates: Coordinate | Coordinate[]) => {
-    if (!isValidCoords(coordinates)) {
-      console.warn('Invalid coordinates provided to updateFeature');
-      dispatch({ type: 'SET_ERROR', payload: 'Invalid coordinates provided to updateFeature' });
-      return;
-    }
-    
     const featureToUpdate = state.features.features.find(feature => feature.id === id);
     if (!featureToUpdate) {
       console.warn(`Feature with id ${id} not found`);
@@ -252,20 +175,19 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     
-    const isPoint = featureToUpdate.geometry.type === 'Point';
+    // Since we only support points now, ensure we're using point coordinates
+    const pointCoordinates = Array.isArray(coordinates[0]) ? coordinates[0] : coordinates;
     
-    // Create a new feature with updated coordinates
     const updatedFeature: Feature = {
       ...featureToUpdate,
       geometry: {
-        ...featureToUpdate.geometry,
-        type: isPoint ? 'Point' : 'LineString',
-        coordinates
-      } as Point | LineString
+        type: 'Point',
+        coordinates: pointCoordinates
+      } as Point
     };
     
     dispatch({ type: 'UPDATE_FEATURE', payload: { id, feature: updatedFeature } });
-  }, [isValidCoords, state.features.features]);
+  }, [state.features.features]);
 
   // Remove a feature
   const removeFeature = useCallback((id: string) => {
@@ -304,17 +226,11 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         draw_layer: feature.properties?.draw_layer
       });
       return id;
-    } else if (feature.type === 'Line') {
-      const id = addLine(feature.coordinates as Coordinate[], {
-        ...feature.properties,
-        draw_layer: feature.properties?.draw_layer
-      });
-      return id;
     }
     console.warn(`Unsupported feature type: ${feature.type}`);
     dispatch({ type: 'SET_ERROR', payload: `Unsupported feature type: ${feature.type}` });
     return null;
-  }, [addPoint, addLine]);
+  }, [addPoint]);
 
   // Preview a feature
   const previewFeature = useCallback((
@@ -325,14 +241,12 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     if (type === 'point') {
       return addPoint(coordinates as Coordinate, previewProps);
-    } else if (type === 'line') {
-      return addLine(coordinates as Coordinate[], previewProps);
     }
     
     console.warn(`Unsupported preview type: ${type}`);
     dispatch({ type: 'SET_ERROR', payload: `Unsupported preview type: ${type}` });
     return null;
-  }, [addPoint, addLine]);
+  }, [addPoint]);
 
   const syncFeatures = useCallback(async () => {
     if (!activeProject) {
@@ -527,7 +441,6 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       syncFeatures,
       syncAllProjects,
       addPoint,
-      addLine,
       renderFeature,
       previewFeature,
       visibleLayers: state.visibleLayers,

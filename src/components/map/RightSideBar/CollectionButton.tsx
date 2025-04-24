@@ -5,20 +5,11 @@ import { useLocationContext } from '@/contexts/LocationContext';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { Colors } from '@/theme/colors';
 import { usePointCollection } from '@/hooks/usePointCollection';
-import { LineCollectionControls } from './LineCollectionControls';
-import { useLineCollection } from '@/hooks/useLineCollection';
+
 
 const CollectionButton = () => {
   const { locationSource } = useLocationContext();
   const { selectedFeatureType } = useFeatureTypeContext();
-  const { 
-    isCollectingLine,
-    linePoints,
-    handleLinePointCollection,
-    handleCompleteLine,
-    handleUndoPoint,
-    handleCancelLine
-  } = useLineCollection();
   const { handlePointCollection } = usePointCollection();
 
   // Don't render if not using NMEA
@@ -33,34 +24,22 @@ const CollectionButton = () => {
       case 'Point':
         handlePointCollection();
         break;
-      case 'Line':
-        handleLinePointCollection();
-        break;
     }
   };
 
   return (
     <View style={styles.container}>
       <TouchableOpacity
-        style={[styles.button, isCollectingLine && styles.activeButton]}
+        style={[styles.button && styles.activeButton]}
         onPress={handleCollect}
       >
         <MaterialIcons 
           name="add-location" 
           size={24} 
-          color={isCollectingLine ? Colors.BrightGreen : Colors.DarkBlue} 
+          color={Colors.BrightGreen} 
         />
       </TouchableOpacity>
 
-      {isCollectingLine && (
-        <LineCollectionControls
-          onComplete={handleCompleteLine}
-          onUndo={handleUndoPoint}
-          onCancel={handleCancelLine}
-          canUndo={linePoints.length > 0}
-          canComplete={linePoints.length >= 2}
-        />
-      )}
     </View>
   );
 };

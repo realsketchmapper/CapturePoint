@@ -24,28 +24,25 @@ export interface CollectedFeature {
 
 // For features returned by the API
 export interface ApiFeature {
-  properties?: {
-    client_id?: string;
-    points?: any[];
-    [key: string]: any;
+  properties: {
+    client_id: string;
+    points: PointCollected[];
   };
-  data?: {
-    name?: string;
-    description?: string;
-    draw_layer?: string;
-    [key: string]: any;
+  data: {
+    name: string;
+    description: string;
+    draw_layer: string;
   };
-  featureTypeId?: string | number;
-  featureType?: {
-    name?: string;
-    description?: string;
-    draw_layer?: string;
-    [key: string]: any;
+  featureTypeId: string | number;
+  featureType: {
+    name: string;
+    description: string;
+    draw_layer: string;
   };
-  id?: string | number;
-  is_active?: boolean;
-  created_by?: number | null;
-  created_at?: string;
-  updated_by?: number | null;
-  updated_at?: string;
+  id: string | number;
+  is_active: boolean;
+  created_by: number;  // No longer nullable
+  created_at: string;
+  updated_by: number;  // No longer nullable
+  updated_at: string;
 }

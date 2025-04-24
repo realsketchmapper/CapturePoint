@@ -31,16 +31,10 @@ export const featureTypeService = {
         name: feature.name,
         type: feature.type,
         color: feature.color || '#000000',
-        line_weight: feature.line_weight || 1,
-        dash_pattern: feature.dash_pattern || '',
         label: feature.label || '',
         svg: feature.svg || '',
         draw_layer: feature.draw_layer || 'default',
         z_value: feature.z_value || 0,
-        created_by: 'system',
-        created_at: new Date().toISOString(),
-        updated_by: 'system',
-        updated_at: new Date().toISOString(),
         is_active: true,
         image_url: feature.image_url || null
       }));

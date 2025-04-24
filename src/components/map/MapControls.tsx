@@ -4,7 +4,6 @@ import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import {
   MapView,
   ShapeSource,
-  LineLayer,
   Camera,
   MapViewRef,
   CameraRef,
@@ -469,33 +468,6 @@ export const MapControls: React.FC = () => {
           id="features"
           shape={features}
         >
-          {/* Render lines */}
-          <LineLayer
-            id="line-features"
-            sourceID="features"
-            filter={['==', ['geometry-type'], 'LineString']}
-            style={{
-              lineColor: [
-                'case',
-                ['has', 'lineColor', ['get', 'style']],
-                ['get', 'lineColor', ['get', 'style']],
-                ['get', 'color']
-              ],
-              lineWidth: [
-                'case',
-                ['has', 'lineWidth', ['get', 'style']],
-                ['get', 'lineWidth', ['get', 'style']],
-                2
-              ],
-              lineOpacity: [
-                'case',
-                ['has', 'lineOpacity', ['get', 'style']],
-                ['get', 'lineOpacity', ['get', 'style']],
-                1
-              ],
-              lineDasharray: [4, 4] // Set a default dash pattern for all lines
-            }}
-          />
         </ShapeSource>
 
         {/* Render feature markers */}
