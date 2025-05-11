@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Image } from 'react-native';
+import { View, Image, TouchableOpacity } from 'react-native';
 import { MarkerView } from '@maplibre/maplibre-react-native';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
@@ -9,9 +9,21 @@ import { NMEAParser } from '@/services/gnss/nmeaParser';
 
 interface ExtendedFeatureMarkersProps {
   features: any[];
+  onFeaturePress?: (feature: any) => void;
 }
 
-const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ features }) => {
+// Helper function to validate coordinates
+const validateCoordinates = (coords: any): boolean => {
+  if (!coords || !Array.isArray(coords) || coords.length !== 2) return false;
+  
+  const [lon, lat] = coords;
+  return (
+    typeof lon === 'number' && !isNaN(lon) && 
+    typeof lat === 'number' && !isNaN(lat)
+  );
+};
+
+const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ features, onFeaturePress }) => {
   const { featureTypes, getFeatureTypeByName } = useFeatureTypeContext();
   const { visibleLayers } = useMapContext();
 
@@ -19,8 +31,37 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
   const pointFeatures = useMemo(() => {
     const filteredFeatures = features.map(feature => {
       if (!feature?.properties?.client_id) return null;
+      if (!feature?.geometry?.coordinates) return null;
+      
+      // Validate coordinates
+      if (!validateCoordinates(feature.geometry.coordinates)) {
+        console.warn('Invalid coordinates in feature:', feature.properties.client_id, feature.geometry.coordinates);
+        return null;
+      }
 
-      const featureType = getFeatureTypeByName(feature.properties.name);
+      // For line points, use the featureType property directly if it's available,
+      // otherwise fall back to looking up by name
+      let featureType = feature.properties.featureType;
+      
+      // If featureType is not directly available, try to get it by name
+      if (!featureType) {
+        // Handle line points - extract the base feature type name
+        // Typically names are like "Elec. Line Point 1", but the type is "Elec. Line"
+        const name = feature.properties.name || '';
+        let typeName = name;
+        
+        // Check if this is a line point and extract the base feature type
+        if (name.includes(' Point ')) {
+          const baseTypeName = name.split(' Point ')[0];
+          if (baseTypeName) {
+            typeName = baseTypeName;
+          }
+        }
+        
+        featureType = getFeatureTypeByName(typeName);
+      }
+      
+      // Still couldn't find a feature type, skip this feature
       if (!featureType) return null;
 
       return {
@@ -37,7 +78,9 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
           featureType: featureType,
           draw_layer: feature.properties.draw_layer,
           style: feature.properties.style || {},
-          color: featureType.color
+          color: featureType.color || feature.properties.color,
+          // Preserve all original properties for handling clicks
+          ...feature.properties
         }
       };
     }).filter(Boolean);
@@ -60,6 +103,25 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
       
       const featureType = feature.properties.featureType as FeatureType;
       if (!featureType) return null;
+      
+      // Extra validation before rendering the marker
+      if (!validateCoordinates(feature.geometry.coordinates)) {
+        console.warn('Invalid coordinates before rendering marker:', feature.properties.client_id);
+        return null;
+      }
+
+      // Handle press event for this marker
+      const handlePress = () => {
+        console.log('Image marker pressed:', feature.properties.client_id);
+        if (onFeaturePress) {
+          // Ensure the feature has the format expected by the handler
+          onFeaturePress({
+            ...feature,
+            id: feature.properties.client_id,
+            properties: feature.properties
+          });
+        }
+      };
 
       return (
         <MarkerView
@@ -67,31 +129,33 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
           coordinate={feature.geometry.coordinates}
           anchor={{ x: 0.5, y: 0.5 }}
         >
-          <View style={{ alignItems: 'center' }}>
+          <TouchableOpacity 
+            onPress={handlePress}
+            style={{ alignItems: 'center' }}
+          >
             {featureType.image_url ? (
               <Image
                 source={{ uri: featureType.image_url }}
                 style={{
-                  width: 24,
-                  height: 24,
-                  tintColor: featureType.color
+                  width: 32,
+                  height: 32
                 }}
               />
             ) : (
               <View style={{
-                width: 24,
-                height: 24,
-                borderRadius: 12,
+                width: 32,
+                height: 32,
+                borderRadius: 16,
                 backgroundColor: featureType.color,
                 borderWidth: 2,
                 borderColor: 'white'
               }} />
             )}
-          </View>
+          </TouchableOpacity>
         </MarkerView>
       );
-    });
-  }, [visibleFeatures]);
+    }).filter(Boolean); // Filter out null values
+  }, [visibleFeatures, onFeaturePress]);
 
   return <>{renderedMarkers}</>;
 });
