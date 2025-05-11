@@ -33,6 +33,15 @@ class FeatureStorageService {
   }
 
   /**
+   * Invalidates the cache for a specific project
+   * @param projectId - The project ID
+   */
+  private invalidateCache(projectId: number): void {
+    this.featuresCache.delete(projectId);
+    console.log(`Cache invalidated for project ID: ${projectId}`);
+  }
+
+  /**
    * Saves a point to local storage
    * @param point - The point to save
    * @throws Error if saving fails after retries
@@ -43,47 +52,98 @@ class FeatureStorageService {
       const features = await this.getFeaturesForProject(point.project_id);
       console.log('Current features in storage:', features.length);
       
-      // Check if feature already exists
-      const existingIndex = features.findIndex(f => f.client_id === point.client_id);
+      // Check if this is a line point
+      const isLinePoint = point.attributes?.isLinePoint === true;
+      const parentLineId = point.attributes?.parentLineId;
       
-      let updatedFeatures: CollectedFeature[];
-      if (existingIndex >= 0) {
-        // Update existing feature
-        const existingFeature = features[existingIndex];
-        updatedFeatures = [
-          ...features.slice(0, existingIndex),
-          {
-            ...existingFeature,
-            points: [point],
-            updated_at: point.updated_at,
-            updated_by: Number(point.updated_by)
-          },
-          ...features.slice(existingIndex + 1)
-        ];
-      } else {
-        // Add new feature
-        updatedFeatures = [...features, {
-          name: point.name,
-          draw_layer: point.draw_layer,
-          client_id: point.client_id,
-          project_id: point.project_id,
-          points: [point],
-          attributes: point.attributes || {},
-          is_active: true,
-          created_by: Number(point.created_by),
-          created_at: point.created_at,
-          updated_by: Number(point.updated_by),
-          updated_at: point.updated_at
-        }];
+      // If this is a line point, find the parent line feature
+      if (isLinePoint && parentLineId) {
+        console.log(`Point ${point.client_id} is a line point for line ${parentLineId}`);
+        
+        // Find the parent line feature
+        const lineFeatureIndex = features.findIndex(f => f.client_id === parentLineId);
+        
+        if (lineFeatureIndex >= 0) {
+          // Update existing line feature
+          console.log(`Found parent line feature at index ${lineFeatureIndex}`);
+          const lineFeature = features[lineFeatureIndex];
+          
+          // Check if the point already exists in the line
+          const existingPointIndex = lineFeature.points.findIndex(p => p.client_id === point.client_id);
+          
+          if (existingPointIndex >= 0) {
+            // Update existing point
+            lineFeature.points[existingPointIndex] = point;
+          } else {
+            // Add new point to line
+            lineFeature.points.push(point);
+          }
+          
+          // Sort points by their index to maintain line order
+          lineFeature.points.sort((a, b) => 
+            (a.attributes?.pointIndex || 0) - (b.attributes?.pointIndex || 0)
+          );
+          
+          // Update line feature in the array
+          features[lineFeatureIndex] = {
+            ...lineFeature,
+            updated_at: point.updated_at
+          };
+          
+          console.log(`Updated line feature ${parentLineId} with point ${point.client_id}`);
+          await this._saveFeaturesToStorage(point.project_id, features);
+          this.invalidateCache(point.project_id);
+        } else {
+          console.warn(`Parent line feature ${parentLineId} not found for point ${point.client_id}`);
+        }
+        return;
       }
       
-      console.log('Saving updated features:', updatedFeatures.length);
-      await this._saveFeaturesToStorage(point.project_id, updatedFeatures);
-      console.log('Point saved successfully');
+      // Only proceed with standalone point storage if it's not a line point
+      if (!isLinePoint) {
+        let updatedFeatures: CollectedFeature[];
+        const existingIndex = features.findIndex(f => f.client_id === point.client_id);
+        
+        if (existingIndex >= 0) {
+          // Update existing feature
+          const existingFeature = features[existingIndex];
+          updatedFeatures = [
+            ...features.slice(0, existingIndex),
+            {
+              ...existingFeature,
+              type: 'Point' as const,
+              points: [point],
+              updated_at: point.updated_at,
+              updated_by: Number(point.updated_by)
+            },
+            ...features.slice(existingIndex + 1)
+          ];
+        } else {
+          // Add new feature
+          updatedFeatures = [...features, {
+            name: point.name,
+            draw_layer: point.draw_layer,
+            client_id: point.client_id,
+            project_id: point.project_id,
+            type: 'Point' as const,
+            points: [point],
+            attributes: point.attributes || {},
+            is_active: true,
+            created_by: Number(point.created_by),
+            created_at: point.created_at,
+            updated_by: Number(point.updated_by),
+            updated_at: point.updated_at
+          }];
+        }
+        
+        console.log('Saving updated features:', updatedFeatures.length);
+        await this._saveFeaturesToStorage(point.project_id, updatedFeatures);
+        // Invalidate cache after saving
+        this.invalidateCache(point.project_id);
+        console.log('Point saved successfully');
+      }
     }, 'saving point');
   }
-
- 
 
   /**
    * Updates a feature in local storage
@@ -201,29 +261,78 @@ class FeatureStorageService {
    */
   async clearProjectFeatures(projectId: number): Promise<void> {
     return this._withRetry(async () => {
-      console.log('Clearing features for project:', projectId);
       const storageKey = this.getProjectKey(projectId);
-      console.log('Removing storage key:', storageKey);
-      await AsyncStorage.removeItem(storageKey);
+      await AsyncStorage.setItem(storageKey, JSON.stringify([]));
       
-      // Clear cache
-      this.featuresCache.clear(); // Clear entire cache instead of just one project
-      this.cacheTimestamp = 0;
-      console.log('Storage and cache cleared');
-    }, 'clearing features');
+      // Invalidate cache when clearing project features
+      this.invalidateCache(projectId);
+      
+      console.log(`Cleared features for project ${projectId}`);
+    }, 'clearing project features');
   }
 
   /**
-   * Helper method to save features to storage and update cache
+   * Save a list of features for a project
+   * @param projectId - The project ID
+   * @param features - Array of features to save
+   */
+  async saveFeatures(projectId: number, features: CollectedFeature[]): Promise<void> {
+    return this._withRetry(async () => {
+      // Get existing features
+      const existingFeatures = await this.getFeaturesForProject(projectId);
+      
+      // Process each new feature
+      const updatedFeatures = features.map(newFeature => {
+        // Check if this feature already exists
+        const existingIndex = existingFeatures.findIndex(f => f.client_id === newFeature.client_id);
+        
+        if (existingIndex >= 0) {
+          // Update existing feature
+          return {
+            ...existingFeatures[existingIndex],
+            ...newFeature,
+            // Preserve existing points if not provided in new feature
+            points: newFeature.points.length > 0 ? newFeature.points : existingFeatures[existingIndex].points
+          };
+        }
+        
+        // For new features, ensure they have the correct structure
+        return {
+          ...newFeature,
+          // Ensure type is properly set
+          type: newFeature.type || 'Point',
+          // Ensure points array exists
+          points: newFeature.points || [],
+          // Ensure attributes exist
+          attributes: newFeature.attributes || {}
+        };
+      });
+      
+      // Merge with existing features that weren't updated
+      const finalFeatures = [
+        ...existingFeatures.filter(f => !features.some(newF => newF.client_id === f.client_id)),
+        ...updatedFeatures
+      ];
+      
+      await this._saveFeaturesToStorage(projectId, finalFeatures);
+      this.invalidateCache(projectId);
+    }, 'saving features');
+  }
+
+  /**
+   * Save features to AsyncStorage
    * @param projectId - The project ID
    * @param features - Array of features to save
    * @private
    */
   private async _saveFeaturesToStorage(projectId: number, features: CollectedFeature[]): Promise<void> {
-    await AsyncStorage.setItem(this.getProjectKey(projectId), JSON.stringify(features));
-    // Update cache
+    const storageKey = this.getProjectKey(projectId);
+    await AsyncStorage.setItem(storageKey, JSON.stringify(features));
+    
+    // Update cache with the new data
     this.featuresCache.set(projectId, features);
     this.cacheTimestamp = Date.now();
+    console.log(`Saved ${features.length} features to storage and updated cache`);
   }
 
   /**

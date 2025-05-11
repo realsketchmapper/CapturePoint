@@ -1,5 +1,5 @@
 import React, { useContext, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { ProjectList } from '@/components/project/ProjectList';
 import { useProjects } from '@/hooks/useProject';
@@ -7,19 +7,23 @@ import { Project } from '@/types/project.types';
 import { ProjectContext } from '@/contexts/ProjectContext';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { useLocationContext } from '@/contexts/LocationContext';
+import { useCollectionContext } from '@/contexts/CollectionContext';
 import { calculateDistance, HALF_MILE_IN_METERS } from '@/utils/distance';
 import { ProjectDistanceWarningModal } from '@/components/modals/ProjectModals/ProjectDistanceWarningModal';
 import { syncService } from '@/services/sync/syncService';
+import { featureStorageService } from '@/services/storage/featureStorageService';
 
 const ProjectView = () => {
   const { projects, loading, error, fetchProjects } = useProjects();
   const { setActiveProject, activeProject } = useContext(ProjectContext);
   const { loadFeatureTypesForProject, clearFeatureTypes, featureTypesLoaded } = useFeatureTypeContext();
   const { currentLocation } = useLocationContext();
+  const { resetCollectionState } = useCollectionContext();
   
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showWarning, setShowWarning] = useState(false);
   const [distance, setDistance] = useState(0);
+  const [isClearing, setIsClearing] = useState(false);
 
   const calculateDistanceFromProject = (project: Project): number => {
     if (!currentLocation) return 0;
@@ -58,6 +62,10 @@ const ProjectView = () => {
     try {
       console.log('Opening project:', project.name);
       
+      // Reset any active collection state and clear feature type selection
+      resetCollectionState();
+      console.log('Reset collection state');
+      
       // Only clear feature types if switching to a different project
       if (activeProject?.id !== project.id) {
         clearFeatureTypes();
@@ -76,11 +84,9 @@ const ProjectView = () => {
       const syncResult = await syncService.syncProject(project.id);
       console.log('Initial sync completed:', syncResult);
       
-      // Only fetch feature types if we don't have them already
-      if (!featureTypesLoaded) {
-        await loadFeatureTypesForProject(project.id);
-        console.log('Fetched feature types');
-      }
+      // Load feature types for the project
+      await loadFeatureTypesForProject(project.id);
+      console.log('Fetched feature types');
       
       // Navigate to map view
       router.replace('/mapview');
@@ -103,6 +109,46 @@ const ProjectView = () => {
     }
   };
 
+  const handleClearProjectStorage = async () => {
+    if (isClearing) return;
+    
+    try {
+      setIsClearing(true);
+      console.log("=== Starting Clear All Project Storage ===");
+      
+      if (projects && projects.length > 0) {
+        // Clear storage for each project
+        for (const project of projects) {
+          await featureStorageService.clearProjectFeatures(project.id);
+          console.log(`Cleared storage for project: ${project.name} (ID: ${project.id})`);
+        }
+        
+        Alert.alert(
+          "Storage Cleared",
+          "All project data has been cleared from local storage.",
+          [{ text: "OK" }]
+        );
+      } else {
+        Alert.alert(
+          "No Projects",
+          "No projects available to clear.",
+          [{ text: "OK" }]
+        );
+      }
+      
+      console.log("=== Clear All Project Storage Complete ===");
+    } catch (error) {
+      console.error("Error clearing project storage:", error);
+      Alert.alert(
+        "Error",
+        "An error occurred while clearing project storage.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   if (error) {
     return (
       <View style={styles.errorContainer}>
@@ -118,6 +164,7 @@ const ProjectView = () => {
         onProjectPress={handleProjectPress}
         onRefresh={fetchProjects}
         loading={loading}
+        onClearProjectStorage={handleClearProjectStorage}
       />
 
       <ProjectDistanceWarningModal

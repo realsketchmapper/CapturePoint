@@ -2,136 +2,99 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import { Position, CollectionContextType, CollectionState, Coordinates, CollectionMetadata } from '@/types/collection.types';
 import { FeatureType } from '@/types/featureType.types';
-import { PointCollected } from '@/types/pointCollected.types';
 import { useLocationContext } from '@/contexts/LocationContext';
-import { useNMEAContext } from '@/contexts/NMEAContext';
 import { AuthContext } from '@/contexts/AuthContext';
 import { ProjectContext } from '@/contexts/ProjectContext';
-import { featureStorageService } from '@/services/storage/featureStorageService';
-import { syncService } from '@/services/sync/syncService';
 import { getCurrentStandardizedTime } from '@/utils/datetime';
-import { generateId } from '@/utils/collections';
+import { AppState, AppStateStatus } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '@/constants/storage';
 
-// Extended interface to include all functionality
-interface ExtendedCollectionContextType extends CollectionContextType {
-  // Collection status
-  isCollecting: boolean;
-  currentPoints: Coordinates[];
-  
-  // Collection operations
-  startCollection: (initialPosition: Position, featureType: FeatureType) => CollectionState;
+// Extend the CollectionContextType to include an optional position parameter in recordPoint
+// and expose the entire collection state
+interface ExtendedCollectionContextType extends Omit<CollectionContextType, 'recordPoint'> {
   recordPoint: (position?: Position) => boolean;
-  stopCollection: () => void;
-  updateCollectionMetadata: (metadata: Partial<CollectionMetadata>) => void;
-  
-  // Saving operations
-  isSaving: boolean;
-  saveCurrentPoint: (pointData: Partial<PointCollected>, state: CollectionState) => Promise<boolean>;
-  
-  // Sync operations
-  syncStatus: {
-    isSyncing: boolean;
-    lastSyncTime: Date | null;
-    unsyncedCount: number;
-  };
-  syncPoints: () => Promise<boolean>;
-  syncUnsyncedPoints: () => Promise<void>;
+  activeFeatureType: FeatureType | null;
+  metadata: CollectionMetadata;
+  collectionState: CollectionState;
 }
 
 // Define action types
 type CollectionAction = 
   | { type: 'SET_COLLECTION_STATE'; payload: CollectionState }
-  | { type: 'SET_SAVING'; payload: boolean }
-  | { type: 'SET_SYNC_STATUS'; payload: { isSyncing: boolean; lastSyncTime: Date | null; unsyncedCount: number } }
-  | { type: 'UPDATE_UNSYNCED_COUNT'; payload: number }
   | { type: 'ADD_POINT'; payload: Coordinates }
-  | { type: 'CLEAR_COLLECTION' };
+  | { type: 'REMOVE_LAST_POINT' }
+  | { type: 'FINISH_COLLECTION' }
+  | { type: 'CLEAR_COLLECTION' }
+  | { type: 'UPDATE_METADATA'; payload: Partial<CollectionMetadata> };
 
 // Define initial state
-const initialState: {
-  collectionState: CollectionState;
-  isSaving: boolean;
-  syncStatus: {
-    isSyncing: boolean;
-    lastSyncTime: Date | null;
-    unsyncedCount: number;
-  };
-} = {
-  collectionState: {
-    points: [] as Coordinates[],
-    isActive: false,
-    activeFeatureType: null,
-    metadata: {
-      name: '',
-      description: '',
-      project_id: null,
-      created_by: '',
-      created_at: getCurrentStandardizedTime(),
-      updated_at: getCurrentStandardizedTime(),
-      updated_by: ''
-    }
-  },
-  isSaving: false,
-  syncStatus: {
-    isSyncing: false,
-    lastSyncTime: null,
-    unsyncedCount: 0
+const initialState: CollectionState = {
+  points: [] as Coordinates[],
+  isActive: false,
+  activeFeatureType: null,
+  metadata: {
+    name: '',
+    description: '',
+    project_id: null,
+    created_by: '',
+    created_at: getCurrentStandardizedTime(),
+    updated_at: getCurrentStandardizedTime(),
+    updated_by: ''
   }
 };
 
 // Reducer function
 function collectionReducer(
-  state: typeof initialState, 
+  state: CollectionState, 
   action: CollectionAction
-): typeof initialState {
+): CollectionState {
   switch (action.type) {
     case 'SET_COLLECTION_STATE':
+      return action.payload;
+    case 'UPDATE_METADATA':
       return { 
         ...state, 
-        collectionState: action.payload 
-      };
-    case 'SET_SAVING':
-      return { 
-        ...state, 
-        isSaving: action.payload 
-      };
-    case 'SET_SYNC_STATUS':
-      return { 
-        ...state, 
-        syncStatus: action.payload 
-      };
-    case 'UPDATE_UNSYNCED_COUNT':
-      return { 
-        ...state, 
-        syncStatus: {
-          ...state.syncStatus,
-          unsyncedCount: action.payload
+        metadata: {
+          ...state.metadata,
+          ...action.payload,
+          updated_at: getCurrentStandardizedTime()
         }
       };
     case 'ADD_POINT':
       return { 
         ...state, 
-        collectionState: {
-          ...state.collectionState,
-          points: [...state.collectionState.points, action.payload]
-        }
+        points: [...state.points, action.payload]
+      };
+    case 'REMOVE_LAST_POINT':
+      if (state.points.length <= 1) {
+        // Don't remove the last point
+        return state;
+      }
+      return {
+        ...state,
+        points: state.points.slice(0, -1)
+      };
+    case 'FINISH_COLLECTION':
+      return {
+        ...state,
+        isActive: false,
+        finished: true
       };
     case 'CLEAR_COLLECTION':
       return { 
-        ...state, 
-        collectionState: {
-          points: [],
-          isActive: false,
-          activeFeatureType: null,
-          metadata: {
-            name: '',
-            description: '',
-            project_id: null,
-            created_by: '',
-            created_at: getCurrentStandardizedTime(),
-            updated_at: getCurrentStandardizedTime(),
-            updated_by: ''
-          }
+        points: [],
+        isActive: false,
+        finished: false,
+        activeFeatureType: null,
+        metadata: {
+          name: '',
+          description: '',
+          project_id: null,
+          created_by: '',
+          created_at: getCurrentStandardizedTime(),
+          updated_at: getCurrentStandardizedTime(),
+          updated_by: ''
         }
       };
     default:
@@ -143,43 +106,94 @@ const CollectionContext = createContext<ExtendedCollectionContextType | undefine
 
 export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentLocation } = useLocationContext();
-  const { ggaData, gstData } = useNMEAContext();
   
   // Safely access auth context
   const authContext = useContext(AuthContext);
-  const authInitialized = authContext !== undefined;
-  const user = authInitialized ? authContext.user : null;
+  const user = authContext?.user;
   
   // Safely access project context
   const projectContext = useContext(ProjectContext);
-  const projectInitialized = projectContext !== undefined;
-  const activeProject = projectInitialized ? projectContext.activeProject : null;
+  const activeProject = projectContext?.activeProject;
   
   // Use reducer for state management
-  const [state, dispatch] = useReducer(collectionReducer, initialState);
+  const [collectionState, dispatch] = useReducer(collectionReducer, initialState);
   
-  // Load unsynced count on startup - but only if we're logged in and have a project
+  // Handle app state changes
   useEffect(() => {
-    const loadUnsyncedCount = async () => {
-      // Only proceed if we're logged in and have a project
-      if (!user?.id || !activeProject?.id) {
-        return;
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      // When app goes to background, complete any active collections
+      if (nextAppState === 'background' && collectionState.isActive) {
+        console.log('App going to background, stopping active collection');
+        
+        // For line features with enough points, we could consider saving them here
+        if (collectionState.activeFeatureType?.type === 'Line' && collectionState.points.length >= 2) {
+          // You could add logic here to save the line if needed
+          console.log('Line collection interrupted by app background with points:', collectionState.points.length);
+          // Implementation for saving the line would go here if needed
+        }
+        
+        // Always clear the collection state when app goes to background
+        dispatch({ type: 'CLEAR_COLLECTION' });
       }
+    });
+    
+    return () => {
+      subscription.remove();
+    };
+  }, [collectionState.isActive, collectionState.activeFeatureType, collectionState.points]);
 
+  // On startup, check for and clear any stale collection states
+  useEffect(() => {
+    const checkForStaleCollections = async () => {
       try {
-        const unsyncedPoints = await featureStorageService.getUnsyncedFeatures(activeProject.id);
-        dispatch({ 
-          type: 'UPDATE_UNSYNCED_COUNT', 
-          payload: unsyncedPoints.length 
-        });
+        // We'll use a simple timestamp approach
+        const lastSessionTimestamp = await AsyncStorage.getItem(STORAGE_KEYS.LAST_SESSION_TIMESTAMP);
+        const currentTimestamp = new Date().getTime();
+        
+        // Update the timestamp for this session
+        await AsyncStorage.setItem(STORAGE_KEYS.LAST_SESSION_TIMESTAMP, currentTimestamp.toString());
+        
+        // If we have a previous timestamp and it's been more than 5 minutes (app was likely closed)
+        if (lastSessionTimestamp) {
+          const timeDiff = currentTimestamp - parseInt(lastSessionTimestamp);
+          if (timeDiff > 5 * 60 * 1000) { // 5 minutes in milliseconds
+            console.log('Detected app restart after closure, clearing any active collections');
+            dispatch({ type: 'CLEAR_COLLECTION' });
+          }
+        }
       } catch (error) {
-        console.error('Error loading unsynced points:', error);
+        console.error('Error checking for stale collections:', error);
       }
     };
     
-    loadUnsyncedCount();
-  }, [user?.id, activeProject?.id]); // Only run when auth or project changes
+    checkForStaleCollections();
+  }, []);
+  
+  // Periodically update the session timestamp while app is active
+  useEffect(() => {
+    const updateSessionTimestamp = () => {
+      AsyncStorage.setItem(STORAGE_KEYS.LAST_SESSION_TIMESTAMP, new Date().getTime().toString())
+        .catch(error => console.error('Error updating session timestamp:', error));
+    };
+    
+    const interval = setInterval(updateSessionTimestamp, 30000); // Update every 30 seconds
+    
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
 
+  // Handle project changes
+  useEffect(() => {
+    if (activeProject && collectionState.isActive) {
+      // If active project changes and doesn't match collection's project, stop collection
+      if (activeProject.id !== collectionState.metadata.project_id && collectionState.metadata.project_id !== null) {
+        console.log('Project changed, stopping active collection');
+        dispatch({ type: 'CLEAR_COLLECTION' });
+      }
+    }
+  }, [activeProject, collectionState.isActive, collectionState.metadata.project_id]);
+  
   // Helper function to get valid coordinates from position
   const getValidCoordinates = useCallback((position?: Position): Coordinates | null => {
     if (!position) {
@@ -216,10 +230,10 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         name: '',
         description: '',
         project_id: activeProject.id,
-        created_by: String(user?.id),
+        created_by: String(user?.id || ''),
         created_at: getCurrentStandardizedTime(),
         updated_at: getCurrentStandardizedTime(),
-        updated_by: String(user?.id)
+        updated_by: String(user?.id || '')
       }
     };
     
@@ -229,31 +243,23 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Update collection metadata
   const updateCollectionMetadata = useCallback((metadata: Partial<CollectionMetadata>) => {
-    if (!state.collectionState.activeFeatureType) {
+    if (!collectionState.activeFeatureType) {
       console.warn('Cannot update metadata: No active feature type');
       return;
     }
 
-    const updatedState: CollectionState = {
-      ...state.collectionState,
-      activeFeatureType: state.collectionState.activeFeatureType,
-      metadata: {
-        ...state.collectionState.metadata,
-        ...metadata,
-        updated_at: getCurrentStandardizedTime(),
-        updated_by: String(user?.id)
-      }
-    };
-
     dispatch({
-      type: 'SET_COLLECTION_STATE',
-      payload: updatedState
+      type: 'UPDATE_METADATA',
+      payload: {
+        ...metadata,
+        updated_by: String(user?.id || '')
+      }
     });
-  }, [state.collectionState, user]);
+  }, [collectionState.activeFeatureType, user]);
 
   // Record a new point
   const recordPoint = useCallback((position?: Position): boolean => {
-    if (!state.collectionState.isActive) {
+    if (!collectionState.isActive) {
       return false;
     }
     
@@ -265,92 +271,48 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     dispatch({ type: 'ADD_POINT', payload: pointCoordinates });
     return true;
-  }, [state.collectionState.isActive, getValidCoordinates]);
+  }, [collectionState.isActive, getValidCoordinates]);
+
+  // Remove the last point
+  const undoLastPoint = useCallback((): boolean => {
+    if (!collectionState.isActive || collectionState.points.length <= 1) {
+      return false;
+    }
+    
+    dispatch({ type: 'REMOVE_LAST_POINT' });
+    return true;
+  }, [collectionState.isActive, collectionState.points.length]);
 
   // Stop collection
   const stopCollection = useCallback(() => {
+    dispatch({ type: 'FINISH_COLLECTION' });
+  }, []);
+
+  // Add a new clearCollection function to actually clear the state
+  const clearCollection = useCallback(() => {
     dispatch({ type: 'CLEAR_COLLECTION' });
   }, []);
-  
-  // Save the current point with all metadata
-  const saveCurrentPoint = useCallback(async (pointData: Partial<PointCollected>, state: CollectionState) => {
-    if (!state.isActive || !state.points.length || !state.activeFeatureType || !state.metadata.project_id || !ggaData || !gstData) return false;
 
-    try {
-      const point: PointCollected = {
-        client_id: generateId(),
-        name: state.activeFeatureType.name,
-        description: pointData.description || '',
-        draw_layer: state.activeFeatureType.draw_layer,
-        attributes: {
-          ...pointData.attributes,
-          nmeaData: pointData.attributes?.nmeaData || {
-            gga: ggaData,
-            gst: gstData
-          }
-        },
-        created_by: state.metadata.created_by,
-        created_at: state.metadata.created_at,
-        updated_at: getCurrentStandardizedTime(),
-        updated_by: state.metadata.updated_by,
-        synced: false,
-        feature_id: 0, // This is fine as it indicates unsynced state
-        project_id: state.metadata.project_id
-      };
-
-      await featureStorageService.savePoint(point);
-      return true;
-    } catch (error) {
-      console.error('Error saving point:', error);
-      return false;
-    }
-  }, [ggaData, gstData]);
-  
-  // Sync points with the server
-  const syncPoints = useCallback(async () => {
-    if (!activeProject) return false;
-
-    try {
-      const result = await syncService.syncProject(activeProject.id);
-      return result.success;
-    } catch (error) {
-      console.error('Error syncing points:', error);
-      return false;
-    }
-  }, [activeProject]);
-
-  const syncUnsyncedPoints = useCallback(async () => {
-    try {
-      const unsyncedFeatures = await featureStorageService.getUnsyncedFeatures(state.collectionState.metadata.project_id || 0);
-      if (unsyncedFeatures.length > 0) {
-        await syncService.syncProject(state.collectionState.metadata.project_id || 0);
-      }
-    } catch (error) {
-      console.error('Error syncing unsynced points:', error);
-    }
-  }, [state.collectionState.metadata.project_id]);
+  // Reset collection state
+  const resetCollectionState = useCallback(() => {
+    dispatch({ type: 'CLEAR_COLLECTION' });
+  }, []);
 
   return (
     <CollectionContext.Provider
       value={{
-        // Collection status
-        isCollecting: state.collectionState.isActive,
-        currentPoints: state.collectionState.points,
-        
-        // Collection operations
+        isCollecting: collectionState.isActive,
+        currentPoints: collectionState.points,
+        activeFeatureType: collectionState.activeFeatureType,
+        metadata: collectionState.metadata,
+        collectionState,
         startCollection,
         recordPoint,
+        undoLastPoint,
         stopCollection,
+        clearCollection,
         updateCollectionMetadata,
-        
-        // Saving operations
-        isSaving: state.isSaving,
-        saveCurrentPoint,
-        
-        // Sync operations
-        syncStatus: state.syncStatus,
-        syncPoints,
-        syncUnsyncedPoints
+        resetCollectionState
       }}
     >
       {children}

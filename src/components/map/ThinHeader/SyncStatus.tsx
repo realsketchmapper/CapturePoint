@@ -1,16 +1,25 @@
 import React, { useRef, useEffect } from 'react';
 import { TouchableOpacity, StyleSheet, Animated, Easing, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useCollectionContext } from '@/contexts/CollectionContext';
 import { useProjectContext } from '@/contexts/ProjectContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
+import { useFeatureSync } from '@/hooks/useFeatureSync';
 import { Colors } from '@/theme/colors';
 
 export const SyncStatus: React.FC = () => {
-  const { syncStatus } = useCollectionContext();
   const { activeProject } = useProjectContext();
-  const { syncFeatures, isSyncing } = useMapContext();
-  const { unsyncedCount } = syncStatus;
+  const { isSyncing: mapIsSyncing } = useMapContext();
+  
+  // Use the new hook with the active project ID
+  const { 
+    unsyncedCount, 
+    isSyncing: syncIsSyncing, 
+    syncFeatures 
+  } = useFeatureSync(activeProject?.id || null);
+  
+  // Combine sync statuses from different sources
+  const isSyncing = syncIsSyncing || mapIsSyncing;
+  
   const spinValue = useRef(new Animated.Value(0)).current;
   const spinAnimation = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -22,7 +31,7 @@ export const SyncStatus: React.FC = () => {
       hasActiveProject: !!activeProject,
       projectId: activeProject?.id
     });
-  }, [syncStatus, activeProject, isSyncing]);
+  }, [isSyncing, unsyncedCount, activeProject]);
 
   const startSpinAnimation = () => {
     spinValue.setValue(0);

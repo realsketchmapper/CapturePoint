@@ -11,6 +11,7 @@ export interface CollectedFeature {
   draw_layer: string;
   client_id: string;        // ID for maplibre
   project_id: number;
+  type: 'Point' | 'Line' | 'Polygon';  // Feature type
   points: PointCollected[];
   attributes: {             // Instance-specific attributes
       [key: string]: any;

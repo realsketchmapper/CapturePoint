@@ -7,6 +7,7 @@ import { AxiosError } from 'axios';
 import { syncLogger } from '../logging/syncLogger';
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CollectedFeature } from '@/types/currentFeatures.types';
 
 /**
  * Interface representing the result of a sync operation
@@ -274,14 +275,28 @@ class SyncService {
       return null;
     }
     
+    // Check if this is a line point
+    const isLinePoint = point.attributes?.isLinePoint === true;
+    const parentLineId = point.attributes?.parentLineId;
+    
+    // Determine the type - if it's a line point and has a parentLineId, we'll mark it as part of a Line
+    const featureType = isLinePoint && parentLineId ? 'Line' : 'Point';
+    
+    // Set the name correctly - if it's a line point, use the parent line's name without the "Point X" suffix
+    let name = point.name;
+    if (isLinePoint && point.attributes?.featureTypeName) {
+      // Use the feature type name instead of "Feature Type Point X"
+      name = point.attributes.featureTypeName;
+    }
+    
     return {
       clientId: String(point.client_id),
       lastModified: this.standardizeDateTime(point.updated_at),
       data: {
-        name: point.name,
+        name: name,
         description: point.description,
         category: point.feature_id,
-        type: 'Point',
+        type: featureType,
         draw_layer: point.draw_layer,
         points: [{
           client_id: point.client_id,
@@ -289,6 +304,7 @@ class SyncService {
           created_at: this.standardizeDateTime(point.created_at),
           updated_at: this.standardizeDateTime(point.updated_at),
           attributes: {
+            ...point.attributes,
             nmeaData: {
               gga: point.attributes?.nmeaData?.gga,
               gst: point.attributes?.nmeaData?.gst
@@ -297,7 +313,77 @@ class SyncService {
         }],
         created_at: this.standardizeDateTime(point.created_at),
         updated_at: this.standardizeDateTime(point.updated_at),
-        attributes: {}
+        attributes: {
+          ...point.attributes,
+          isLine: isLinePoint && parentLineId ? true : undefined,
+          parentLineId: parentLineId
+        }
+      }
+    };
+  }
+
+  /**
+   * Format a line feature for API submission
+   * @param feature - The line feature to format
+   * @returns Formatted line feature data for API or null if invalid
+   */
+  private formatLineFeatureForAPI(feature: CollectedFeature): FormattedPoint | null {
+    // Skip features with no points
+    if (!feature.points || feature.points.length < 2) {
+      console.warn(`Skipping line feature ${feature.client_id} with insufficient points: ${feature.points?.length || 0}`);
+      return null;
+    }
+    
+    // Get all valid points with coordinates
+    const validPoints = feature.points.filter((point: PointCollected) => {
+      const longitude = point.attributes?.nmeaData?.gga?.longitude;
+      const latitude = point.attributes?.nmeaData?.gga?.latitude;
+      return longitude !== undefined && latitude !== undefined && longitude !== null && latitude !== null;
+    });
+    
+    // Sort points by their pointIndex attribute to ensure correct line order
+    validPoints.sort((a: PointCollected, b: PointCollected) => (a.attributes?.pointIndex || 0) - (b.attributes?.pointIndex || 0));
+    
+    // Skip if we don't have enough valid points
+    if (validPoints.length < 2) {
+      console.warn(`Skipping line feature ${feature.client_id} with insufficient valid points: ${validPoints.length}`);
+      return null;
+    }
+    
+    // Format all points for inclusion in the line feature
+    const formattedPoints = validPoints.map((point: PointCollected) => ({
+      client_id: point.client_id,
+      coords: [
+        point.attributes?.nmeaData?.gga?.longitude,
+        point.attributes?.nmeaData?.gga?.latitude
+      ] as [number, number],
+      created_at: this.standardizeDateTime(point.created_at),
+      updated_at: this.standardizeDateTime(point.updated_at),
+      attributes: {
+        ...point.attributes,
+        isLinePoint: true,
+        parentLineId: feature.client_id,
+        pointIndex: point.attributes?.pointIndex || 0
+      }
+    }));
+    
+    // Return the formatted line feature
+    return {
+      clientId: String(feature.client_id),
+      lastModified: this.standardizeDateTime(feature.updated_at),
+      data: {
+        name: feature.name,
+        description: feature.points[0]?.description || '',
+        category: feature.project_id,
+        type: 'Line',
+        draw_layer: feature.draw_layer,
+        points: formattedPoints,
+        created_at: this.standardizeDateTime(feature.created_at),
+        updated_at: this.standardizeDateTime(feature.updated_at),
+        attributes: {
+          ...feature.attributes,
+          isLine: true
+        }
       }
     };
   }
@@ -524,13 +610,31 @@ class SyncService {
           };
         }
 
-        // Format points for API
-        const formattedPoints = unsyncedFeatures
+        // Separate line features and point features
+        const lineFeatures = unsyncedFeatures.filter(feature => 
+          feature.type === 'Line' && feature.attributes?.isLine === true
+        );
+        
+        const pointFeatures = unsyncedFeatures.filter(feature => 
+          feature.type !== 'Line' || feature.attributes?.isLine !== true
+        );
+        
+        // Format line features correctly
+        const formattedLineFeatures = lineFeatures
+          .map(feature => this.formatLineFeatureForAPI(feature))
+          .filter((feature): feature is FormattedPoint => feature !== null);
+        
+        // Format individual points that are not part of lines
+        const formattedPoints = pointFeatures
           .flatMap(feature => feature.points)
+          .filter(point => !point.attributes?.isLinePoint) // Don't include points that belong to lines
           .map(point => this.formatPointForAPI(this.standardizePointDatetimes(point)))
           .filter((point): point is FormattedPoint => point !== null);
+        
+        // Combine both types of formatted features
+        const formattedFeatures = [...formattedLineFeatures, ...formattedPoints];
 
-        if (formattedPoints.length === 0) {
+        if (formattedFeatures.length === 0) {
           return {
             success: true,
             syncedCount: 0,
@@ -538,10 +642,10 @@ class SyncService {
           };
         }
 
-        // Send points to server
+        // Send features to server
         const endpoint = API_ENDPOINTS.SYNC_COLLECTED_FEATURES.replace(':projectId', projectId.toString());
         const response = await api.post(endpoint, {
-          features: formattedPoints,
+          features: formattedFeatures,
           lastSyncTimestamp: this.standardizeDateTime(new Date())
         });
 
@@ -563,7 +667,7 @@ class SyncService {
           return {
             success: false,
             syncedCount: 0,
-            failedCount: formattedPoints.length,
+            failedCount: formattedFeatures.length,
             errorMessage: response.data?.message || 'Sync failed'
           };
         }

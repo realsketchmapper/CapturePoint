@@ -1,13 +1,15 @@
 import type { FeatureCollection, GeoJsonProperties, Feature } from 'geojson';
 import { FeatureToRender } from './featuresToRender.types';
+import { FeatureType as FeatureTypeModel } from './featureType.types';
 
 // Simplified type definitions
 export type Coordinate = [number, number];
-export type FeatureType = 'point' | 'polygon';
+export type FeatureTypeEnum = 'point' | 'line' | 'polygon';
 
 export interface MapContextType {
   // Feature management
-  addPoint: (coordinates: Coordinate, properties?: GeoJsonProperties) => string | null;
+  addPoint: (coordinates: Coordinate, properties?: GeoJsonProperties) => string | undefined;
+  addLine: (coordinates: Coordinate[], properties?: GeoJsonProperties) => string | undefined;
   addFeature: (feature: Feature) => void;
   updateFeature: (id: string, coordinates: Coordinate | Coordinate[]) => void;
   removeFeature: (id: string) => void;
@@ -20,7 +22,7 @@ export interface MapContextType {
   
   // Feature rendering
   renderFeature: (feature: FeatureToRender) => string | null;
-  previewFeature: (coordinates: Coordinate | Coordinate[], type: FeatureType) => string | null;
+  previewFeature: (coordinates: Coordinate | Coordinate[], type: FeatureTypeModel) => string | null;
   
   // Layer visibility
   visibleLayers: Record<string, boolean>;

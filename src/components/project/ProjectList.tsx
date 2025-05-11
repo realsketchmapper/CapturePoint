@@ -10,6 +10,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
   onProjectPress,
   onRefresh,
   loading,
+  onClearProjectStorage
 }) => {
   if (loading && !projects.length) {
     return (
@@ -22,7 +23,11 @@ export const ProjectList: React.FC<ProjectListProps> = ({
 
   return (
     <View style={styles.container}>
-      <ProjectsHeader onRefresh={onRefresh} loading={loading} />
+      <ProjectsHeader 
+        onRefresh={onRefresh} 
+        loading={loading} 
+        onClearProjectStorage={onClearProjectStorage}
+      />
       <FlatList
         data={projects}
         keyExtractor={(item) => item.id.toString()}

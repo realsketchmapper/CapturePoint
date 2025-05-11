@@ -5,12 +5,14 @@ import { useLocationContext } from '@/contexts/LocationContext';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { Colors } from '@/theme/colors';
 import { usePointCollection } from '@/hooks/usePointCollection';
+import { useCollectionContext } from '@/contexts/CollectionContext';
 
 
 const CollectionButton = () => {
-  const { locationSource } = useLocationContext();
+  const { locationSource, currentLocation } = useLocationContext();
   const { selectedFeatureType } = useFeatureTypeContext();
   const { handlePointCollection } = usePointCollection();
+  const { isCollecting, startCollection, recordPoint } = useCollectionContext();
 
   // Don't render if not using NMEA
   if (locationSource !== 'nmea') {
@@ -18,28 +20,66 @@ const CollectionButton = () => {
   }
 
   const handleCollect = () => {
-    if (!selectedFeatureType) return;
+    if (!selectedFeatureType || !currentLocation) return;
 
     switch (selectedFeatureType.type) {
       case 'Point':
         handlePointCollection();
         break;
+      case 'Line':
+        // If already collecting, add a new point to the line
+        if (isCollecting) {
+          recordPoint(currentLocation);
+        } else {
+          // Start a new line collection with the current location
+          try {
+            startCollection(currentLocation, selectedFeatureType);
+          } catch (error) {
+            console.error('Error starting line collection:', error);
+          }
+        }
+        break;
     }
   };
+
+  // Determine the button appearance based on the selected feature type
+  const getButtonAppearance = () => {
+    if (!selectedFeatureType) {
+      return {
+        color: Colors.Grey,
+        icon: 'add-location' as const
+      };
+    }
+
+    // Show different icon based on feature type and collection state
+    if (selectedFeatureType.type === 'Line') {
+      return {
+        color: isCollecting ? Colors.Yellow : Colors.BrightGreen,
+        icon: isCollecting ? 'adjust' as const : 'linear-scale' as const
+      };
+    } else {
+      return {
+        color: Colors.BrightGreen,
+        icon: 'add-location' as const
+      };
+    }
+  };
+
+  const { color, icon } = getButtonAppearance();
 
   return (
     <View style={styles.container}>
       <TouchableOpacity
-        style={[styles.button && styles.activeButton]}
+        style={[styles.button, selectedFeatureType && styles.activeButton]}
         onPress={handleCollect}
+        disabled={!selectedFeatureType}
       >
         <MaterialIcons 
-          name="add-location" 
+          name={icon} 
           size={24} 
-          color={Colors.BrightGreen} 
+          color={color} 
         />
       </TouchableOpacity>
-
     </View>
   );
 };

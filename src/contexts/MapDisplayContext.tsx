@@ -1,11 +1,13 @@
-import React, { createContext, useContext, useReducer, useCallback } from 'react';
-import type { Feature, Point, FeatureCollection, GeoJsonProperties } from 'geojson';
+import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties, Geometry } from 'geojson';
 import { FeatureToRender } from '@/types/featuresToRender.types';
-import { MapContextType, Coordinate, FeatureType } from '@/types/map.types';
-import { syncService } from '@/services/sync/syncService';
+import { MapContextType, Coordinate, FeatureTypeEnum } from '@/types/map.types';
 import { useProjectContext } from './ProjectContext';
 import { useFeatureTypeContext } from './FeatureTypeContext';
 import { featureStorageService } from '@/services/storage/featureStorageService';
+import { useFeatureSync } from '@/hooks/useFeatureSync';
+import { FeatureType } from '@/types/featureType.types';
+import { Position } from '@/types/collection.types';
 
 const MapContext = createContext<MapContextType | undefined>(undefined);
 
@@ -25,7 +27,6 @@ type MapAction =
   | { type: 'REMOVE_FEATURE'; payload: string }
   | { type: 'CLEAR_FEATURES' }
   | { type: 'SET_ERROR'; payload: string | null }
-  | { type: 'SET_SYNC_STATUS'; payload: { isSyncing: boolean; lastSyncTime: string | null } }
   | { type: 'SET_VISIBLE_LAYERS'; payload: Record<string, boolean> }
   | { type: 'TOGGLE_LAYER'; payload: string };
 
@@ -34,8 +35,6 @@ interface MapState {
   isMapReady: boolean;
   features: FeatureCollection;
   error: string | null;
-  isSyncing: boolean;
-  lastSyncTime: string | null;
   visibleLayers: Record<string, boolean>;
 }
 
@@ -46,8 +45,6 @@ const initialState: MapState = {
     features: []
   },
   error: null,
-  isSyncing: false,
-  lastSyncTime: null,
   visibleLayers: {}
 };
 
@@ -98,12 +95,6 @@ function mapReducer(state: MapState, action: MapAction): MapState {
         ...state, 
         error: action.payload 
       };
-    case 'SET_SYNC_STATUS':
-      return {
-        ...state,
-        isSyncing: action.payload.isSyncing,
-        lastSyncTime: action.payload.lastSyncTime
-      };
     case 'SET_VISIBLE_LAYERS':
       return {
         ...state,
@@ -126,11 +117,47 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [state, dispatch] = useReducer(mapReducer, initialState);
   const { activeProject } = useProjectContext();
   const { featureTypes, getFeatureTypeByName } = useFeatureTypeContext();
+  
+  // Use the new feature sync hook
+  const { 
+    isSyncing,
+    lastSyncTime, 
+    syncFeatures: syncFeaturesFromHook,
+    error: syncError
+  } = useFeatureSync(activeProject?.id || null);
+  
+  // Update error state when sync error changes
+  useEffect(() => {
+    if (syncError) {
+      dispatch({ type: 'SET_ERROR', payload: syncError });
+    }
+  }, [syncError]);
 
   // Add a point to the map
   const addPoint = useCallback((coordinates: Coordinate, properties: GeoJsonProperties = {}) => {
     const props = properties || {};
     const featureType = props.featureType || {};
+    
+    // Debug color information
+    console.log('Point color debug:', {
+      propsColor: props.color,
+      featureTypeColor: featureType.color,
+      fallbackColor: '#000000'
+    });
+    
+    // Ensure color is a valid hex color with # prefix
+    let pointColor = props.color || featureType.color || '#000000';
+    if (pointColor && !pointColor.startsWith('#')) {
+      // If color appears to be hex without #, add it
+      if (/^[0-9A-Fa-f]{6}$/.test(pointColor)) {
+        pointColor = `#${pointColor}`;
+        console.log('Fixed color format by adding # prefix:', pointColor);
+      } else {
+        // If color is invalid, fallback to a safe default
+        console.warn('Invalid color format detected:', pointColor, 'falling back to default');
+        pointColor = '#000000';
+      }
+    }
     
     const pointFeature: Feature<Point> = {
       type: 'Feature',
@@ -141,11 +168,11 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
       properties: {
         ...props,
-        color: props.color || featureType.color || '#000000',
+        color: pointColor,
         style: {
           ...(props.style || {}),
-          circleColor: props.color || featureType.color || '#000000',
-          circleStrokeColor: props.color || featureType.color || '#000000',
+          circleColor: pointColor,
+          circleStrokeColor: pointColor,
           circleRadius: props.style?.circleRadius || 6,
           circleOpacity: props.style?.circleOpacity || 1,
           circleStrokeWidth: props.style?.circleStrokeWidth || 2,
@@ -166,6 +193,64 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return properties?.client_id;
   }, [state.visibleLayers]);
 
+  // Add a line to the map
+  const addLine = useCallback((coordinates: Coordinate[], properties: GeoJsonProperties = {}) => {
+    const props = properties || {};
+    const featureType = props.featureType || {};
+    
+    // Debug color information
+    console.log('Line color debug:', {
+      propsColor: props.color,
+      featureTypeColor: featureType.color,
+      fallbackColor: '#000000'
+    });
+    
+    // Ensure color is a valid hex color with # prefix
+    let lineColor = props.color || featureType.color || '#000000';
+    if (lineColor && !lineColor.startsWith('#')) {
+      // If color appears to be hex without #, add it
+      if (/^[0-9A-Fa-f]{6}$/.test(lineColor)) {
+        lineColor = `#${lineColor}`;
+        console.log('Fixed color format by adding # prefix:', lineColor);
+      } else {
+        // If color is invalid, fallback to a safe default
+        console.warn('Invalid color format detected:', lineColor, 'falling back to default');
+        lineColor = '#000000';
+      }
+    }
+    
+    const lineFeature: Feature = {
+      type: 'Feature',
+      id: properties?.client_id,
+      geometry: {
+        type: 'LineString',
+        coordinates
+      },
+      properties: {
+        ...props,
+        color: lineColor,
+        style: {
+          ...(props.style || {}),
+          lineColor: lineColor,
+          lineWidth: props.style?.lineWidth || featureType.line_weight || 3,
+          lineOpacity: props.style?.lineOpacity || 1,
+          lineDasharray: props.style?.lineDasharray || (props.isPreview ? [2, 2] : undefined)
+        }
+      }
+    };
+    
+    // Update visible layers if this is a new layer
+    if (props.draw_layer && !state.visibleLayers[props.draw_layer]) {
+      dispatch({ 
+        type: 'SET_VISIBLE_LAYERS', 
+        payload: { ...state.visibleLayers, [props.draw_layer]: true } 
+      });
+    }
+    
+    dispatch({ type: 'ADD_FEATURE', payload: lineFeature });
+    return properties?.client_id;
+  }, [state.visibleLayers]);
+
   // Update an existing feature
   const updateFeature = useCallback((id: string, coordinates: Coordinate | Coordinate[]) => {
     const featureToUpdate = state.features.features.find(feature => feature.id === id);
@@ -175,15 +260,33 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     
-    // Since we only support points now, ensure we're using point coordinates
-    const pointCoordinates = Array.isArray(coordinates[0]) ? coordinates[0] : coordinates;
+    let updatedGeometry: Geometry;
+    
+    // Handle different geometry types
+    if (featureToUpdate.geometry.type === 'Point') {
+      // For points, ensure we're using point coordinates (a single coordinate)
+      const pointCoordinates = Array.isArray(coordinates[0]) ? coordinates[0] : coordinates;
+      updatedGeometry = {
+        type: 'Point',
+        coordinates: pointCoordinates
+      };
+    } else if (featureToUpdate.geometry.type === 'LineString') {
+      // For lines, ensure we're using an array of coordinates
+      const lineCoordinates = Array.isArray(coordinates[0]) ? 
+        coordinates as Coordinate[] : 
+        [coordinates as Coordinate];
+      updatedGeometry = {
+        type: 'LineString',
+        coordinates: lineCoordinates
+      };
+    } else {
+      console.warn(`Unsupported geometry type: ${featureToUpdate.geometry.type}`);
+      return;
+    }
     
     const updatedFeature: Feature = {
       ...featureToUpdate,
-      geometry: {
-        type: 'Point',
-        coordinates: pointCoordinates
-      } as Point
+      geometry: updatedGeometry
     };
     
     dispatch({ type: 'UPDATE_FEATURE', payload: { id, feature: updatedFeature } });
@@ -226,11 +329,17 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         draw_layer: feature.properties?.draw_layer
       });
       return id;
+    } else if (feature.type === 'LineString') {
+      const id = addLine(feature.coordinates as Coordinate[], {
+        ...feature.properties,
+        draw_layer: feature.properties?.draw_layer
+      });
+      return id;
     }
     console.warn(`Unsupported feature type: ${feature.type}`);
     dispatch({ type: 'SET_ERROR', payload: `Unsupported feature type: ${feature.type}` });
     return null;
-  }, [addPoint]);
+  }, [addPoint, addLine]);
 
   // Preview a feature
   const previewFeature = useCallback((
@@ -239,15 +348,18 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     const previewProps = { isPreview: true, previewStyle: true };
     
-    if (type === 'point') {
-      return addPoint(coordinates as Coordinate, previewProps);
+    if (type.type === 'Point') {
+      return addPoint(coordinates as Coordinate, { ...previewProps, featureType: type });
+    } else if (type.type === 'Line') {
+      return addLine(coordinates as Coordinate[], { ...previewProps, featureType: type });
     }
     
-    console.warn(`Unsupported preview type: ${type}`);
-    dispatch({ type: 'SET_ERROR', payload: `Unsupported preview type: ${type}` });
+    console.warn(`Unsupported preview type: ${type.type}`);
+    dispatch({ type: 'SET_ERROR', payload: `Unsupported preview type: ${type.type}` });
     return null;
-  }, [addPoint]);
+  }, [addPoint, addLine]);
 
+  // Sync and load features
   const syncFeatures = useCallback(async () => {
     if (!activeProject) {
       dispatch({ type: 'SET_ERROR', payload: 'No active project selected' });
@@ -255,23 +367,10 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: true, lastSyncTime: null } });
+      // Use the syncFeatures from the hook
+      const success = await syncFeaturesFromHook();
       
-      const result = await syncService.syncProject(activeProject.id);
-      
-      if (result.success) {
-        // Update last sync time
-        dispatch({ 
-          type: 'SET_SYNC_STATUS', 
-          payload: { 
-            isSyncing: false, 
-            lastSyncTime: new Date().toISOString() 
-          } 
-        });
-        
-        // Clear any existing error
-        dispatch({ type: 'SET_ERROR', payload: null });
-        
+      if (success) {
         // Clear existing features
         dispatch({ type: 'CLEAR_FEATURES' });
         
@@ -355,52 +454,27 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     } catch (error) {
-      console.error('Error syncing features:', error);
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to sync features' });
-    } finally {
-      dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: false, lastSyncTime: null } });
+      console.error('Error loading features after sync:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to load features after sync' });
     }
-  }, [activeProject, dispatch, featureTypes, getFeatureTypeByName, state.visibleLayers]);
+  }, [activeProject, syncFeaturesFromHook, featureTypes, getFeatureTypeByName, state.visibleLayers]);
 
+  // Sync all projects - simplified to use the hook
   const syncAllProjects = useCallback(async () => {
+    if (!activeProject?.id) {
+      dispatch({ type: 'SET_ERROR', payload: 'No active project selected' });
+      return;
+    }
+    
     try {
-      dispatch({ type: 'SET_SYNC_STATUS', payload: { isSyncing: true, lastSyncTime: null } });
-      
-      const result = await syncService.syncProject(activeProject?.id || 0);
-      
-      if (result.success) {
-        // Update last sync time
-        dispatch({ 
-          type: 'SET_SYNC_STATUS', 
-          payload: { 
-            isSyncing: false, 
-            lastSyncTime: new Date().toISOString() 
-          } 
-        });
-        
-        // Clear any existing error
-        dispatch({ type: 'SET_ERROR', payload: null });
-      } else {
-        dispatch({ 
-          type: 'SET_ERROR', 
-          payload: result.errorMessage || 'Sync failed' 
-        });
-        dispatch({ 
-          type: 'SET_SYNC_STATUS', 
-          payload: { isSyncing: false, lastSyncTime: null } 
-        });
-      }
+      await syncFeaturesFromHook();
     } catch (error) {
       dispatch({ 
         type: 'SET_ERROR', 
         payload: error instanceof Error ? error.message : 'Unknown error during sync' 
       });
-      dispatch({ 
-        type: 'SET_SYNC_STATUS', 
-        payload: { isSyncing: false, lastSyncTime: null } 
-      });
     }
-  }, [activeProject?.id]);
+  }, [activeProject?.id, syncFeaturesFromHook]);
 
   const setIsMapReady = (isReady: boolean) => dispatch({ type: 'SET_MAP_READY', payload: isReady });
   const addFeature = useCallback((feature: Feature) => {
@@ -434,13 +508,14 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateFeature,
       removeFeature,
       clearFeatures,
-      isSyncing: state.isSyncing,
-      lastSyncTime: state.lastSyncTime,
+      isSyncing,
+      lastSyncTime: lastSyncTime ? lastSyncTime.toISOString() : null,
       error: state.error,
       setError,
       syncFeatures,
       syncAllProjects,
       addPoint,
+      addLine,
       renderFeature,
       previewFeature,
       visibleLayers: state.visibleLayers,

@@ -12,6 +12,7 @@ import { useMapContext } from '@/contexts/MapDisplayContext';
 import { FeatureToRender } from '@/types/featuresToRender.types';
 import { collectedFeatureService } from '@/services/features/collectedFeatureService';
 import { Feature } from 'geojson';
+import { CollectedFeature } from '@/types/currentFeatures.types';
 
 const MAX_DESCRIPTION_LENGTH = 500;
 
@@ -36,6 +37,11 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Determine if this is a line point
+  const isLinePoint = point.attributes?.isLinePoint === true;
+  const parentLineId = point.attributes?.parentLineId;
+  const pointIndex = point.attributes?.pointIndex;
+
   // Helper function to get nmeaData regardless of point structure
   const getNmeaData = (point: PointCollected) => {
     // Check if nmeaData is directly on the point
@@ -46,13 +52,13 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
     if (point.points?.[0]?.attributes?.nmeaData) {
       return point.points[0].attributes.nmeaData;
     }
-    // Check if nmeaData is in points[0].attributes
-    if (point.points?.[0]?.attributes?.nmeaData) {
-      return point.points[0].attributes.nmeaData;
-    }
     return null;
   };
 
+  // Get point data for display
+  const nmeaData = getNmeaData(point);
+
+  // Format for display
   const formatValue = (value: any): string => {
     if (value === null || value === undefined) return 'N/A';
     if (typeof value === 'string') return value;
@@ -88,11 +94,12 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
     try {
       setIsSaving(true);
       // Update the point with new description
-      const updatedFeature = {
+      const updatedFeature: CollectedFeature = {
         name: point.name,
         draw_layer: point.draw_layer,
         client_id: point.client_id,
         project_id: point.project_id,
+        type: isLinePoint ? 'Line' : 'Point',
         points: [{
           ...point,
           description,
@@ -116,7 +123,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
     } finally {
       setIsSaving(false);
     }
-  }, [point, description, isSaving, user?.id]);
+  }, [point, description, isSaving, user?.id, isLinePoint]);
 
   const handleDelete = useCallback(async () => {
     if (!point || !activeProject || isDeleting) return;
@@ -227,7 +234,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Type:</Text>
-                  <Text style={styles.value}>Point</Text>
+                  <Text style={styles.value}>{isLinePoint ? 'Line Point' : 'Point'}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Collected By:</Text>
@@ -300,53 +307,72 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 {/* Position */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Longitude:</Text>
-                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gga?.longitude)}</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.longitude)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Latitude:</Text>
-                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gga?.latitude)}</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.latitude)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Altitude:</Text>
-                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gga?.altitude)} m</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.altitude)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Geoid Height:</Text>
-                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gga?.geoidHeight)} m</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.geoidHeight)} m</Text>
                 </View>
 
                 {/* Quality Indicators */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Fix Quality:</Text>
-                  <Text style={styles.value}>{getFixQualityText(getNmeaData(point)?.gga?.quality ?? 0)}</Text>
+                  <Text style={styles.value}>{getFixQualityText(nmeaData?.gga?.quality ?? 0)}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Satellites:</Text>
-                  <Text style={styles.value}>{getNmeaData(point)?.gga?.satellites}</Text>
+                  <Text style={styles.value}>{nmeaData?.gga?.satellites}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>HDOP:</Text>
-                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gga?.hdop)}</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.hdop)}</Text>
                 </View>
 
                 {/* Error Estimates */}
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>RMS Total:</Text>
-                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gst?.rmsTotal)} m</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.rmsTotal)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Lat Error:</Text>
-                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gst?.latitudeError)} m</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.latitudeError)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Lon Error:</Text>
-                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gst?.longitudeError)} m</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.longitudeError)} m</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Height Error:</Text>
-                  <Text style={styles.value}>{formatValue(getNmeaData(point)?.gst?.heightError)} m</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.heightError)} m</Text>
                 </View>
               </View>
+
+              {/* Line Point Information */}
+              {isLinePoint && (
+                <>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Line Information</Text>
+                  </View>
+                  <View style={styles.sectionContent}>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.label}>Parent Line:</Text>
+                      <Text style={styles.value}>{parentLineId || 'N/A'}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.label}>Point Index:</Text>
+                      <Text style={styles.value}>{pointIndex !== undefined ? (pointIndex + 1) : 'N/A'}</Text>
+                    </View>
+                  </View>
+                </>
+              )}
             </View>
           </ScrollView>
         </View>
@@ -507,6 +533,14 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 12,
     fontWeight: '500',
+  },
+  sectionHeader: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.Grey,
+  },
+  sectionContent: {
+    padding: 10,
   },
 });
 

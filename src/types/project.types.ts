@@ -14,6 +14,7 @@ export interface ProjectListProps {
   onProjectPress: (project: Project) => void;
   onRefresh: () => void;
   loading: boolean;
+  onClearProjectStorage?: () => void;
 }
 
 export interface ProjectListItemProps {
@@ -24,6 +25,7 @@ export interface ProjectListItemProps {
 export interface ProjectsHeaderProps {
   onRefresh: () => void;
   loading: boolean;
+  onClearProjectStorage?: () => void;
 }
 
 export interface ProjectNameDisplayProps {

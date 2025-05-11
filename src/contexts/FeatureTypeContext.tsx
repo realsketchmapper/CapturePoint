@@ -95,6 +95,8 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   // Public function to load feature types for a project
   const loadFeatureTypesForProject = useCallback(async (projectId: number): Promise<void> => {
+    // Clear selected feature type when loading a new project
+    setSelectedFeatureType(null);
     await _fetchFeatureTypes(projectId);
   }, [_fetchFeatureTypes]);
 
@@ -112,7 +114,57 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
     console.log('=== FeatureTypeContext Debug ===');
     console.log('Looking up feature type for name:', name);
     console.log('Available feature types:', featureTypes.map(f => f.name));
-    const found = featureTypes.find(f => f.name.toLowerCase() === name.toLowerCase());
+    
+    // Extract base feature type name from point names
+    let searchName = name;
+    
+    // Handle "Point" suffix pattern (e.g., "Elec. Line Point 1")
+    if (name.includes(' Point ')) {
+      const parts = name.split(' Point ');
+      if (parts.length > 0 && parts[0]) {
+        searchName = parts[0];
+        console.log('Extracted base feature type name from Point pattern:', searchName);
+      }
+    }
+    // Handle "Vertex" suffix pattern (e.g., "Elec. Line Vertex 1")
+    else if (name.includes(' Vertex ')) {
+      const parts = name.split(' Vertex ');
+      if (parts.length > 0 && parts[0]) {
+        searchName = parts[0];
+        console.log('Extracted base feature type name from Vertex pattern:', searchName);
+      }
+    }
+    // Handle numbered suffix pattern (e.g., "Elec. Line 1")
+    else {
+      // Extract everything before the last space and number
+      const match = name.match(/^(.+?)(?:\s+\d+)?$/);
+      if (match && match[1]) {
+        // Check if what we extracted is different from the original name
+        // and doesn't end with a number
+        if (match[1] !== name && !match[1].match(/\d+$/)) {
+          searchName = match[1];
+          console.log('Extracted base feature type name from number pattern:', searchName);
+        }
+      }
+    }
+    
+    // Try to find an exact match with the extracted name
+    let found = featureTypes.find(f => f.name.toLowerCase() === searchName.toLowerCase());
+    
+    // If we don't find an exact match and the name has multiple parts,
+    // try matching with just the first part (e.g., "Elec." from "Elec. Line")
+    if (!found && searchName.includes(' ')) {
+      const firstPart = searchName.split(' ')[0];
+      const matchingType = featureTypes.find(f => 
+        f.name.toLowerCase().startsWith(firstPart.toLowerCase())
+      );
+      
+      if (matchingType) {
+        console.log('Found partial match by prefix:', matchingType.name);
+        found = matchingType;
+      }
+    }
+    
     console.log('Found feature type:', found);
     return found;
   }, [featureTypes]);

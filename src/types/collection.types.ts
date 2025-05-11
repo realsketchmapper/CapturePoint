@@ -17,10 +17,16 @@ export type Coordinates = [longitude: number, latitude: number];
 export interface CollectionContextType {
   isCollecting: boolean;
   currentPoints: Coordinates[]; // Store only valid positions as [lon, lat] tuples
+  activeFeatureType: FeatureType | null;
+  metadata: CollectionMetadata;
+  collectionState: CollectionState;
   startCollection: (initialPosition: Position, featureType: FeatureType, options?: CollectionOptions) => CollectionState;
   stopCollection: () => void;
-  recordPoint: (position: Position) => boolean;
+  clearCollection: () => void;
+  recordPoint: (position?: Position) => boolean;
+  undoLastPoint: () => boolean;
   updateCollectionMetadata: (metadata: Partial<CollectionMetadata>) => void;
+  resetCollectionState: () => void;
 }
 
 export interface CollectionMetadata {
@@ -43,6 +49,7 @@ export interface CollectionOptions {
 export interface CollectionState {
     points: Coordinates[];
     isActive: boolean;
+    finished?: boolean;
     activeFeatureType: FeatureType | null;
     metadata: CollectionMetadata;
 }

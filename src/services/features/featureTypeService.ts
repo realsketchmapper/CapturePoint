@@ -26,18 +26,36 @@ export const featureTypeService = {
         throw new Error('Failed to fetch feature types');
       }
 
-      return response.data.features.map((feature: any) => ({
-        id: feature.id || '',
-        name: feature.name,
-        type: feature.type,
-        color: feature.color || '#000000',
-        label: feature.label || '',
-        svg: feature.svg || '',
-        draw_layer: feature.draw_layer || 'default',
-        z_value: feature.z_value || 0,
-        is_active: true,
-        image_url: feature.image_url || null
-      }));
+      return response.data.features.map((feature: any) => {
+        // Ensure color is properly formatted
+        let color = feature.color || '#000000';
+        if (color && !color.startsWith('#')) {
+          // If color appears to be hex without #, add it
+          if (/^[0-9A-Fa-f]{6}$/.test(color)) {
+            color = `#${color}`;
+            console.log('Fixed color format in feature type by adding # prefix:', color);
+          } else {
+            // If color is invalid, fallback to a safe default
+            console.warn('Invalid color format detected in feature type:', color, 'falling back to default');
+            color = '#000000';
+          }
+        }
+
+        return {
+          id: feature.id || '',
+          name: feature.name,
+          type: feature.type,
+          color: color,
+          line_weight: feature.line_weight || 3,
+          dash_pattern: feature.dash_pattern || '',
+          label: feature.label || '',
+          svg: feature.svg || '',
+          draw_layer: feature.draw_layer || 'default',
+          z_value: feature.z_value || 0,
+          is_active: true,
+          image_url: feature.image_url || null
+        };
+      });
     } catch (error) {
       return handleApiError(error, 'fetchFeatureTypes');
     }

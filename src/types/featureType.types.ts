@@ -32,7 +32,7 @@ export interface FeatureTypeContextType {
     getFeatureTypeByName: (name: string) => FeatureType | undefined;
 }
 
-export type FeatureTypeGeometry = 'Point' | 'Polygon';
+export type FeatureTypeGeometry = 'Point' | 'Line' | 'Polygon';
 
 export interface FeatureButtonProps {
     onPress: () => void;
