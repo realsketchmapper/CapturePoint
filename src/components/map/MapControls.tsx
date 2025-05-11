@@ -387,7 +387,11 @@ export const MapControls: React.FC = () => {
           draw_layer: featureType.draw_layer,
           attributes: {
             nmeaData: {
-              gga: {
+              gga: ggaData ? {
+                ...ggaData,
+                longitude: longitude,
+                latitude: latitude
+              } : {
                 time: currentTime,
                 longitude: longitude,
                 latitude: latitude,
@@ -399,7 +403,9 @@ export const MapControls: React.FC = () => {
                 geoidHeight: 0,
                 geoidHeightUnit: 'm'
               },
-              gst: {
+              gst: gstData ? {
+                ...gstData
+              } : {
                 time: currentTime,
                 rmsTotal: 1.0,
                 semiMajor: 1.0,
@@ -460,7 +466,7 @@ export const MapControls: React.FC = () => {
       console.error('Error saving line feature to storage:', error);
       return null;
     }
-  }, [activeProject, user]);
+  }, [activeProject, user, ggaData, gstData]);
 
   // Update the loadFeaturesFromStorage function to handle line features
   const loadFeaturesFromStorage = useCallback(async () => {
@@ -836,8 +842,6 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
         onDidFinishLoadingMap={handleMapReady}
         onRegionWillChange={handleRegionWillChange}
         onPress={handleMapClick}
-        logoEnabled={false}
-        compassEnabled={true}
         attributionEnabled={true}
         mapStyle={getMapStyle(settings.basemapStyle)}
       >
