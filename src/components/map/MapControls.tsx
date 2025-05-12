@@ -191,16 +191,6 @@ export const MapControls: React.FC = () => {
     }
   }, [currentLocation, isMapReady, followGNSS]);
 
-  // When user interacts with the map, temporarily stop following
-  const handleRegionWillChange = (event?: any) => {
-    if (event?.properties?.isUserInteraction) {
-      setFollowGNSS(false);
-      
-      setTimeout(() => {
-        setFollowGNSS(true);
-      }, 5000); // 5-second delay
-    }
-  };
 
   // Handle map click
   const handleMapClick = useCallback(async (event: any) => {
@@ -233,7 +223,7 @@ export const MapControls: React.FC = () => {
       let minDistance = Infinity;
 
       // Increase the detection radius for easier clicking
-      const CLICK_DETECTION_RADIUS = 0.00005; // About 5.5 meters at equator, increased from 0.00001
+      const CLICK_DETECTION_RADIUS = 0.00002; // About 5.5 meters at equator, increased from 0.00001
 
       for (const feature of pointFeatures) {
         const featureCoords = (feature.geometry as any).coordinates;
@@ -760,26 +750,7 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
     console.log('====================================');
   }, [activeProject, features, visibleLayers]);
 
-  // Add debug button component
-  const DebugDetailedButton = () => (
-    <TouchableOpacity
-      style={styles.debugButton}
-      onPress={debugFeaturesWithDetails}
-    >
-      <Text style={styles.buttonText}>Debug Details</Text>
-    </TouchableOpacity>
-  );
-
-  // Add a reload button component
-  const ReloadButton = () => (
-    <TouchableOpacity
-      style={styles.reloadButton}
-      onPress={loadFeaturesFromStorage}
-    >
-      <Text style={styles.buttonText}>Reload Features</Text>
-    </TouchableOpacity>
-  );
-
+ 
   // Handle direct feature click events
   const handleFeaturePress = useCallback(async (feature: any) => {
     console.log('Feature pressed:', feature);
@@ -840,7 +811,6 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
         ref={mapRef}
         style={styles.map}
         onDidFinishLoadingMap={handleMapReady}
-        onRegionWillChange={handleRegionWillChange}
         onPress={handleMapClick}
         attributionEnabled={true}
         mapStyle={getMapStyle(settings.basemapStyle)}
@@ -1003,9 +973,7 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
       </MapView>
       
       <View style={styles.bottomControlsContainer}>
-        <ReloadButton />
         <ClearStorageButton />
-        <DebugDetailedButton />
       </View>
 
       <LeftSidebarContainer />

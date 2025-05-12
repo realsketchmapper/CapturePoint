@@ -5,9 +5,19 @@ export interface Project {
     name: string;
     client_name: string;
     address: string;
-    coords: Array<number>;
+    coords: [number, number];
     work_type: string;
-  }
+    
+    // Legacy format support properties - optional
+    title?: string;        // Alternative to name
+    client?: string;       // Alternative to client_name
+    location?: string;     // Alternative to address
+    coordinates?: [number, number] | { lat: number; lng: number } | { latitude: number; longitude: number };
+    latitude?: number;     // Direct latitude value
+    longitude?: number;    // Direct longitude value
+    workType?: string;     // Alternative to work_type
+    type?: string;         // Another alternative to work_type
+}
   
 export interface ProjectListProps {
   projects: Project[];
@@ -36,10 +46,12 @@ export interface ProjectNameDisplayProps {
 export interface ProjectContextType {
   activeProject: Project | null;
   projects: Project[];
+  isLoading: boolean;
   setActiveProject: (project: Project | null) => void;
-  clearActiveProject: () => void;
-  fetchProjects: () => Promise<void>;
-  error: string | null;
+  clearActiveProject?: () => void;
+  fetchProjects: () => Promise<Project[]>;
+  importLegacyProjects: () => Promise<Project[]>;
+  error?: string | null;
 }
 
 export interface ProjectProviderProps {

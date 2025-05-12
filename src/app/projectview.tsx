@@ -1,5 +1,5 @@
-import React, { useContext, useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import React, { useContext, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Alert, Button } from 'react-native';
 import { router } from 'expo-router';
 import { ProjectList } from '@/components/project/ProjectList';
 import { useProjects } from '@/hooks/useProject';
@@ -12,6 +12,11 @@ import { calculateDistance, HALF_MILE_IN_METERS } from '@/utils/distance';
 import { ProjectDistanceWarningModal } from '@/components/modals/ProjectModals/ProjectDistanceWarningModal';
 import { syncService } from '@/services/sync/syncService';
 import { featureStorageService } from '@/services/storage/featureStorageService';
+import { projectStorageService } from '@/services/storage/projectStorageService';
+import { featureTypeStorageService } from '@/services/storage/featureTypeStorageService';
+import NetInfo from '@react-native-community/netinfo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '@/constants/storage';
 
 const ProjectView = () => {
   const { projects, loading, error, fetchProjects } = useProjects();
@@ -76,13 +81,21 @@ const ProjectView = () => {
       setActiveProject(project);
       console.log('Set active project');
       
-      // Initialize sync service for the project and wait for initial sync
-      syncService.start(project.id);
-      console.log('Initialized sync service');
+      // Check if we're online before trying to sync
+      const networkState = await NetInfo.fetch();
+      const isConnected = !!networkState.isConnected;
       
-      // Wait for initial sync to complete
-      const syncResult = await syncService.syncProject(project.id);
-      console.log('Initial sync completed:', syncResult);
+      if (isConnected) {
+        // Initialize sync service for the project and wait for initial sync
+        syncService.start(project.id);
+        console.log('Initialized sync service');
+        
+        // Wait for initial sync to complete
+        const syncResult = await syncService.syncProject(project.id);
+        console.log('Initial sync completed:', syncResult);
+      } else {
+        console.log('Offline mode: Skipping sync process');
+      }
       
       // Load feature types for the project
       await loadFeatureTypesForProject(project.id);
@@ -120,8 +133,16 @@ const ProjectView = () => {
         // Clear storage for each project
         for (const project of projects) {
           await featureStorageService.clearProjectFeatures(project.id);
-          console.log(`Cleared storage for project: ${project.name} (ID: ${project.id})`);
+          console.log(`Cleared features for project: ${project.name} (ID: ${project.id})`);
         }
+        
+        // Clear all stored projects data
+        await projectStorageService.clearProjects();
+        console.log('Cleared all stored projects data');
+        
+        // Clear all stored feature types
+        await featureTypeStorageService.clearAllFeatureTypes();
+        console.log('Cleared all stored feature types');
         
         Alert.alert(
           "Storage Cleared",
@@ -149,6 +170,103 @@ const ProjectView = () => {
     }
   };
 
+  useEffect(() => {
+    // Debug: Test storage on component mount
+    const testStorage = async () => {
+      console.log('=== DEBUG: Testing project storage on component mount ===');
+      try {
+        await projectStorageService.debugVerifyStorage();
+        const projects = await projectStorageService.getStoredProjects();
+        console.log(`DEBUG: Found ${projects.length} projects in storage directly`);
+        
+        // List all AsyncStorage keys
+        const allKeys = await AsyncStorage.getAllKeys();
+        console.log('=== DEBUG: All AsyncStorage keys ===');
+        console.log(allKeys.join('\n'));
+        
+        // Check content of each key related to projects
+        const projectKeys = allKeys.filter(key => key.includes('project') || key === STORAGE_KEYS.PROJECTS);
+        for (const key of projectKeys) {
+          const value = await AsyncStorage.getItem(key);
+          console.log(`Key: ${key} | Value: ${value ? (value.length > 100 ? value.substring(0, 100) + '...' : value) : 'null'}`);
+        }
+      } catch (error) {
+        console.error('DEBUG: Error testing storage', error);
+      }
+    };
+    
+    testStorage();
+  }, []);
+  
+  // Debug function to force refresh projects from storage
+  const debugForceRefresh = async () => {
+    console.log('=== DEBUG: Force refreshing projects from storage ===');
+    try {
+      setIsClearing(true); // Reuse loading state
+      
+      // List all keys first
+      const allKeys = await AsyncStorage.getAllKeys();
+      console.log('All AsyncStorage keys:');
+      console.log(allKeys.join('\n'));
+      
+      // Force refresh
+      const projects = await projectStorageService.forceRefreshFromStorage();
+      console.log(`Force refresh found ${projects.length} projects`);
+      
+      // If projects found, update state
+      if (projects.length > 0) {
+        await fetchProjects();
+        Alert.alert('Debug', `Found ${projects.length} projects in storage`);
+      } else {
+        Alert.alert('Debug', 'No projects found in storage');
+      }
+    } catch (error) {
+      console.error('DEBUG: Error in force refresh', error);
+      Alert.alert('Debug Error', 'Error refreshing projects');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  // Debug function to add test project to storage
+  const debugAddTestProject = async () => {
+    try {
+      setIsClearing(true); // Reuse loading state
+      
+      // Create a test project
+      const testProject: Project = {
+        id: 9999,
+        name: "Test Project",
+        client_name: "Test Client",
+        address: "123 Test Street",
+        coords: [35.2271, -80.8431], // Charlotte, NC coordinates
+        work_type: "Test Work"
+      };
+      
+      // Get any existing projects
+      const existingProjects = await projectStorageService.getStoredProjects();
+      
+      // Add test project if it doesn't exist
+      if (!existingProjects.some(p => p.id === testProject.id)) {
+        const updatedProjects = [...existingProjects, testProject];
+        await projectStorageService.storeProjects(updatedProjects);
+        console.log('Added test project to storage');
+        
+        // Refresh the projects list
+        await fetchProjects();
+        
+        Alert.alert('Debug', 'Test project added successfully');
+      } else {
+        Alert.alert('Debug', 'Test project already exists');
+      }
+    } catch (error) {
+      console.error('Error adding test project:', error);
+      Alert.alert('Debug Error', 'Failed to add test project');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   if (error) {
     return (
       <View style={styles.errorContainer}>
@@ -166,6 +284,23 @@ const ProjectView = () => {
         loading={loading}
         onClearProjectStorage={handleClearProjectStorage}
       />
+
+      {/* Debug buttons for development purposes */}
+      {__DEV__ && (
+        <View style={styles.debugButtonContainer}>
+          <Button 
+            title="Debug: Force Refresh" 
+            onPress={debugForceRefresh} 
+            color="#FF6347"
+          />
+          <View style={styles.buttonSpacer} />
+          <Button 
+            title="Debug: Add Test Project" 
+            onPress={debugAddTestProject} 
+            color="#4682B4"
+          />
+        </View>
+      )}
 
       <ProjectDistanceWarningModal
         isVisible={showWarning}
@@ -191,6 +326,14 @@ const styles = StyleSheet.create({
     color: '#FF0000',
     fontSize: 16,
     textAlign: 'center',
+  },
+  debugButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    padding: 10,
+  },
+  buttonSpacer: {
+    width: 10,
   },
 });
 

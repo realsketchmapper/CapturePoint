@@ -1,6 +1,8 @@
 import { api } from "@/api/clients";
 import { FeatureType } from "@/types/featureType.types";
 import { API_ENDPOINTS } from "@/api/endpoints";
+import { featureTypeStorageService } from "@/services/storage/featureTypeStorageService";
+import NetInfo from '@react-native-community/netinfo';
 
 // Helper function to handle API errors
 const handleApiError = (error: unknown, operation: string): never => {
@@ -17,8 +19,39 @@ const buildEndpoint = (endpoint: string, params: Record<string, string | number>
 };
 
 export const featureTypeService = {
+  /**
+   * Checks if the device is online
+   * @returns Promise resolving to boolean indicating online status
+   */
+  isOnline: async (): Promise<boolean> => {
+    try {
+      console.log('Checking network connectivity for feature types...');
+      const networkState = await NetInfo.fetch();
+      const isConnected = !!networkState.isConnected;
+      console.log(`Network status for feature types: ${isConnected ? 'Online' : 'Offline'}`);
+      return isConnected;
+    } catch (error) {
+      console.error('Error checking network connectivity:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Fetches feature types for a project, with offline support
+   * @param projectId The project ID to fetch feature types for
+   * @returns Promise resolving to an array of feature types
+   */
   fetchFeatureTypes: async (projectId: number): Promise<FeatureType[]> => {
     try {
+      // Check if we're online
+      const online = await featureTypeService.isOnline();
+      
+      if (!online) {
+        console.log('Device is offline, loading feature types from local storage');
+        return await featureTypeStorageService.getStoredFeatureTypes(projectId);
+      }
+      
+      console.log('Device is online, fetching feature types from API');
       const endpoint = buildEndpoint(API_ENDPOINTS.FEATURE_TYPES, { projectId });
       const response = await api.get(endpoint);
       
@@ -26,7 +59,7 @@ export const featureTypeService = {
         throw new Error('Failed to fetch feature types');
       }
 
-      return response.data.features.map((feature: any) => {
+      const featureTypes = response.data.features.map((feature: any) => {
         // Ensure color is properly formatted
         let color = feature.color || '#000000';
         if (color && !color.startsWith('#')) {
@@ -56,13 +89,39 @@ export const featureTypeService = {
           image_url: feature.image_url || null
         };
       });
+      
+      // Store feature types locally for offline access
+      await featureTypeStorageService.storeFeatureTypes(projectId, featureTypes);
+      console.log(`Stored ${featureTypes.length} feature types for offline use`);
+      
+      return featureTypes;
     } catch (error) {
+      console.error('Error fetching feature types:', error);
+      
+      // Try to load from storage as fallback
+      console.log('Attempting to load feature types from local storage as fallback');
+      const offlineFeatureTypes = await featureTypeStorageService.getStoredFeatureTypes(projectId);
+      
+      if (offlineFeatureTypes.length > 0) {
+        console.log(`Loaded ${offlineFeatureTypes.length} feature types from local storage as fallback`);
+        return offlineFeatureTypes;
+      }
+      
+      // No offline data available, propagate the error
       return handleApiError(error, 'fetchFeatureTypes');
     }
   },
 
   inactivateFeature: async (projectId: number, featureId: string): Promise<void> => {
     try {
+      // Check if we're online first
+      const online = await featureTypeService.isOnline();
+      
+      if (!online) {
+        console.log('Device is offline, cannot inactivate feature');
+        throw new Error('Cannot inactivate feature while offline');
+      }
+      
       const endpoint = buildEndpoint(API_ENDPOINTS.INACTIVATE_FEATURE, { projectId, featureId });
       const response = await api.post(endpoint);
       

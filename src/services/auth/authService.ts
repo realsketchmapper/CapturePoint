@@ -18,15 +18,15 @@ export class AuthService {
    */
   static async login(email: string, password: string): Promise<User> {
     try {
-      // Clear any existing credentials first
-      await tokenStorage.clearCredentials();
-
-      // Check network connectivity
+      // Check network connectivity first
       const isConnected = await checkNetworkConnectivity();
 
       if (!isConnected) {
         return this.attemptOfflineLogin();
       }
+
+      // Only clear credentials for online login
+      await tokenStorage.clearCredentials();
 
       // Attempt online login with retry
       return await withRetry(
@@ -62,11 +62,12 @@ export class AuthService {
 
     if (!credentials) {
       throw new AuthError(
-        'No stored credentials found',
+        'No stored credentials found. You need to login online at least once before using offline mode.',
         AuthErrorType.NO_CREDENTIALS
       );
     }
 
+    console.log('Offline login successful with stored credentials');
     return this.createUserFromCredentials(credentials, true);
   }
 
@@ -148,24 +149,30 @@ export class AuthService {
       const credentials = await tokenStorage.getStoredCredentials();
 
       if (!credentials) {
+        console.log('No stored credentials found during getCurrentUser');
         return null;
       }
 
       const isConnected = await checkNetworkConnectivity();
 
       if (!isConnected) {
+        console.log('Device is offline, returning offline user from stored credentials');
         return this.createUserFromCredentials(credentials, true);
       }
 
       try {
+        console.log('Attempting to validate token with server');
         const isValid = await this.validateToken(true);
 
         if (!isValid) {
+          console.log('Token validation failed, returning offline user');
           return this.createUserFromCredentials(credentials, true);
         }
 
+        console.log('Token validation successful, returning online user');
         return this.createUserFromCredentials(credentials, false);
       } catch (error) {
+        console.log('Error during token validation, returning offline user', error);
         return this.createUserFromCredentials(credentials, true);
       }
     } catch (error) {
@@ -191,27 +198,39 @@ export class AuthService {
       const credentials = await tokenStorage.getStoredCredentials();
 
       if (!credentials?.token) {
+        console.log('No token found during validateToken');
         return false;
       }
 
       const isConnected = await checkNetworkConnectivity();
 
       if (!isConnected) {
+        console.log('Device is offline, skipping token validation');
         return false;
       }
 
+      console.log(`Validating token (${isInitialValidation ? 'initial' : 'regular'} validation)`);
       return await withRetry(
         async () => {
-          await api.get(API_ENDPOINTS.VALIDATE_TOKEN, {
-            timeout: isInitialValidation
-              ? AUTH_CONFIG.NETWORK.INITIAL_VALIDATION_TIMEOUT
-              : AUTH_CONFIG.NETWORK.TIMEOUT,
-          } as ExtendedAxiosRequestConfig);
-          return true;
+          try {
+            await api.get(API_ENDPOINTS.VALIDATE_TOKEN, {
+              timeout: isInitialValidation
+                ? AUTH_CONFIG.NETWORK.INITIAL_VALIDATION_TIMEOUT
+                : AUTH_CONFIG.NETWORK.TIMEOUT,
+            } as ExtendedAxiosRequestConfig);
+            console.log('Token validation successful');
+            return true;
+          } catch (error) {
+            console.log('Token validation request failed:', error instanceof Error ? error.message : 'Unknown error');
+            throw error;
+          }
         },
         'validateToken'
       );
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.log(`Token validation failed: ${errorMessage}`);
+      
       logAuthError(
         new AuthError(
           'Token validation failed',
