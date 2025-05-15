@@ -1,13 +1,12 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import type { Feature, Point, LineString, FeatureCollection, GeoJsonProperties, Geometry } from 'geojson';
+import type { Feature, Point, FeatureCollection, GeoJsonProperties, Geometry } from 'geojson';
 import { FeatureToRender } from '@/types/featuresToRender.types';
-import { MapContextType, Coordinate, FeatureTypeEnum } from '@/types/map.types';
+import { MapContextType, Coordinate } from '@/types/map.types';
 import { useProjectContext } from './ProjectContext';
 import { useFeatureTypeContext } from './FeatureTypeContext';
 import { featureStorageService } from '@/services/storage/featureStorageService';
 import { useFeatureSync } from '@/hooks/useFeatureSync';
 import { FeatureType } from '@/types/featureType.types';
-import { Position } from '@/types/collection.types';
 
 const MapContext = createContext<MapContextType | undefined>(undefined);
 
@@ -138,15 +137,8 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const props = properties || {};
     const featureType = props.featureType || {};
     
-    // Debug color information
-    console.log('Point color debug:', {
-      propsColor: props.color,
-      featureTypeColor: featureType.color,
-      fallbackColor: '#000000'
-    });
-    
     // Ensure color is a valid hex color with # prefix
-    let pointColor = props.color || featureType.color || '#000000';
+    let pointColor = props.color || featureType.color;
     if (pointColor && !pointColor.startsWith('#')) {
       // If color appears to be hex without #, add it
       if (/^[0-9A-Fa-f]{6}$/.test(pointColor)) {
@@ -197,13 +189,6 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addLine = useCallback((coordinates: Coordinate[], properties: GeoJsonProperties = {}) => {
     const props = properties || {};
     const featureType = props.featureType || {};
-    
-    // Debug color information
-    console.log('Line color debug:', {
-      propsColor: props.color,
-      featureTypeColor: featureType.color,
-      fallbackColor: '#000000'
-    });
     
     // Ensure color is a valid hex color with # prefix
     let lineColor = props.color || featureType.color || '#000000';
@@ -268,13 +253,13 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const pointCoordinates = Array.isArray(coordinates[0]) ? coordinates[0] : coordinates;
       updatedGeometry = {
         type: 'Point',
-        coordinates: pointCoordinates
+        coordinates: pointCoordinates as [number, number]
       };
     } else if (featureToUpdate.geometry.type === 'LineString') {
       // For lines, ensure we're using an array of coordinates
       const lineCoordinates = Array.isArray(coordinates[0]) ? 
-        coordinates as Coordinate[] : 
-        [coordinates as Coordinate];
+        coordinates as [number, number][] : 
+        [coordinates] as [number, number][];
       updatedGeometry = {
         type: 'LineString',
         coordinates: lineCoordinates
@@ -324,13 +309,20 @@ export const MapProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Render any type of feature
   const renderFeature = useCallback((feature: FeatureToRender) => {
     if (feature.type === 'Point') {
-      const id = addPoint(feature.coordinates as Coordinate, {
+      // For Point features, we expect a single coordinate pair
+      const pointCoordinates = feature.coordinates as [number, number];
+      const id = addPoint(pointCoordinates, {
         ...feature.properties,
         draw_layer: feature.properties?.draw_layer
       });
       return id;
-    } else if (feature.type === 'LineString') {
-      const id = addLine(feature.coordinates as Coordinate[], {
+    } else if (feature.type === 'Line') {
+      // For Line features, we need an array of coordinate pairs
+      const lineCoordinates = Array.isArray(feature.coordinates[0]) 
+        ? feature.coordinates as [number, number][]
+        : [feature.coordinates] as [number, number][];
+        
+      const id = addLine(lineCoordinates, {
         ...feature.properties,
         draw_layer: feature.properties?.draw_layer
       });

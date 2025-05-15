@@ -3,6 +3,7 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
 import { Colors } from '@/theme/colors';
 import { PointCollected } from '@/types/pointCollected.types';
 import { formatDate } from '@/utils/date';
+import { displayInLocalTimezone } from '@/utils/datetime';
 import { featureStorageService } from '@/services/storage/featureStorageService';
 import { AuthContext } from '@/contexts/AuthContext';
 import { AuthContextState } from '@/types/auth.types';
@@ -297,7 +298,10 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
 
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Timestamp:</Text>
-                  <Text style={styles.value}>{formatDate(point.created_at)}</Text>
+                  <Text style={styles.value}>
+                    {displayInLocalTimezone(point.created_at, point.attributes?.timezone || undefined)}
+                    {point.attributes?.timezone ? ` (${point.attributes.timezone})` : ''}
+                  </Text>
                 </View>
               </View>
 

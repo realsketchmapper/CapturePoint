@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FeatureType } from '@/types/featureType.types';
 import { STORAGE_KEYS } from '@/constants/storage';
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 
 /**
  * Service for managing feature types in local storage
@@ -11,6 +13,7 @@ class FeatureTypeStorageService {
   private featureTypesCache: Map<number, FeatureType[]> = new Map();
   private cacheTimestamp: number = 0;
   private readonly CACHE_TTL = 60000; // 1 minute cache TTL
+  private imagesCache: Map<string, string> = new Map(); // In-memory cache for image data
 
   /**
    * Gets the storage key for a specific project's feature types
@@ -19,6 +22,35 @@ class FeatureTypeStorageService {
    */
   private getFeatureTypesKey(projectId: number): string {
     return `${STORAGE_KEYS.FEATURE_TYPES_PREFIX}_${projectId}`;
+  }
+
+  /**
+   * Gets the file system directory path for storing images
+   * @returns The directory path
+   */
+  private getImagesDirectory(): string {
+    return `${FileSystem.cacheDirectory}feature_type_images/`;
+  }
+
+  /**
+   * Gets the file system path for a specific image
+   * @param imageName - The image name (derived from URL or feature name)
+   * @returns The file path
+   */
+  private getImagePath(imageName: string): string {
+    return `${this.getImagesDirectory()}${imageName}`;
+  }
+
+  /**
+   * Ensures the images directory exists
+   * @returns Promise that resolves when the directory exists
+   */
+  private async ensureImagesDirectory(): Promise<void> {
+    const dirInfo = await FileSystem.getInfoAsync(this.getImagesDirectory());
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(this.getImagesDirectory(), { intermediates: true });
+      console.log('Created feature type images directory');
+    }
   }
 
   /**
@@ -140,6 +172,122 @@ class FeatureTypeStorageService {
     } catch (error) {
       console.error('Error clearing all feature types:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Generates a safe filename from a URL or feature name
+   * @param url - The image URL or feature name
+   * @returns A sanitized filename
+   */
+  private getImageFilename(url: string, featureName: string): string {
+    // Try to extract a meaningful name from the URL path
+    let filename;
+    try {
+      const urlObj = new URL(url);
+      // Get the last part of the path
+      const pathParts = urlObj.pathname.split('/');
+      const lastPart = pathParts[pathParts.length - 1];
+      
+      // If there's a filename with extension
+      if (lastPart && lastPart.includes('.')) {
+        filename = lastPart;
+      } else {
+        // Use feature name as a fallback
+        filename = `${featureName.replace(/\s+/g, '_')}.png`;
+      }
+    } catch {
+      // If URL parsing fails, use feature name
+      filename = `${featureName.replace(/\s+/g, '_')}.png`;
+    }
+    
+    // Ensure filename is safe by removing any remaining special characters
+    return filename.replace(/[^a-zA-Z0-9_.-]/g, '_');
+  }
+
+  /**
+   * Stores an image from a URL to local storage
+   * @param url - The remote image URL
+   * @param featureName - The feature name (used for fallback filename generation)
+   * @returns Promise that resolves with the local URI for the stored image
+   */
+  async storeFeatureTypeImage(url: string, featureName: string): Promise<string> {
+    try {
+      // If we already have the URL cached in memory, return it
+      if (this.imagesCache.has(url)) {
+        return this.imagesCache.get(url)!;
+      }
+
+      await this.ensureImagesDirectory();
+      const filename = this.getImageFilename(url, featureName);
+      const localUri = this.getImagePath(filename);
+      
+      // Check if we already have the file
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      if (fileInfo.exists) {
+        console.log(`Image already exists locally at ${localUri}`);
+        this.imagesCache.set(url, localUri);
+        return localUri;
+      }
+      
+      // Download the file
+      console.log(`Downloading image from ${url} to ${localUri}`);
+      const downloadResult = await FileSystem.downloadAsync(url, localUri);
+      
+      if (downloadResult.status === 200) {
+        console.log(`Successfully downloaded image to ${localUri}`);
+        this.imagesCache.set(url, localUri);
+        return localUri;
+      } else {
+        throw new Error(`Failed to download image, status: ${downloadResult.status}`);
+      }
+    } catch (error) {
+      console.error('Error storing feature type image:', error);
+      // Return original URL as fallback
+      return url;
+    }
+  }
+
+  /**
+   * Gets a locally stored image URI for a remote URL if available
+   * @param url - The remote image URL
+   * @param featureName - The feature name
+   * @returns Promise that resolves with the local URI if available, or the original URL
+   */
+  async getFeatureTypeImage(url: string, featureName: string): Promise<string> {
+    try {
+      // If URL is already a local file, return it
+      if (url.startsWith('file://')) {
+        return url;
+      }
+      
+      // Check in-memory cache first
+      if (this.imagesCache.has(url)) {
+        return this.imagesCache.get(url)!;
+      }
+
+      // Check if we have a local version
+      const filename = this.getImageFilename(url, featureName);
+      const localUri = this.getImagePath(filename);
+      
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      if (fileInfo.exists) {
+        console.log(`Found cached image for ${featureName} at ${localUri}`);
+        this.imagesCache.set(url, localUri);
+        return localUri;
+      }
+      
+      // If we're online, try to download and cache it
+      try {
+        const storedUri = await this.storeFeatureTypeImage(url, featureName);
+        return storedUri;
+      } catch {
+        // If download fails, return original URL
+        return url;
+      }
+    } catch (error) {
+      console.error('Error getting feature type image:', error);
+      return url; // Return original URL as fallback
     }
   }
 }

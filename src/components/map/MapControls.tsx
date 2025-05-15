@@ -1,5 +1,5 @@
-// components/MapControls.tsx (simplified version)
-import React, { useRef, useEffect, useState, useCallback, useContext, useMemo } from 'react';
+// components/MapControls.tsx
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import {
   MapView,
@@ -28,9 +28,6 @@ import { Colors } from '@/theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '@/constants/storage';
 import { Position } from '@/types/collection.types';
-import { FeatureToRender } from '@/types/featuresToRender.types';
-import { Feature, Point, FeatureCollection, GeoJsonProperties } from 'geojson';
-import { generateId } from '@/utils/collections';
 import { LineCollectionManager } from './LineCollectionManager';
 import { useCollectionContext } from '@/contexts/CollectionContext';
 import { FeatureType } from '@/types/featureType.types';

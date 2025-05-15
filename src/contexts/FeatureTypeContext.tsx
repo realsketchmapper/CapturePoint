@@ -1,6 +1,7 @@
 import React, { createContext, useState, ReactNode, useContext, useCallback, useEffect, useMemo } from 'react';
 import { FeatureType, FeatureTypeContextType } from '@/types/featureType.types';
 import { featureTypeService } from '@/services/features/featureTypeService';
+import { featureTypeStorageService } from '@/services/storage/featureTypeStorageService';
 import { Image } from 'react-native';
 
 export const FeatureTypeContext = createContext<FeatureTypeContextType | undefined>(undefined);
@@ -27,30 +28,40 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
     });
   }, []);
 
-  // Preload images when feature types are loaded
+  // Preload and cache feature type images
   useEffect(() => {
     if (featureTypes.length > 0 && !imagesPreloaded) {
       console.log('Preloading feature type images...');
       
-      // Get all image URLs from the feature types
-      const imageUrls = featureTypes
-        .filter(featureType => featureType.type === 'Point' && featureType.image_url)
-        .map(featureType => featureType.image_url);
+      // Get point feature types with image URLs
+      const pointFeatureTypes = featureTypes.filter(
+        featureType => featureType.type === 'Point' && featureType.image_url
+      );
       
-      // Preload all images
-      if (imageUrls.length > 0) {
+      if (pointFeatureTypes.length > 0) {
         Promise.all(
-          imageUrls.map(url => 
-            new Promise((resolve) => {
-              Image.prefetch(url)
-                .then(() => {
-                  console.log(`Preloaded image: ${url.substring(0, 30)}...`);
-                  resolve(true);
-                })
-                .catch(err => {
-                  console.warn(`Failed to preload image ${url.substring(0, 30)}...`, err);
-                  resolve(false);
-                });
+          pointFeatureTypes.map(featureType => 
+            new Promise<void>(async (resolve) => {
+              try {
+                // First check if we have a local version or store it if online
+                const localUri = await featureTypeStorageService.getFeatureTypeImage(
+                  featureType.image_url,
+                  featureType.name
+                );
+                
+                // Update the feature type with the local URI if different
+                if (localUri !== featureType.image_url) {
+                  featureType.image_url = localUri;
+                }
+                
+                // Still try to prefetch the image to ensure it's in the React Native image cache
+                const prefetchResult = await Image.prefetch(localUri);
+                console.log(`Preloaded image: ${localUri.substring(0, 30)}...`);
+              } catch (err) {
+                console.warn(`Failed to preload image for ${featureType.name}:`, err);
+              } finally {
+                resolve();
+              }
             })
           )
         ).then(() => {

@@ -305,6 +305,7 @@ class SyncService {
           updated_at: this.standardizeDateTime(point.updated_at),
           attributes: {
             ...point.attributes,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             nmeaData: {
               gga: point.attributes?.nmeaData?.gga,
               gst: point.attributes?.nmeaData?.gst
@@ -315,6 +316,7 @@ class SyncService {
         updated_at: this.standardizeDateTime(point.updated_at),
         attributes: {
           ...point.attributes,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           isLine: isLinePoint && parentLineId ? true : undefined,
           parentLineId: parentLineId
         }
@@ -361,6 +363,7 @@ class SyncService {
       updated_at: this.standardizeDateTime(point.updated_at),
       attributes: {
         ...point.attributes,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         isLinePoint: true,
         parentLineId: feature.client_id,
         pointIndex: point.attributes?.pointIndex || 0
@@ -382,6 +385,7 @@ class SyncService {
         updated_at: this.standardizeDateTime(feature.updated_at),
         attributes: {
           ...feature.attributes,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           isLine: true
         }
       }
@@ -449,7 +453,8 @@ class SyncService {
 
       // Make the sync request to the server
       const response = await api.post(`/${projectId}/sync`, {
-        lastSyncTime: startTime
+        lastSyncTime: startTime,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone // Add device timezone
       });
 
       console.log('Sync response:', response.data);
@@ -646,7 +651,8 @@ class SyncService {
         const endpoint = API_ENDPOINTS.SYNC_COLLECTED_FEATURES.replace(':projectId', projectId.toString());
         const response = await api.post(endpoint, {
           features: formattedFeatures,
-          lastSyncTimestamp: this.standardizeDateTime(new Date())
+          lastSyncTimestamp: this.standardizeDateTime(new Date()),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone // Send client device timezone
         });
 
         if (response.data && response.data.success) {

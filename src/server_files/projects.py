@@ -370,7 +370,7 @@ def sync_web_features(project_id):
 
         # Function to parse ISO datetime strings
         def parse_iso_datetime(datetime_str):
-            """Convert ISO format datetime string to a Python datetime"""
+            """Convert ISO format datetime string to a Python datetime in UTC"""
             if not datetime_str or not isinstance(datetime_str, str):
                 return datetime.utcnow()
 
@@ -379,7 +379,11 @@ def sync_web_features(project_id):
                 dt = parser.isoparse(datetime_str)
                 # Convert to UTC time if it has timezone info
                 if dt.tzinfo is not None:
-                    dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+                    dt = dt.astimezone(timezone.utc)
+                else:
+                    # If no timezone info, assume it's already UTC
+                    # but we don't add timezone info to avoid db comparison issues
+                    pass
                 return dt
             except (ValueError, TypeError):
                 return datetime.utcnow()
