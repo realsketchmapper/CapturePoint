@@ -349,13 +349,22 @@ export const MapControls: React.FC = () => {
       // Get existing features to determine line number
       const features = await featureStorageService.getFeaturesForProject(activeProject.id);
       
-      // Count existing lines of this type
-      const existingLinesOfType = features.filter(
-        f => f.name === featureType.name && f.type === 'Line'
-      ).length;
+      // Count existing lines of this type by extracting the base name
+      const existingLinesOfType = features.filter(f => {
+        // Extract the base feature type name (e.g., "Com Line" from "Com Line 1")
+        const featureBaseName = f.attributes?.featureTypeName || f.name?.split(/\s+\d+$/)[0];
+        const isMatch = featureBaseName === featureType.name && f.type === 'Line';
+        
+        if (isMatch) {
+          console.log(`Found existing line of type ${featureType.name}: ${f.name}`);
+        }
+        
+        return isMatch;
+      }).length;
       
       // Generate a unique name with an incrementing number
       const lineName = `${featureType.name} ${existingLinesOfType + 1}`;
+      console.log(`Generated new line name: ${lineName} (found ${existingLinesOfType} existing lines)`);
       
       // Create points for the line
       const linePoints = points.map((coord, i) => {
@@ -878,7 +887,9 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
               f.geometry.type === 'Point' && 
               f.properties?.client_id &&
               f.properties?.isLinePoint === true &&
-              f.properties?.parentLineId
+              f.properties?.parentLineId &&
+              f.properties?.draw_layer && // Add layer visibility check
+              visibleLayers[f.properties.draw_layer] !== false
             )
           }}
           onPress={(event) => {
@@ -895,6 +906,30 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
               circleStrokeWidth: ['get', 'circleStrokeWidth', ['get', 'style']],
               circleStrokeColor: ['get', 'circleStrokeColor', ['get', 'style']],
               circleStrokeOpacity: ['get', 'circleStrokeOpacity', ['get', 'style']]
+            }}
+          />
+        </ShapeSource>
+        
+        {/* Add a new ShapeSource for lines with visibility filtering */}
+        <ShapeSource
+          id="lines-source"
+          shape={{
+            type: 'FeatureCollection',
+            features: features.features.filter(f => 
+              f.geometry.type === 'LineString' && 
+              f.properties?.client_id &&
+              f.properties?.draw_layer && // Add layer visibility check
+              visibleLayers[f.properties.draw_layer] !== false
+            )
+          }}
+        >
+          <LineLayer
+            id="lines-layer"
+            style={{
+              lineWidth: ['get', 'lineWidth', ['get', 'style']],
+              lineColor: ['get', 'lineColor', ['get', 'style']],
+              lineOpacity: ['get', 'lineOpacity', ['get', 'style']],
+              lineDasharray: [2, 2]
             }}
           />
         </ShapeSource>

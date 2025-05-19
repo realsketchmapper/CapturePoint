@@ -41,6 +41,8 @@ export const LineCollectionManager: React.FC<LineCollectionManagerProps> = ({ on
   const permanentLineId = useRef<string | undefined>();
   // Reference to store point IDs
   const pointIds = useRef<string[]>([]);
+  // Store previous active feature type to detect changes
+  const prevFeatureTypeRef = useRef<string | null>(null);
   
   // State for line collection
   const [isDrawingLine, setIsDrawingLine] = useState(false);
@@ -81,12 +83,29 @@ export const LineCollectionManager: React.FC<LineCollectionManagerProps> = ({ on
     }
   }, [currentPoints.length]);
 
-  // Generate permanent line ID when collection starts
+  // Reset line ID when activeFeatureType changes and generate permanent line ID when collection starts
   useEffect(() => {
-    if (isCollecting && !permanentLineId.current) {
+    // Check if the feature type has changed
+    const currentFeatureTypeName = activeFeatureType?.name || null;
+    
+    if (currentFeatureTypeName !== prevFeatureTypeRef.current && isCollecting) {
+      // Feature type has changed - reset line ID and point IDs
+      console.log(`Feature type changed from ${prevFeatureTypeRef.current} to ${currentFeatureTypeName}, resetting line IDs`);
+      permanentLineId.current = generateId(); // Generate a new ID immediately
+      pointIds.current = []; // Reset point IDs
+      
+      // If we have current points, we need IDs for them
+      while (pointIds.current.length < currentPoints.length) {
+        pointIds.current.push(generateId());
+      }
+    } else if (isCollecting && !permanentLineId.current) {
+      // Starting a new collection with the same feature type
       permanentLineId.current = generateId();
     }
-  }, [isCollecting]);
+    
+    // Update the previous feature type reference
+    prevFeatureTypeRef.current = currentFeatureTypeName;
+  }, [isCollecting, activeFeatureType, currentPoints.length]);
 
   // Create a feature collection for the preview line (dashed line to current position)
   const previewLineFeature = useMemo((): FeatureCollection => {
@@ -290,33 +309,18 @@ export const LineCollectionManager: React.FC<LineCollectionManagerProps> = ({ on
   
   // Update the permanent line when new points are added
   useEffect(() => {
-    if (isCollecting && isLineFeature && currentPoints.length >= 2) {
-      // If we don't have a permanent line ID yet, create one
-      if (!permanentLineId.current) {
-        const id = permanentLineId.current = generateId();
-        addLine(currentPoints as Coordinate[], {
-          client_id: id,
-          featureType: activeFeatureType,
-          draw_layer: activeFeatureType?.draw_layer,
-          color: activeFeatureType?.color
-        });
-        console.log('Created new line with ID:', permanentLineId.current);
-      } else {
-        // Update the existing line with new coordinates
-        console.log('Updating line with ID:', permanentLineId.current, 'Points:', currentPoints.length);
-        updateFeature(permanentLineId.current, currentPoints as Coordinate[]);
-      }
+    // Only update if we're actively collecting and have at least 2 points
+    if (isCollecting && isLineFeature && currentPoints.length >= 2 && permanentLineId.current) {
+      // Update the existing line with new coordinates
+      console.log('Updating line with ID:', permanentLineId.current, 'Points:', currentPoints.length);
+      updateFeature(permanentLineId.current, currentPoints as Coordinate[]);
     }
   }, [
     isCollecting, 
     isLineFeature, 
-    // Use currentPoints.length as a stable dependency instead of the whole array
-    currentPoints.length,
-    // Only re-run when the last point changes
-    currentPoints.length > 0 ? JSON.stringify(currentPoints[currentPoints.length - 1]) : null,
-    addLine, 
-    updateFeature, 
-    activeFeatureType
+    // Use JSON.stringify to create a stable dependency
+    JSON.stringify(currentPoints),
+    updateFeature
   ]);
   
   // When collection stops, handle line completion
@@ -373,6 +377,9 @@ export const LineCollectionManager: React.FC<LineCollectionManagerProps> = ({ on
         // The parent component is responsible for reloading features which will
         // eventually replace this temporary line with the stored version
         console.log(`Line ${savedLineId} remains visible while saving to storage`);
+        
+        // Reset permanentLineId and pointIds after calling onComplete
+        permanentLineId.current = undefined;
         
         // Set a timeout to clear the transition points after they should be loaded from storage
         setTimeout(() => {

@@ -290,11 +290,13 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Add a new clearCollection function to actually clear the state
   const clearCollection = useCallback(() => {
+    console.log('Reset collection state');
     dispatch({ type: 'CLEAR_COLLECTION' });
   }, []);
 
   // Reset collection state
   const resetCollectionState = useCallback(() => {
+    console.log('Reset collection state');
     dispatch({ type: 'CLEAR_COLLECTION' });
   }, []);
 
