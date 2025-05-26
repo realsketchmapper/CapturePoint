@@ -212,7 +212,8 @@ def get_project_feature_types(project_id):
                 'label': feature.label,
                 'svg': feature.svg,
                 'draw_layer': feature.draw_layer,
-                'z_value': feature.z_value
+                'z_value': feature.z_value,
+                'form_definition': feature.form_definition
             }
 
             # Generate signed URL for the image if image_file_name exists

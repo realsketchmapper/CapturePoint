@@ -14,6 +14,8 @@ import { FeatureToRender } from '@/types/featuresToRender.types';
 import { collectedFeatureService } from '@/services/features/collectedFeatureService';
 import { Feature } from 'geojson';
 import { CollectedFeature } from '@/types/currentFeatures.types';
+import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
+import { FormQuestion } from '@/types/featureType.types';
 
 const MAX_DESCRIPTION_LENGTH = 500;
 
@@ -33,6 +35,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   const { user } = useContext(AuthContext) as AuthContextState;
   const { activeProject } = useContext(ProjectContext);
   const { clearFeatures, renderFeature } = useMapContext();
+  const { getFeatureTypeByName } = useFeatureTypeContext();
   const [description, setDescription] = useState(point.description || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -377,6 +380,85 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                   </View>
                 </>
               )}
+
+              {/* Form Data */}
+              {point?.attributes?.formData && Object.keys(point.attributes.formData).length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Form Data</Text>
+                  {Object.entries(point.attributes.formData).map(([questionId, answer], index) => {
+                    // Try to find the original question text if available
+                    const featureType = getFeatureTypeByName(point.name);
+                    const question = featureType?.form_definition?.questions.find((q: FormQuestion) => q.id === questionId);
+                    const questionText = question?.question || questionId;
+                    
+                    return (
+                      <View key={questionId} style={styles.detailRow}>
+                        <Text style={styles.label}>{questionText}:</Text>
+                        <Text style={styles.value}>
+                          {typeof answer === 'boolean' 
+                            ? (answer ? 'Yes' : 'No') 
+                            : String(answer || 'Not answered')}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Position Data */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Position Data</Text>
+
+                {/* Position */}
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>Longitude:</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.longitude)}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>Latitude:</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.latitude)}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>Altitude:</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.altitude)} m</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>Geoid Height:</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.geoidHeight)} m</Text>
+                </View>
+
+                {/* Quality Indicators */}
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>Fix Quality:</Text>
+                  <Text style={styles.value}>{getFixQualityText(nmeaData?.gga?.quality ?? 0)}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>Satellites:</Text>
+                  <Text style={styles.value}>{nmeaData?.gga?.satellites}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>HDOP:</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.hdop)}</Text>
+                </View>
+
+                {/* Error Estimates */}
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>RMS Total:</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.rmsTotal)} m</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>Lat Error:</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.latitudeError)} m</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>Lon Error:</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.longitudeError)} m</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.label}>Height Error:</Text>
+                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.heightError)} m</Text>
+                </View>
+              </View>
             </View>
           </ScrollView>
         </View>

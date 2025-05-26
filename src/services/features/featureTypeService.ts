@@ -53,7 +53,22 @@ export const featureTypeService = {
       
       console.log('Device is online, fetching feature types from API');
       const endpoint = buildEndpoint(API_ENDPOINTS.FEATURE_TYPES, { projectId });
+      console.log(`API Endpoint: ${endpoint}`);
       const response = await api.get(endpoint);
+      
+      // Log the raw API response data
+      console.log('Raw API response data sample:', JSON.stringify(response.data).substring(0, 500) + '...');
+      
+      // Check for specific feature we're interested in
+      if (response.data.features) {
+        const comCabinetFeature = response.data.features.find((f: any) => f.name === 'Com Cabinet');
+        if (comCabinetFeature) {
+          console.log('Com Cabinet feature from API:', JSON.stringify(comCabinetFeature));
+          console.log('Has form_definition?', !!comCabinetFeature.form_definition);
+        } else {
+          console.log('Com Cabinet feature not found in API response');
+        }
+      }
       
       if (!response.data.success) {
         throw new Error('Failed to fetch feature types');
@@ -74,6 +89,11 @@ export const featureTypeService = {
           }
         }
 
+        // Log if form_definition exists in the API response
+        if (feature.form_definition) {
+          console.log(`Form definition found for ${feature.name}:`, feature.form_definition);
+        }
+
         return {
           id: feature.id || '',
           name: feature.name,
@@ -86,7 +106,8 @@ export const featureTypeService = {
           draw_layer: feature.draw_layer || 'default',
           z_value: feature.z_value || 0,
           is_active: true,
-          image_url: feature.image_url || null
+          image_url: feature.image_url || null,
+          form_definition: feature.form_definition || null
         };
       });
       

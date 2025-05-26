@@ -1,6 +1,20 @@
 import type { Feature, GeoJsonProperties } from 'geojson';
 import { ReactNode } from 'react';
 
+export interface FormQuestion {
+    id: string;             // Unique question identifier
+    question: string;       // Question text
+    type: 'text' | 'number' | 'boolean' | 'select' | 'photo' | 'date' | 'textarea'; // Question type
+    required: boolean;      // Whether answer is required
+    options?: string[];     // Options for select type questions
+    placeholder?: string;   // Placeholder text
+    validation?: any;       // Validation rules
+}
+
+export interface FormDefinition {
+    questions: FormQuestion[];
+}
+
 export interface FeatureType {
     id: string;           // Unique identifier
     name: string;         // Display name
@@ -14,6 +28,7 @@ export interface FeatureType {
     z_value: number;      // Rendering order
     is_active: boolean;   // Visibility control
     image_url: string;    // URL for point markers
+    form_definition?: FormDefinition; // Form definition for feature data collection
 }
   
 export interface FeatureTypeContextType {

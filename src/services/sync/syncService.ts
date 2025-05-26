@@ -289,6 +289,10 @@ class SyncService {
       name = point.attributes.featureTypeName;
     }
     
+    // Create a copy of the attributes without the NMEA data for the feature
+    const featureAttributes = { ...point.attributes };
+    delete featureAttributes.nmeaData;
+    
     return {
       clientId: String(point.client_id),
       lastModified: this.standardizeDateTime(point.updated_at),
@@ -315,7 +319,7 @@ class SyncService {
         created_at: this.standardizeDateTime(point.created_at),
         updated_at: this.standardizeDateTime(point.updated_at),
         attributes: {
-          ...point.attributes,
+          ...featureAttributes,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           isLine: isLinePoint && parentLineId ? true : undefined,
           parentLineId: parentLineId
@@ -370,6 +374,12 @@ class SyncService {
       }
     }));
     
+    // Create a copy of the feature attributes without NMEA data
+    const featureAttributes = { ...feature.attributes };
+    if (featureAttributes.nmeaData) {
+      delete featureAttributes.nmeaData;
+    }
+    
     // Return the formatted line feature
     return {
       clientId: String(feature.client_id),
@@ -384,7 +394,7 @@ class SyncService {
         created_at: this.standardizeDateTime(feature.created_at),
         updated_at: this.standardizeDateTime(feature.updated_at),
         attributes: {
-          ...feature.attributes,
+          ...featureAttributes,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           isLine: true
         }

@@ -1,10 +1,13 @@
 import { GGAData, GSTData } from "./nmea.types";
+import { Position } from './collection.types';
 
 // Common NMEA data structure used throughout
 export interface NmeaData {
   gga: GGAData;
   gst: GSTData;
 }
+
+export type Coordinate = [number, number]; // [longitude, latitude]
 
 // Structure for a single point
 export interface PointData {
@@ -18,10 +21,12 @@ export interface PointData {
   updated_by: number;
   attributes?: {
     nmeaData?: NmeaData;
+    formData?: { [questionId: string]: any }; // Store form responses by question ID
     [key: string]: any;  // Additional custom attributes
   };
 }
 
+// Extended version for collected points with API-specific fields
 export interface PointCollected {
   // Basic point info
   client_id: string;
@@ -30,8 +35,11 @@ export interface PointCollected {
   draw_layer: string;
   
   // Attributes including NMEA data
-  attributes?: {
+  attributes: {
     nmeaData?: NmeaData;
+    pointIndex?: number;  // Used for sorting points in lines
+    isLinePoint?: boolean; // Flag for points that are part of a line
+    formData?: { [questionId: string]: any }; // Store form responses by question ID
     [key: string]: any;  // Additional custom attributes
   };
   
@@ -46,4 +54,5 @@ export interface PointCollected {
   synced: boolean;
   feature_id: number;
   project_id: number;
+  parent_line_id?: string; // For line features, reference to parent line
 }

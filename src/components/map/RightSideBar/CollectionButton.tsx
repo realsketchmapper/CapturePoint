@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocationContext } from '@/contexts/LocationContext';
@@ -6,13 +6,23 @@ import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { Colors } from '@/theme/colors';
 import { usePointCollection } from '@/hooks/usePointCollection';
 import { useCollectionContext } from '@/contexts/CollectionContext';
-
+import { FeatureFormModal } from '@/components/modals/PointModals/FeatureFormModal';
 
 const CollectionButton = () => {
   const { locationSource, currentLocation } = useLocationContext();
   const { selectedFeatureType } = useFeatureTypeContext();
-  const { handlePointCollection } = usePointCollection();
+  const { 
+    handlePointCollection, 
+    isFormModalVisible, 
+    handleFormSubmit, 
+    handleFormCancel 
+  } = usePointCollection();
   const { isCollecting, startCollection, recordPoint } = useCollectionContext();
+
+  // Add debug log for modal visibility
+  useEffect(() => {
+    console.log('Form modal visibility changed:', isFormModalVisible);
+  }, [isFormModalVisible]);
 
   // Don't render if not using NMEA
   if (locationSource !== 'nmea') {
@@ -80,6 +90,16 @@ const CollectionButton = () => {
           color={color} 
         />
       </TouchableOpacity>
+
+      {/* Feature Form Modal */}
+      {selectedFeatureType && (
+        <FeatureFormModal
+          isVisible={isFormModalVisible}
+          onClose={handleFormCancel}
+          onSubmit={handleFormSubmit}
+          featureType={selectedFeatureType}
+        />
+      )}
     </View>
   );
 };
