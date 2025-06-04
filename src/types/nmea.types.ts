@@ -24,6 +24,50 @@ export interface GSTData {
   heightError: number;   // Height error (sigma)
 }
 
+// RTK-Pro specific data types
+export interface RTKProLocateData {
+  logNumber: number;
+  locatorSerialNumber: string;
+  locateFrequency: number; // Hertz
+  measuredDepthOfUtility: number; // Metres
+  measuredLocateCurrent: number; // Amperes
+  measuredLocateSignalDirection: number;
+  locateView: number;
+  locateMode: number;
+  gain: number; // Decibel
+  measuredVectorOffset: number; // Metres
+  vectorSeparation: number; // Metres
+  compassAngle: number; // Radians
+  distanceFromLastLog: number; // Metres
+}
+
+export interface RTKProGPSData {
+  logNumber: number;
+  locatorSerialNumber: string;
+  timeUTC: string; // Time in HHMMSS.SS format
+  date: string; // Date in DDMMYY format
+  latitude: number; // Decimal degrees
+  longitude: number; // Decimal degrees
+  latitudeHemisphere: string; // N/S
+  longitudeHemisphere: string; // E/W
+  gpsFix: number;
+  numberSatellites: number;
+  positionalDilutionOfPrecision: number;
+  horizontalDilutionOfPrecision: number;
+  verticalDilutionOfPrecision: number;
+  altitudeGeoid: number; // Metres
+  geoidSeparation: number; // Metres
+  standardDeviationLatitude: number; // Metres
+  standardDeviationLongitude: number; // Metres
+  standardDeviationAltitude: number; // Metres
+}
+
+export interface RTKProData {
+  locateData?: RTKProLocateData;
+  gpsData?: RTKProGPSData;
+  timestamp: string;
+}
+
 export interface NMEAContextType {
   ggaData: GGAData | null;
   gstData: GSTData | null;  // Add GST data

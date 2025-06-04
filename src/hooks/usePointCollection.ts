@@ -3,11 +3,14 @@ import { useLocationContext } from '@/contexts/LocationContext';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { useMapContext } from '@/contexts/MapDisplayContext';
 import { useNMEAContext } from '@/contexts/NMEAContext';
+import { useRTKPro } from '@/contexts/RTKProContext';
+import { useCollectionContext } from '@/contexts/CollectionContext';
 import { useProjectContext } from '@/contexts/ProjectContext';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { featureStorageService } from '@/services/storage/featureStorageService';
 import { generateId } from '@/utils/collections';
 import { getCurrentStandardizedTime } from '@/utils/datetime';
+import React from 'react';
 
 /**
  * Hook for collecting point features
@@ -18,8 +21,10 @@ export const usePointCollection = () => {
   const { selectedFeatureType } = useFeatureTypeContext();
   const { renderFeature, addPoint } = useMapContext();
   const { ggaData, gstData } = useNMEAContext();
+  const { currentLocateData, currentGPSData, lastButtonPressTime } = useRTKPro();
   const { activeProject } = useProjectContext();
   const { user } = useAuthContext();
+  const { isCollecting, startCollection, recordPoint } = useCollectionContext();
   
   // State for form modal
   const [isFormModalVisible, setIsFormModalVisible] = useState(false);
@@ -104,18 +109,24 @@ export const usePointCollection = () => {
         return;
       }
 
-      // Prepare attributes with NMEA data
+      // Create attributes object with NMEA data and form responses
       const attributes: any = {
         nmeaData: {
-          gga: ggaData as NonNullable<typeof ggaData>,
-          gst: gstData as NonNullable<typeof gstData>
+          gga: ggaData,
+          gst: gstData
         },
-        featureTypeName: selectedFeatureType.name
+        formData: formResponses || {},
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
 
-      // Add form data if it exists
-      if (formResponses && Object.keys(formResponses).length > 0) {
-        attributes.formData = formResponses;
+      // Add RTK-Pro data if available
+      if (currentLocateData || currentGPSData) {
+        attributes.rtkProData = {
+          locateData: currentLocateData,
+          gpsData: currentGPSData,
+          timestamp: lastButtonPressTime || new Date().toISOString()
+        };
+        console.log('🎯 Including RTK-Pro data in point collection:', attributes.rtkProData);
       }
 
       // Save the point to storage
@@ -159,6 +170,78 @@ export const usePointCollection = () => {
     setIsFormModalVisible(false);
     setFormData({});
   }, []);
+
+  // Register auto-collection handler globally for RTK-Pro button press integration
+  React.useEffect(() => {
+    (global as any).autoCollectPoint = async () => {
+      console.log('🎯 Auto-collection triggered from RTK-Pro button press');
+      
+      if (!selectedFeatureType) {
+        console.warn('⚠️ No feature type selected - cannot auto-collect point');
+        console.log('📝 Please select a feature type in the app before pressing the RTK-Pro collect button');
+        return;
+      }
+      
+      if (!currentLocation) {
+        console.warn('⚠️ No current location - cannot auto-collect point');
+        console.log('📍 Please ensure GPS/NMEA positioning is active before collecting points');
+        return;
+      }
+      
+      console.log(`🚀 Auto-collecting ${selectedFeatureType.name} (${selectedFeatureType.type}) from RTK-Pro button press`);
+      console.log(`📍 Location: [${Array.isArray(currentLocation) ? currentLocation.join(', ') : `${currentLocation.longitude}, ${currentLocation.latitude}`}]`);
+      
+      try {
+        // Handle different feature types
+        switch (selectedFeatureType.type) {
+          case 'Point':
+            // For Point features, collect a single point
+            console.log('📍 Collecting Point feature');
+            await collectPoint();
+            console.log('✅ Point collection completed successfully!');
+            break;
+            
+          case 'Line':
+            // For Line features, either start line collection or add point to existing line
+            if (isCollecting) {
+              // Already collecting a line - add a new point
+              console.log('📏 Adding point to existing line collection');
+              const success = recordPoint(currentLocation);
+              if (success) {
+                console.log('✅ Point added to line successfully!');
+              } else {
+                console.error('❌ Failed to add point to line');
+              }
+            } else {
+              // Start a new line collection
+              console.log('📏 Starting new line collection');
+              try {
+                startCollection(currentLocation, selectedFeatureType);
+                console.log('✅ Line collection started successfully!');
+                console.log('📝 Press the RTK-Pro button again to add more points, or use the app to finish the line');
+              } catch (error) {
+                console.error('❌ Failed to start line collection:', error);
+              }
+            }
+            break;
+            
+          default:
+            console.warn(`⚠️ Unsupported feature type: ${selectedFeatureType.type}`);
+            console.log('📝 Falling back to point collection');
+            await collectPoint();
+            break;
+        }
+        
+        console.log('🎯 RTK-Pro data automatically included in collection');
+      } catch (error) {
+        console.error('❌ RTK-Pro auto-collection failed:', error);
+      }
+    };
+    
+    return () => {
+      (global as any).autoCollectPoint = null;
+    };
+  }, [selectedFeatureType, currentLocation, collectPoint, isCollecting, startCollection, recordPoint]);
 
   return {
     handlePointCollection,

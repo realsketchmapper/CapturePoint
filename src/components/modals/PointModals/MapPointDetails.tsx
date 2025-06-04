@@ -16,6 +16,7 @@ import { Feature } from 'geojson';
 import { CollectedFeature } from '@/types/currentFeatures.types';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { FormQuestion } from '@/types/featureType.types';
+import RTKProDataDisplay from './RTKProDataDisplay';
 
 const MAX_DESCRIPTION_LENGTH = 500;
 
@@ -61,6 +62,12 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
 
   // Get point data for display
   const nmeaData = getNmeaData(point);
+
+  // Debug RTK-Pro data to see what's actually stored
+  console.log('🔍 Point attributes:', point.attributes);
+  console.log('🔍 RTK-Pro data in point:', point.attributes?.rtkProData);
+  console.log('🔍 Has locate data:', !!point.attributes?.rtkProData?.locateData);
+  console.log('🔍 Has GPS data:', !!point.attributes?.rtkProData?.gpsData);
 
   // Format for display
   const formatValue = (value: any): string => {
@@ -405,60 +412,36 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 </View>
               )}
 
-              {/* Position Data */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Position Data</Text>
-
-                {/* Position */}
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>Longitude:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.longitude)}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>Latitude:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.latitude)}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>Altitude:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.altitude)} m</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>Geoid Height:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.geoidHeight)} m</Text>
-                </View>
-
-                {/* Quality Indicators */}
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>Fix Quality:</Text>
-                  <Text style={styles.value}>{getFixQualityText(nmeaData?.gga?.quality ?? 0)}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>Satellites:</Text>
-                  <Text style={styles.value}>{nmeaData?.gga?.satellites}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>HDOP:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData?.gga?.hdop)}</Text>
-                </View>
-
-                {/* Error Estimates */}
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>RMS Total:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.rmsTotal)} m</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>Lat Error:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.latitudeError)} m</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>Lon Error:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.longitudeError)} m</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.label}>Height Error:</Text>
-                  <Text style={styles.value}>{formatValue(nmeaData?.gst?.heightError)} m</Text>
-                </View>
-              </View>
+              {/* RTK-Pro Data Section */}
+              {(point.attributes?.rtkProData?.locateData || point.attributes?.rtkProData?.gpsData) ? (
+                <RTKProDataDisplay 
+                  locateData={point.attributes.rtkProData.locateData}
+                  gpsData={point.attributes.rtkProData.gpsData}
+                />
+              ) : (
+                // Debug fallback - remove this after testing
+                point.attributes?.rtkProData ? (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>RTK-Pro Data Debug</Text>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.label}>RTK-Pro data exists but no locate/GPS data found</Text>
+                      <Text style={styles.value}>Check data structure</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.label}>Raw RTK-Pro data:</Text>
+                      <Text style={styles.value}>{JSON.stringify(point.attributes.rtkProData)}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>RTK-Pro Data</Text>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.label}>Status:</Text>
+                      <Text style={styles.value}>No RTK-Pro data captured for this point</Text>
+                    </View>
+                  </View>
+                )
+              )}
             </View>
           </ScrollView>
         </View>

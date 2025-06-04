@@ -299,15 +299,39 @@ export class BluetoothManager {
             console.log(`🎯 LOC3 Data: This contains locate measurement data`);
           }
           if (receivedData.toUpperCase().includes('TLT3')) {
-            console.log(`🎯 TLT3 Data: This contains comprehensive measurement + GPS data`);
+            console.log(`🎯 TLT3 Data: This contains GPS positioning data`);
           }
+          
+          // Handle RTK-Pro specific data
+          if (device.name.startsWith('vLoc3-RTK-Pro')) {
+            // Emit a global event that can be caught by the RTK-Pro context
+            if ((global as any).rtkProDataHandler) {
+              (global as any).rtkProDataHandler(receivedData);
+            }
+            
+            // Trigger automatic point collection on button press
+            console.log('🎯 RTK-Pro button press detected - triggering automatic point collection');
+            if ((global as any).autoCollectPoint) {
+              try {
+                (global as any).autoCollectPoint();
+                console.log('✅ Automatic point collection triggered successfully');
+              } catch (error) {
+                console.error('❌ Failed to trigger automatic point collection:', error);
+              }
+            } else {
+              console.warn('⚠️ Auto point collection handler not available');
+            }
+          }
+        }
+        
+        // Log to Bluetooth data logger
+        bluetoothDataLogger.logData(receivedData, dataType);
+        
+        // Handle button press events for RTK-Pro devices  
+        if (device.name.startsWith('vLoc3-RTK-Pro') && dataType === 'event') {
           console.log(`🎯 RTK-Pro button press event logged!`);
         }
         
-        // Log to Bluetooth data logger (this handles its own logging)
-        bluetoothDataLogger.logData(receivedData, dataType);
-        
-        // Always pass data to onDataReceived for NMEA processing
         onDataReceived(receivedData);
       });
 

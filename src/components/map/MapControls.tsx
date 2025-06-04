@@ -34,6 +34,7 @@ import { FeatureType } from '@/types/featureType.types';
 import { Coordinates } from '@/types/collection.types';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useNMEAContext } from '@/contexts/NMEAContext';
+import { useRTKPro } from '@/contexts/RTKProContext';
 import { getCurrentStandardizedTime } from '@/utils/datetime';
 import { Coordinate } from '@/types/map.types';
 
@@ -150,6 +151,7 @@ export const MapControls: React.FC = () => {
   
   const { user } = useAuthContext();
   const { ggaData, gstData } = useNMEAContext();
+  const { currentLocateData, currentGPSData, lastButtonPressTime } = useRTKPro();
   
   const handleMapReady = () => {
     setIsMapReady(true);
@@ -376,6 +378,16 @@ export const MapControls: React.FC = () => {
           return null;
         }
         
+        // Check if RTK-Pro data is available for this point
+        const hasRTKProData = currentLocateData || currentGPSData;
+        if (hasRTKProData) {
+          console.log(`🎯 Including RTK-Pro data in line point ${i + 1}:`, {
+            hasLocateData: !!currentLocateData,
+            hasGPSData: !!currentGPSData,
+            timestamp: lastButtonPressTime
+          });
+        }
+        
         const point: PointCollected = {
           client_id: pointIds[i],
           name: `${featureType.name} Point ${i + 1}`,
@@ -412,6 +424,14 @@ export const MapControls: React.FC = () => {
                 heightError: 1.0
               }
             },
+            // Add RTK-Pro data if available
+            ...(currentLocateData || currentGPSData ? {
+              rtkProData: {
+                locateData: currentLocateData || undefined,
+                gpsData: currentGPSData || undefined,
+                timestamp: lastButtonPressTime || new Date().toISOString()
+              }
+            } : {}),
             featureTypeName: featureType.name,
             pointIndex: i,
             isLinePoint: true,
@@ -462,7 +482,7 @@ export const MapControls: React.FC = () => {
       console.error('Error saving line feature to storage:', error);
       return null;
     }
-  }, [activeProject, user, ggaData, gstData]);
+  }, [activeProject, user, ggaData, gstData, currentLocateData, currentGPSData, lastButtonPressTime]);
 
   // Update the loadFeaturesFromStorage function to handle line features
   const loadFeaturesFromStorage = useCallback(async () => {

@@ -7,6 +7,7 @@ import { ProjectProvider } from "@/contexts/ProjectContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { FeatureTypeProvider } from "@/contexts/FeatureTypeContext";
 import { NMEAProvider } from "@/contexts/NMEAContext";
+import { RTKProProvider } from "@/contexts/RTKProContext";
 import { CollectionProvider } from "@/contexts/CollectionContext";
 import { MapProvider } from "@/contexts/MapDisplayContext";
 import { LocationProvider } from "@/contexts/LocationContext";
@@ -79,13 +80,15 @@ const AppProviders: React.FC<AppProvidersProps> = ({
           <FeatureTypeProvider>
             <MapProvider>
               <NMEAProvider>
-                <LocationProvider>
-                  <CollectionProvider>
-                    <BluetoothProvider>
-                      {children}
-                    </BluetoothProvider>
-                  </CollectionProvider>
-                </LocationProvider>
+                <RTKProProvider>
+                  <LocationProvider>
+                    <CollectionProvider>
+                      <BluetoothProvider>
+                        {children}
+                      </BluetoothProvider>
+                    </CollectionProvider>
+                  </LocationProvider>
+                </RTKProProvider>
               </NMEAProvider>
             </MapProvider>
           </FeatureTypeProvider>
