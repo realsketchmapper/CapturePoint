@@ -64,8 +64,8 @@ export interface BluetoothContextType {
   connectionError: string | null;
   connectedDevice: BluetoothDevice | null;
   isBluetoothEnabled: boolean;
-  scanDevices: () => Promise<void>;
-  connectToDevice: (device: BluetoothDevice) => Promise<void>;
+  scanDevices: (deviceType: BluetoothDeviceType) => Promise<BluetoothDevice[]>;
+  connectToDevice: (device: BluetoothDevice) => Promise<boolean>;
   connectToLastDevice: () => Promise<void>;
   disconnectDevice: (address: string) => Promise<void>;
   disconnectFromDevice: () => Promise<void>;

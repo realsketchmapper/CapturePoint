@@ -15,6 +15,7 @@ const BluetoothContext = createContext<BluetoothContextType | null>(null);
 type BluetoothAction = 
   | { type: 'SET_SCANNING'; payload: boolean }
   | { type: 'SET_CONNECTING'; payload: boolean }
+  | { type: 'SET_DISCONNECTING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_CONNECTION_ERROR'; payload: string | null }
   | { type: 'SET_CONNECTED_DEVICE'; payload: BluetoothDevice | null }
@@ -25,6 +26,7 @@ type BluetoothAction =
 const initialState: BluetoothState = {
   isScanning: false,
   isConnecting: false,
+  isDisconnecting: false,
   error: null,
   connectionError: null,
   connectedDevice: null,
@@ -38,6 +40,8 @@ function bluetoothReducer(state: BluetoothState, action: BluetoothAction): Bluet
       return { ...state, isScanning: action.payload };
     case 'SET_CONNECTING':
       return { ...state, isConnecting: action.payload };
+    case 'SET_DISCONNECTING':
+      return { ...state, isDisconnecting: action.payload };
     case 'SET_ERROR':
       return { ...state, error: action.payload };
     case 'SET_CONNECTION_ERROR':
@@ -115,36 +119,51 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const connectToDevice = useCallback(async (device: BluetoothDevice) => {
     try {
+      console.log(`🚀 BluetoothContext: Starting connection to ${device.name} (${device.address})`);
       dispatch({ type: 'SET_CONNECTING', payload: true });
       dispatch({ type: 'SET_CONNECTION_ERROR', payload: null });
 
       // Check if already connected
+      console.log('🔍 BluetoothContext: Checking if already connected...');
       const isConnected = await bluetoothManager.isBluetoothEnabled() && 
                          await RNBluetoothClassic.isDeviceConnected(device.address);
       
+      console.log(`📋 BluetoothContext: Already connected check: ${isConnected}`);
+      
       if (isConnected) {
+        console.log('✅ BluetoothContext: Device already connected, starting listening...');
         dispatch({ type: 'SET_CONNECTED_DEVICE', payload: device });
         await startListening(device.address);
         setUsingNMEA(true);
+        console.log('✅ BluetoothContext: Connection process completed (already connected)');
         return true;
       }
 
+      console.log('🔌 BluetoothContext: Attempting new connection...');
       const connected = await bluetoothManager.connectToDevice(device);
       
+      console.log(`📊 BluetoothContext: Connection result: ${connected}`);
+      
       if (connected) {
+        console.log('✅ BluetoothContext: Connection successful, starting listening...');
         await startListening(device.address);
         setUsingNMEA(true);
         dispatch({ type: 'SET_CONNECTED_DEVICE', payload: device });
+        console.log('✅ BluetoothContext: Full connection process completed');
+      } else {
+        console.log('❌ BluetoothContext: Connection failed');
       }
 
       return connected;
     } catch (err) {
+      console.error('❌ BluetoothContext: Error in connectToDevice:', err);
       const errorMessage = err instanceof Error 
         ? err.message 
         : 'Failed to connect to device. Please try again.';
       dispatch({ type: 'SET_CONNECTION_ERROR', payload: errorMessage });
       return false;
     } finally {
+      console.log('🏁 BluetoothContext: Setting connecting to false');
       dispatch({ type: 'SET_CONNECTING', payload: false });
     }
   }, [startListening, setUsingNMEA]);

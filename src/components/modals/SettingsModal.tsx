@@ -123,6 +123,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                   Satellite
                 </Text>
               </TouchableOpacity>
+              
               <TouchableOpacity
                 style={[
                   styles.option,
