@@ -77,9 +77,16 @@ export const LineCollectionManager: React.FC<LineCollectionManagerProps> = ({ on
 
   // Generate permanent IDs for points when they're added
   useEffect(() => {
+    const previousLength = pointIds.current.length;
     // Only generate IDs for new points
     while (pointIds.current.length < currentPoints.length) {
-      pointIds.current.push(generateId());
+      const newId = generateId();
+      pointIds.current.push(newId);
+      console.log(`🔢 Generated new point ID: ${newId} for point index ${pointIds.current.length - 1}`);
+    }
+    
+    if (pointIds.current.length > previousLength) {
+      console.log(`📊 Point IDs updated: ${previousLength} → ${pointIds.current.length}`, pointIds.current);
     }
   }, [currentPoints.length]);
 
@@ -90,22 +97,29 @@ export const LineCollectionManager: React.FC<LineCollectionManagerProps> = ({ on
     
     if (currentFeatureTypeName !== prevFeatureTypeRef.current && isCollecting) {
       // Feature type has changed - reset line ID and point IDs
-      console.log(`Feature type changed from ${prevFeatureTypeRef.current} to ${currentFeatureTypeName}, resetting line IDs`);
+      console.log(`🔄 Feature type changed from ${prevFeatureTypeRef.current} to ${currentFeatureTypeName}, resetting line IDs`);
       permanentLineId.current = generateId(); // Generate a new ID immediately
+      const oldPointIds = [...pointIds.current];
       pointIds.current = []; // Reset point IDs
+      console.log(`🗑️ Cleared point IDs: ${oldPointIds.length} IDs removed`);
       
       // If we have current points, we need IDs for them
       while (pointIds.current.length < currentPoints.length) {
-        pointIds.current.push(generateId());
+        const newId = generateId();
+        pointIds.current.push(newId);
+        console.log(`🆕 Regenerated point ID: ${newId} for point index ${pointIds.current.length - 1}`);
       }
+      
+      console.log(`🔢 Final point IDs after feature type change:`, pointIds.current);
     } else if (isCollecting && !permanentLineId.current) {
       // Starting a new collection with the same feature type
       permanentLineId.current = generateId();
+      console.log(`🚀 Started new line collection with ID: ${permanentLineId.current}`);
     }
     
     // Update the previous feature type reference
     prevFeatureTypeRef.current = currentFeatureTypeName;
-  }, [isCollecting, activeFeatureType, currentPoints.length]);
+  }, [isCollecting, activeFeatureType]);
 
   // Create a feature collection for the preview line (dashed line to current position)
   const previewLineFeature = useMemo((): FeatureCollection => {

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useContext } from 'react';
+import React, { useState, useCallback, useContext, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
 import { Colors } from '@/theme/colors';
 import { PointCollected } from '@/types/pointCollected.types';
@@ -17,6 +17,7 @@ import { CollectedFeature } from '@/types/currentFeatures.types';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
 import { FormQuestion } from '@/types/featureType.types';
 import RTKProDataDisplay from './RTKProDataDisplay';
+import { calculateLineDistance, formatDistance } from '@/utils/collections';
 
 const MAX_DESCRIPTION_LENGTH = 500;
 
@@ -46,6 +47,64 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   const isLinePoint = point.attributes?.isLinePoint === true;
   const parentLineId = point.attributes?.parentLineId;
   const pointIndex = point.attributes?.pointIndex;
+
+  // Helper function to get the total line distance
+  const getLineDistance = useCallback(async (): Promise<number> => {
+    if (!isLinePoint || !parentLineId || !activeProject) {
+      return 0;
+    }
+    
+    try {
+      // Get all features for the project
+      const features = await featureStorageService.getFeaturesForProject(activeProject.id);
+      
+      // Find the parent line feature
+      const lineFeature = features.find(f => f.client_id === parentLineId);
+      if (!lineFeature || !lineFeature.points || lineFeature.points.length < 2) {
+        return 0;
+      }
+      
+      // Check if total distance is already stored in the line feature attributes
+      if (lineFeature.attributes?.totalDistance && typeof lineFeature.attributes.totalDistance === 'number') {
+        console.log(`📏 Using stored line distance: ${lineFeature.attributes.totalDistance} meters`);
+        return lineFeature.attributes.totalDistance;
+      }
+      
+      // Calculate distance if not stored
+      console.log('📏 Calculating line distance from coordinates...');
+      
+      // Extract coordinates from the line points
+      const coordinates: [number, number][] = [];
+      
+      // Sort points by their index to ensure correct order
+      const sortedPoints = [...lineFeature.points].sort((a, b) => 
+        (a.attributes?.pointIndex || 0) - (b.attributes?.pointIndex || 0)
+      );
+      
+      for (const point of sortedPoints) {
+        const longitude = point.attributes?.nmeaData?.gga?.longitude;
+        const latitude = point.attributes?.nmeaData?.gga?.latitude;
+        if (typeof longitude === 'number' && typeof latitude === 'number') {
+          coordinates.push([longitude, latitude]);
+        }
+      }
+      
+      return calculateLineDistance(coordinates);
+    } catch (error) {
+      console.error('Error calculating line distance:', error);
+      return 0;
+    }
+  }, [isLinePoint, parentLineId, activeProject]);
+
+  // State for line distance
+  const [lineDistance, setLineDistance] = React.useState<number>(0);
+  
+  // Load line distance when component mounts or when the line data changes
+  React.useEffect(() => {
+    if (isLinePoint) {
+      getLineDistance().then(setLineDistance);
+    }
+  }, [isLinePoint, getLineDistance]);
 
   // Helper function to get nmeaData regardless of point structure
   const getNmeaData = (point: PointCollected) => {
@@ -381,6 +440,10 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                       <Text style={styles.value}>{parentLineId || 'N/A'}</Text>
                     </View>
                     <View style={styles.detailRow}>
+                      <Text style={styles.label}>Total Line Distance:</Text>
+                      <Text style={styles.value}>{formatDistance(lineDistance)}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
                       <Text style={styles.label}>Point Index:</Text>
                       <Text style={styles.value}>{pointIndex !== undefined ? (pointIndex + 1) : 'N/A'}</Text>
                     </View>
@@ -412,36 +475,12 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 </View>
               )}
 
-              {/* RTK-Pro Data Section */}
-              {(point.attributes?.rtkProData?.locateData || point.attributes?.rtkProData?.gpsData) ? (
-                <RTKProDataDisplay 
-                  locateData={point.attributes.rtkProData.locateData}
-                  gpsData={point.attributes.rtkProData.gpsData}
-                />
-              ) : (
-                // Debug fallback - remove this after testing
-                point.attributes?.rtkProData ? (
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>RTK-Pro Data Debug</Text>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.label}>RTK-Pro data exists but no locate/GPS data found</Text>
-                      <Text style={styles.value}>Check data structure</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.label}>Raw RTK-Pro data:</Text>
-                      <Text style={styles.value}>{JSON.stringify(point.attributes.rtkProData)}</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>RTK-Pro Data</Text>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.label}>Status:</Text>
-                      <Text style={styles.value}>No RTK-Pro data captured for this point</Text>
-                    </View>
-                  </View>
-                )
-              )}
+              {/* RTK-Pro Data */}
+              <RTKProDataDisplay
+                locateData={point.attributes?.rtkProData?.locateData}
+                gpsData={point.attributes?.rtkProData?.gpsData}
+                isLinePoint={isLinePoint}
+              />
             </View>
           </ScrollView>
         </View>

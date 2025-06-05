@@ -6,9 +6,10 @@ import { RTKProLocateData, RTKProGPSData } from '@/types/nmea.types';
 interface RTKProDataDisplayProps {
   locateData?: RTKProLocateData | null;
   gpsData?: RTKProGPSData | null;
+  isLinePoint?: boolean;
 }
 
-const RTKProDataDisplay: React.FC<RTKProDataDisplayProps> = ({ locateData, gpsData }) => {
+const RTKProDataDisplay: React.FC<RTKProDataDisplayProps> = ({ locateData, gpsData, isLinePoint = false }) => {
   // Helper function to format values
   const formatValue = (value: any, unit?: string): string => {
     if (value === null || value === undefined) return 'N/A';
@@ -114,10 +115,13 @@ const RTKProDataDisplay: React.FC<RTKProDataDisplayProps> = ({ locateData, gpsDa
             <Text style={styles.value}>{formatAngle(locateData.compassAngle)}</Text>
           </View>
           
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Distance from Last Log:</Text>
-            <Text style={styles.value}>{formatValue(locateData.distanceFromLastLog, 'm')}</Text>
-          </View>
+          {/* Only show distance from last log for standalone points, not line points */}
+          {!isLinePoint && (
+            <View style={styles.detailRow}>
+              <Text style={styles.label}>Distance from Last Log:</Text>
+              <Text style={styles.value}>{formatValue(locateData.distanceFromLastLog, 'm')}</Text>
+            </View>
+          )}
         </View>
       )}
 

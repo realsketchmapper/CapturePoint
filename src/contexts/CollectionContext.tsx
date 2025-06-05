@@ -62,9 +62,11 @@ function collectionReducer(
         }
       };
     case 'ADD_POINT':
+      const newPointsArray = [...state.points, action.payload];
+      console.log(`✅ Added point to collection: ${newPointsArray.length} total points`, action.payload);
       return { 
         ...state, 
-        points: [...state.points, action.payload]
+        points: newPointsArray
       };
     case 'REMOVE_LAST_POINT':
       if (state.points.length <= 1) {
@@ -260,18 +262,21 @@ export const CollectionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Record a new point
   const recordPoint = useCallback((position?: Position): boolean => {
     if (!collectionState.isActive) {
+      console.log('❌ Cannot record point: Collection not active');
       return false;
     }
     
     const pointCoordinates = getValidCoordinates(position);
     
     if (!pointCoordinates) {
+      console.log('❌ Cannot record point: Invalid coordinates');
       return false;
     }
     
+    console.log(`📍 Recording point ${collectionState.points.length + 1}: [${pointCoordinates[0].toFixed(6)}, ${pointCoordinates[1].toFixed(6)}]`);
     dispatch({ type: 'ADD_POINT', payload: pointCoordinates });
     return true;
-  }, [collectionState.isActive, getValidCoordinates]);
+  }, [collectionState.isActive, getValidCoordinates, collectionState.points.length]);
 
   // Remove the last point
   const undoLastPoint = useCallback((): boolean => {

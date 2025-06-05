@@ -37,6 +37,8 @@ import { useNMEAContext } from '@/contexts/NMEAContext';
 import { useRTKPro } from '@/contexts/RTKProContext';
 import { getCurrentStandardizedTime } from '@/utils/datetime';
 import { Coordinate } from '@/types/map.types';
+import { generateId } from '@/utils/collections';
+import { calculateLineDistance } from '@/utils/collections';
 
 // Helper function to convert Position to coordinates array
 const positionToCoordinates = (position: Position): [number, number] => {
@@ -448,6 +450,11 @@ export const MapControls: React.FC = () => {
         return point;
       }).filter((point): point is PointCollected => point !== null);
       
+      // Calculate total distance of the line
+      const coordinates: [number, number][] = points.map(coord => [coord[0], coord[1]]);
+      const totalDistance = calculateLineDistance(coordinates);
+      console.log(`📏 Calculated total line distance: ${totalDistance.toFixed(2)} meters`);
+      
       // Create a single line feature with all its points
       const lineFeature: CollectedFeature = {
         name: lineName,
@@ -460,7 +467,9 @@ export const MapControls: React.FC = () => {
           isLine: true,
           featureTypeName: featureType.name,
           lineColor: featureType.color,
-          lineWeight: featureType.line_weight
+          lineWeight: featureType.line_weight,
+          totalDistance: totalDistance, // Store the total distance for analytics
+          totalDistanceUnit: 'meters' // Store the unit for clarity
         },
         is_active: true,
         created_by: Number(user?.id || 0),

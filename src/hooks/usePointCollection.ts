@@ -173,18 +173,31 @@ export const usePointCollection = () => {
 
   // Register auto-collection handler globally for RTK-Pro button press integration
   React.useEffect(() => {
+    // Add debounce to prevent rapid button presses
+    let isProcessing = false;
+    
     (global as any).autoCollectPoint = async () => {
+      // Prevent rapid successive calls
+      if (isProcessing) {
+        console.log('🚦 Auto-collection already in progress, ignoring rapid button press');
+        return;
+      }
+      
+      isProcessing = true;
+      
       console.log('🎯 Auto-collection triggered from RTK-Pro button press');
       
       if (!selectedFeatureType) {
         console.warn('⚠️ No feature type selected - cannot auto-collect point');
         console.log('📝 Please select a feature type in the app before pressing the RTK-Pro collect button');
+        isProcessing = false;
         return;
       }
       
       if (!currentLocation) {
         console.warn('⚠️ No current location - cannot auto-collect point');
         console.log('📍 Please ensure GPS/NMEA positioning is active before collecting points');
+        isProcessing = false;
         return;
       }
       
@@ -235,6 +248,11 @@ export const usePointCollection = () => {
         console.log('🎯 RTK-Pro data automatically included in collection');
       } catch (error) {
         console.error('❌ RTK-Pro auto-collection failed:', error);
+      } finally {
+        // Reset the flag after a small delay to prevent rapid-fire
+        setTimeout(() => {
+          isProcessing = false;
+        }, 500); // 500ms debounce
       }
     };
     
