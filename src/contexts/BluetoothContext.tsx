@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef, useState } from 'react';
 import { BluetoothDevice, BluetoothEventSubscription } from 'react-native-bluetooth-classic';
-import { BluetoothContextType, BluetoothDeviceType, BluetoothState, BluetoothActions } from '@/types/bluetooth.types';
+import { BluetoothContextType, BluetoothDeviceType, BluetoothState, BluetoothActions, BluetoothConnectionEventData } from '@/types/bluetooth.types';
 import { BluetoothManager } from '@/services/bluetooth/bluetoothManager';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { useLocationContext } from '@/contexts/LocationContext';
@@ -8,6 +8,7 @@ import RNBluetoothClassic from 'react-native-bluetooth-classic';
 import { deviceStorage } from '@/services/storage/deviceStorage';
 import { syncService } from '@/services/sync/syncService';
 import { useProjectContext } from './ProjectContext';
+import { BluetoothDisconnectionModal } from '@/components/modals/BluetoothModals/BluetoothDisconnectionModal';
 
 const BluetoothContext = createContext<BluetoothContextType | null>(null);
 
@@ -20,6 +21,7 @@ type BluetoothAction =
   | { type: 'SET_CONNECTION_ERROR'; payload: string | null }
   | { type: 'SET_CONNECTED_DEVICE'; payload: BluetoothDevice | null }
   | { type: 'SET_BLUETOOTH_ENABLED'; payload: boolean }
+  | { type: 'SET_CONNECTION_EVENT'; payload: BluetoothConnectionEventData | null }
   | { type: 'CLEAR_ERRORS' };
 
 // Define initial state
@@ -30,7 +32,8 @@ const initialState: BluetoothState = {
   error: null,
   connectionError: null,
   connectedDevice: null,
-  isBluetoothEnabled: false
+  isBluetoothEnabled: false,
+  lastConnectionEvent: null,
 };
 
 // Reducer function
@@ -50,6 +53,8 @@ function bluetoothReducer(state: BluetoothState, action: BluetoothAction): Bluet
       return { ...state, connectedDevice: action.payload };
     case 'SET_BLUETOOTH_ENABLED':
       return { ...state, isBluetoothEnabled: action.payload };
+    case 'SET_CONNECTION_EVENT':
+      return { ...state, lastConnectionEvent: action.payload };
     case 'CLEAR_ERRORS':
       return { ...state, error: null, connectionError: null };
     default:
@@ -66,6 +71,11 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
   const bluetoothStateListener = useRef<any>(null);
   const bluetoothManager = BluetoothManager.getInstance();
   const { activeProject } = useProjectContext();
+  
+  // Add state for disconnection modal
+  const [isDisconnectionModalVisible, setIsDisconnectionModalVisible] = useState(false);
+  const [disconnectedDevice, setDisconnectedDevice] = useState<BluetoothDevice | null>(null);
+  const [disconnectionReason, setDisconnectionReason] = useState<string | undefined>(undefined);
 
   // Monitor Bluetooth state changes
   useEffect(() => {
@@ -92,6 +102,35 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     };
   }, []);
+
+  // Add connection event monitoring
+  useEffect(() => {
+    const handleConnectionEvent = (eventData: BluetoothConnectionEventData) => {
+      dispatch({ type: 'SET_CONNECTION_EVENT', payload: eventData });
+      
+      if (eventData.event === 'disconnected') {
+        console.log(`📱 Handling disconnection event in BluetoothContext for ${eventData.device.name}`);
+        
+        // Update connected device state immediately
+        dispatch({ type: 'SET_CONNECTED_DEVICE', payload: null });
+        
+        // Stop NMEA listening and switch back to device location
+        stopListening(eventData.device.address);
+        setUsingNMEA(false);
+        
+        // Show disconnection modal
+        setDisconnectedDevice(eventData.device);
+        setDisconnectionReason(eventData.reason);
+        setIsDisconnectionModalVisible(true);
+      }
+    };
+
+    bluetoothManager.addConnectionEventListener(handleConnectionEvent);
+
+    return () => {
+      bluetoothManager.removeConnectionEventListener(handleConnectionEvent);
+    };
+  }, [stopListening, setUsingNMEA]);
 
   const scanDevices = useCallback(async (deviceType: BluetoothDeviceType) => {
     try {
@@ -226,6 +265,36 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
     dispatch({ type: 'CLEAR_ERRORS' });
   }, []);
 
+  const handleReconnectDevice = useCallback(async () => {
+    if (!disconnectedDevice) return;
+    
+    setIsDisconnectionModalVisible(false);
+    
+    try {
+      console.log(`🔄 Attempting to reconnect to ${disconnectedDevice.name}...`);
+      const success = await connectToDevice(disconnectedDevice);
+      
+      if (success) {
+        console.log(`✅ Successfully reconnected to ${disconnectedDevice.name}`);
+      } else {
+        console.log(`❌ Failed to reconnect to ${disconnectedDevice.name}`);
+        dispatch({ type: 'SET_CONNECTION_ERROR', payload: 'Failed to reconnect. Please try manually.' });
+      }
+    } catch (error) {
+      console.error('Error during reconnection:', error);
+      dispatch({ type: 'SET_CONNECTION_ERROR', payload: 'Reconnection failed. Please try manually.' });
+    } finally {
+      setDisconnectedDevice(null);
+      setDisconnectionReason(undefined);
+    }
+  }, [disconnectedDevice, connectToDevice]);
+
+  const handleDismissDisconnectionModal = useCallback(() => {
+    setIsDisconnectionModalVisible(false);
+    setDisconnectedDevice(null);
+    setDisconnectionReason(undefined);
+  }, []);
+
   const value: BluetoothContextType = {
     ...state,
     scanDevices,
@@ -250,6 +319,13 @@ export const BluetoothProvider: React.FC<{ children: React.ReactNode }> = ({
   return (
     <BluetoothContext.Provider value={value}>
       {children}
+      <BluetoothDisconnectionModal
+        visible={isDisconnectionModalVisible}
+        onClose={handleDismissDisconnectionModal}
+        onReconnect={handleReconnectDevice}
+        deviceName={disconnectedDevice?.name || 'Unknown Device'}
+        reason={disconnectionReason}
+      />
     </BluetoothContext.Provider>
   );
 };

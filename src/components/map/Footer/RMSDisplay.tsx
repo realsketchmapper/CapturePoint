@@ -1,6 +1,8 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { Text, StyleSheet, View, ViewStyle, TextStyle } from 'react-native';
 import { useNMEAContext } from '@/contexts/NMEAContext';
+import { useLocationContext } from '@/contexts/LocationContext';
+import { useBluetooth } from '@/hooks/useBluetooth';
 import { NMEAParser } from '@/services/gnss/nmeaParser';
 import { RMSDisplayProps, RMSValues } from '@/types/nmea.types';
 import { Colors } from '@/theme/colors';
@@ -48,6 +50,8 @@ export const RMSDisplay: React.FC<RMSDisplayProps> = ({
   labelStyle,
 }) => {
   const { gstData, ggaData } = useNMEAContext();
+  const { locationSource } = useLocationContext();
+  const { connectedDevice } = useBluetooth();
   const [displayValues, setDisplayValues] = useState<RMSValues>({
     horizontal: '--',
     vertical: '--'
@@ -55,6 +59,21 @@ export const RMSDisplay: React.FC<RMSDisplayProps> = ({
 
   // Memoize RMS calculations to prevent unnecessary recalculations
   const rmsValues = useMemo(() => {
+    // If no Bluetooth device is connected, show dashes
+    if (locationSource === 'nmea' && !connectedDevice) {
+      return {
+        horizontal: '--',
+        vertical: '--'
+      };
+    }
+
+    if (locationSource === 'device') {
+      return {
+        horizontal: 'Device',
+        vertical: 'Device'
+      };
+    }
+
     if (!gstData) {
       // Fallback to HDOP-based approximation if GST data isn't available
       if (ggaData?.hdop) {
@@ -77,7 +96,7 @@ export const RMSDisplay: React.FC<RMSDisplayProps> = ({
       horizontal: horizontalRMS,
       vertical: verticalRMS
     };
-  }, [gstData, ggaData?.hdop]); // Recalculate when either GST data or HDOP changes
+  }, [gstData, ggaData?.hdop, locationSource, connectedDevice]); // Recalculate when either GST data, HDOP, or connection state changes
 
   // Update display values when RMS calculations change
   useEffect(() => {

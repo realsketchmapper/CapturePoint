@@ -2,6 +2,16 @@ import { BluetoothDevice } from 'react-native-bluetooth-classic';
 
 export type BluetoothDeviceType = 'RTK-PRO' | 'STONEX' | 'EMLID';
 
+// Add connection event types
+export type BluetoothConnectionEvent = 'connected' | 'disconnected' | 'data_timeout';
+
+export interface BluetoothConnectionEventData {
+  event: BluetoothConnectionEvent;
+  device: BluetoothDevice;
+  timestamp: Date;
+  reason?: string;
+}
+
 export interface DeviceTypeOption {
   id: string;
   name: BluetoothDeviceType;
@@ -17,6 +27,7 @@ export type BluetoothAction =
   | { type: 'SET_CONNECTION_ERROR'; payload: string | null }
   | { type: 'SET_CONNECTED_DEVICE'; payload: BluetoothDevice | null }
   | { type: 'SET_BLUETOOTH_ENABLED'; payload: boolean }
+  | { type: 'SET_CONNECTION_EVENT'; payload: BluetoothConnectionEventData | null }
   | { type: 'CLEAR_ERRORS' };
 
 export interface BluetoothState {
@@ -27,6 +38,7 @@ export interface BluetoothState {
   connectionError: string | null;
   connectedDevice: BluetoothDevice | null;
   isBluetoothEnabled: boolean;
+  lastConnectionEvent: BluetoothConnectionEventData | null;
 }
 
 export interface BluetoothActions {
@@ -64,6 +76,7 @@ export interface BluetoothContextType {
   connectionError: string | null;
   connectedDevice: BluetoothDevice | null;
   isBluetoothEnabled: boolean;
+  lastConnectionEvent: BluetoothConnectionEventData | null;
   scanDevices: (deviceType: BluetoothDeviceType) => Promise<BluetoothDevice[]>;
   connectToDevice: (device: BluetoothDevice) => Promise<boolean>;
   connectToLastDevice: () => Promise<void>;

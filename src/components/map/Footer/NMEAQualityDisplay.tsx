@@ -2,6 +2,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { Text, StyleSheet, View } from 'react-native';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { useLocationContext } from '@/contexts/LocationContext';
+import { useBluetooth } from '@/hooks/useBluetooth';
 import { NMEA_QUALITY_TYPES } from '@/types/nmea.types';
 import { NMEAQualityDisplayProps } from '@/types/nmea.types';
 import { Colors } from '@/theme/colors';
@@ -11,6 +12,7 @@ export const NMEAQualityDisplay: React.FC<NMEAQualityDisplayProps> = ({
 }) => {
   const { ggaData } = useNMEAContext();
   const { locationSource } = useLocationContext();
+  const { connectedDevice } = useBluetooth();
   const [displayText, setDisplayText] = useState<string>('No Fix');
 
   const getQualityStyle = (quality: string) => {
@@ -44,6 +46,11 @@ export const NMEAQualityDisplay: React.FC<NMEAQualityDisplayProps> = ({
 
   // Memoize the quality text to prevent unnecessary recalculations
   const qualityText = useMemo(() => {
+    // If no Bluetooth device is connected, show "No Fix"
+    if (locationSource === 'nmea' && !connectedDevice) {
+      return 'No Fix';
+    }
+    
     if (locationSource === 'device') {
       return 'Device';
     }
@@ -53,7 +60,7 @@ export const NMEAQualityDisplay: React.FC<NMEAQualityDisplayProps> = ({
     const quality = NMEA_QUALITY_TYPES[ggaData.quality as keyof typeof NMEA_QUALITY_TYPES];
     
     return quality;
-  }, [ggaData?.quality, locationSource]);
+  }, [ggaData?.quality, locationSource, connectedDevice]);
 
   // Update the display text whenever qualityText changes
   useEffect(() => {

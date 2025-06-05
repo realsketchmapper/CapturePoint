@@ -2,7 +2,7 @@ import RNBluetoothClassic, {
   BluetoothDevice, 
   BluetoothEventSubscription 
 } from 'react-native-bluetooth-classic';
-import { BluetoothDeviceType } from '@/types/bluetooth.types';
+import { BluetoothDeviceType, BluetoothConnectionEvent, BluetoothConnectionEventData } from '@/types/bluetooth.types';
 import { BLUETOOTH_DEVICE_TYPES } from '@/utils/constants';
 import { deviceStorage } from '../storage/deviceStorage';
 import { bluetoothDataLogger } from '../logging/bluetoothDataLogger';
@@ -50,6 +50,14 @@ export class BluetoothManager {
   private readonly CONNECTION_TIMEOUT = 10000; // 10 seconds
   private readonly CACHE_TTL = 5000; // 5 seconds
   private currentConnectedDevice: BluetoothDevice | null = null;
+  
+  // Add connection monitoring properties
+  private connectionMonitorInterval: NodeJS.Timeout | null = null;
+  private dataTimeoutInterval: NodeJS.Timeout | null = null;
+  private lastDataReceived: Date | null = null;
+  private readonly CONNECTION_CHECK_INTERVAL = 5000; // Check every 5 seconds
+  private readonly DATA_TIMEOUT_DURATION = 15000; // 15 seconds without data = timeout
+  private connectionEventListeners: Array<(event: BluetoothConnectionEventData) => void> = [];
 
   private constructor() {}
 
@@ -213,6 +221,12 @@ export class BluetoothManager {
     // Store current connected device for logging
     this.currentConnectedDevice = device;
 
+    // Start connection monitoring
+    this.startConnectionMonitoring(device);
+
+    // Emit connection event
+    this.emitConnectionEvent('connected', device);
+
     // Check if this is an RTK-Pro device and start logging
     const isRTKPro = this.isRTKProDevice(device);
     console.log(`🤖 Is RTK-Pro device check: ${isRTKPro} (device name: "${device.name}")`);
@@ -288,6 +302,10 @@ export class BluetoothManager {
       console.log(`🎧 Setting up data subscription for ${device.name}...`);
       const subscription = device.onDataReceived((data) => {
         const receivedData = data.data;
+        
+        // Update data received timestamp for connection monitoring
+        this.updateLastDataReceived();
+        
         const dataType = this.determineDataType(receivedData);
         
         // Only log important events, not continuous data streams
@@ -450,6 +468,9 @@ export class BluetoothManager {
    * Disconnect from a device
    */
   public async disconnectDevice(address: string): Promise<void> {
+    // Stop connection monitoring
+    this.stopConnectionMonitoring();
+    
     // Stop data logging if this is an RTK-Pro device
     if (this.currentConnectedDevice && this.isRTKProDevice(this.currentConnectedDevice)) {
       try {
@@ -482,6 +503,9 @@ export class BluetoothManager {
    * Clean up resources
    */
   public async cleanup(): Promise<void> {
+    // Stop connection monitoring
+    this.stopConnectionMonitoring();
+    
     // Stop data logging if active
     if (this.currentConnectedDevice && this.isRTKProDevice(this.currentConnectedDevice)) {
       try {
@@ -498,6 +522,9 @@ export class BluetoothManager {
     
     // Clear cache
     this.deviceStatusCache.clear();
+    
+    // Clear listeners
+    this.connectionEventListeners = [];
     
     // Reset state
     this.connectionState = 'disconnected';
@@ -601,6 +628,139 @@ export class BluetoothManager {
     } catch (error) {
       console.error(`❌ Data connection test failed:`, error);
     }
+  }
+
+  /**
+   * Add connection event listener
+   */
+  public addConnectionEventListener(listener: (event: BluetoothConnectionEventData) => void): void {
+    this.connectionEventListeners.push(listener);
+  }
+
+  /**
+   * Remove connection event listener
+   */
+  public removeConnectionEventListener(listener: (event: BluetoothConnectionEventData) => void): void {
+    const index = this.connectionEventListeners.indexOf(listener);
+    if (index > -1) {
+      this.connectionEventListeners.splice(index, 1);
+    }
+  }
+
+  /**
+   * Emit connection event to all listeners
+   */
+  private emitConnectionEvent(event: BluetoothConnectionEvent, device: BluetoothDevice, reason?: string): void {
+    const eventData: BluetoothConnectionEventData = {
+      event,
+      device,
+      timestamp: new Date(),
+      reason
+    };
+
+    console.log(`🔔 Bluetooth Event: ${event} for device ${device.name}`, reason ? `(${reason})` : '');
+    
+    this.connectionEventListeners.forEach(listener => {
+      try {
+        listener(eventData);
+      } catch (error) {
+        console.error('Error in connection event listener:', error);
+      }
+    });
+  }
+
+  /**
+   * Start connection monitoring for the current device
+   */
+  private startConnectionMonitoring(device: BluetoothDevice): void {
+    this.stopConnectionMonitoring(); // Clear any existing monitoring
+    
+    console.log(`🔍 Starting connection monitoring for ${device.name}`);
+    this.lastDataReceived = new Date();
+
+    // Monitor connection status
+    this.connectionMonitorInterval = setInterval(async () => {
+      try {
+        const isConnected = await RNBluetoothClassic.isDeviceConnected(device.address);
+        
+        if (!isConnected) {
+          console.log(`❌ Connection lost to ${device.name}`);
+          this.handleDeviceDisconnection(device, 'Connection lost');
+          return;
+        }
+
+        // Check for data timeout
+        if (this.lastDataReceived) {
+          const timeSinceLastData = Date.now() - this.lastDataReceived.getTime();
+          if (timeSinceLastData > this.DATA_TIMEOUT_DURATION) {
+            console.log(`⏰ Data timeout detected for ${device.name} (${Math.round(timeSinceLastData/1000)}s since last data)`);
+            this.handleDeviceDisconnection(device, 'No data received');
+            return;
+          }
+        }
+
+      } catch (error) {
+        console.error(`❌ Error checking connection status for ${device.name}:`, error);
+        this.handleDeviceDisconnection(device, 'Connection check failed');
+      }
+    }, this.CONNECTION_CHECK_INTERVAL);
+  }
+
+  /**
+   * Stop connection monitoring
+   */
+  private stopConnectionMonitoring(): void {
+    if (this.connectionMonitorInterval) {
+      clearInterval(this.connectionMonitorInterval);
+      this.connectionMonitorInterval = null;
+    }
+    if (this.dataTimeoutInterval) {
+      clearInterval(this.dataTimeoutInterval);
+      this.dataTimeoutInterval = null;
+    }
+  }
+
+  /**
+   * Handle device disconnection
+   */
+  private async handleDeviceDisconnection(device: BluetoothDevice, reason: string): Promise<void> {
+    console.log(`💔 Handling disconnection for ${device.name}: ${reason}`);
+    
+    // Stop monitoring
+    this.stopConnectionMonitoring();
+    
+    // Clean up subscriptions
+    await this.stopListeningToDevice(device.address);
+    
+    // Update state
+    this.connectionState = 'disconnected';
+    this.currentConnectedDevice = null;
+    
+    // Update cache
+    const cachedStatus = this.deviceStatusCache.get(device.address);
+    if (cachedStatus) {
+      cachedStatus.isConnected = false;
+    }
+
+    // Stop data logging if this is an RTK-Pro device
+    if (this.isRTKProDevice(device)) {
+      try {
+        await bluetoothDataLogger.stopLogging();
+        console.log(`Stopped data logging for RTK-Pro device: ${device.name}`);
+      } catch (error) {
+        console.error('Failed to stop data logging:', error);
+      }
+    }
+    
+    // Emit disconnection event
+    this.emitConnectionEvent('disconnected', device, reason);
+  }
+
+  /**
+   * Update the data received timestamp (call this when data is received)
+   */
+  public updateLastDataReceived(): void {
+    this.lastDataReceived = new Date();
   }
 }
 
