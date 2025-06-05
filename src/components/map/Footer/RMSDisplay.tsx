@@ -11,14 +11,36 @@ const RMS_THRESHOLDS = {
     // above 0.5ft will be red
   };
   
-  const getRMSColor = (value: string): string => {
-    if (value === '--') return Colors.DarkBlue; // White for no value
+  const getRMSStyle = (value: string) => {
+    if (value === '--') {
+      return {
+        backgroundColor: Colors.VeryLightGrey,
+        color: Colors.Grey,
+        borderColor: Colors.VeryLightGrey,
+      };
+    }
+    
     const numValue = parseFloat(value);
-    if (numValue <= RMS_THRESHOLDS.GREEN) return Colors.BrightGreen;  // Green
-    if (numValue <= RMS_THRESHOLDS.YELLOW) return Colors.Yellow; // Yellow
-    return Colors.BrightRed; // Red
+    if (numValue <= RMS_THRESHOLDS.GREEN) {
+      return {
+        backgroundColor: Colors.DarkBlue,
+        color: Colors.BrightGreen,
+        borderColor: Colors.BrightGreen,
+      };
+    }
+    if (numValue <= RMS_THRESHOLDS.YELLOW) {
+      return {
+        backgroundColor: Colors.DarkBlue,
+        color: Colors.Yellow,
+        borderColor: Colors.Yellow,
+      };
+    }
+    return {
+      backgroundColor: Colors.DarkBlue,
+      color: Colors.BrightRed,
+      borderColor: Colors.BrightRed,
+    };
   };
-
 
 export const RMSDisplay: React.FC<RMSDisplayProps> = ({
   containerStyle,
@@ -62,49 +84,58 @@ export const RMSDisplay: React.FC<RMSDisplayProps> = ({
     setDisplayValues(rmsValues);
   }, [rmsValues]);
 
-  const HorizontalValue = useMemo(() => (
-    <View style={styles.valueContainer}>
-      <Text style={[styles.label, labelStyle]}>H:</Text>
-      <View style={styles.valueTextContainer}>
-        <Text 
-          style={[
-            styles.text, 
-            { color: getRMSColor(displayValues.horizontal) },
-            textStyle
-          ]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {displayValues.horizontal}ft
-        </Text>
-      </View>
-    </View>
-  ), [displayValues.horizontal, labelStyle, textStyle]);
-
-  const VerticalValue = useMemo(() => (
-    <View style={styles.valueContainer}>
-      <Text style={[styles.label, labelStyle]}>V:</Text>
-      <View style={styles.valueTextContainer}>
-        <Text 
-          style={[
-            styles.text, 
-            { color: getRMSColor(displayValues.vertical) },
-            textStyle
-          ]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {displayValues.vertical}ft
-        </Text>
-      </View>
-    </View>
-  ), [displayValues.vertical, labelStyle, textStyle]);
+  const horizontalStyle = getRMSStyle(displayValues.horizontal);
+  const verticalStyle = getRMSStyle(displayValues.vertical);
 
   return (
     <View style={[styles.container, containerStyle]}>
-      <View style={styles.valuesStack}>
-        {HorizontalValue}
-        {VerticalValue}
+      <Text style={[styles.mainLabel, labelStyle]}>Accuracy (ft)</Text>
+      <View style={styles.valuesContainer}>
+        <View style={styles.valueRow}>
+          <Text style={styles.valueLabel}>H:</Text>
+          <View style={[
+            styles.valueContainer,
+            {
+              backgroundColor: horizontalStyle.backgroundColor,
+              borderColor: horizontalStyle.borderColor,
+            }
+          ]}>
+            <Text 
+              style={[
+                styles.valueText, 
+                { color: horizontalStyle.color },
+                textStyle
+              ]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {displayValues.horizontal}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.valueRow}>
+          <Text style={styles.valueLabel}>V:</Text>
+          <View style={[
+            styles.valueContainer,
+            {
+              backgroundColor: verticalStyle.backgroundColor,
+              borderColor: verticalStyle.borderColor,
+            }
+          ]}>
+            <Text 
+              style={[
+                styles.valueText, 
+                { color: verticalStyle.color },
+                textStyle
+              ]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {displayValues.vertical}
+            </Text>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -112,41 +143,54 @@ export const RMSDisplay: React.FC<RMSDisplayProps> = ({
 
 interface Styles {
   container: ViewStyle;
-  valuesStack: ViewStyle;
+  mainLabel: TextStyle;
+  valuesContainer: ViewStyle;
+  valueRow: ViewStyle;
+  valueLabel: TextStyle;
   valueContainer: ViewStyle;
-  valueTextContainer: ViewStyle;
-  label: TextStyle;
-  text: TextStyle;
+  valueText: TextStyle;
 }
 
 const styles = StyleSheet.create<Styles>({
   container: {
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 'auto',
   },
-  valuesStack: {
-    alignItems: 'flex-start',
+  mainLabel: {
+    color: Colors.Grey,
+    fontSize: 9,
+    fontFamily: 'RobotoSlab-Regular',
+    marginBottom: 3,
+    textAlign: 'center',
   },
-  valueContainer: {
+  valuesContainer: {
+    alignItems: 'center',
+  },
+  valueRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 2,
-    width: 45,
+    marginBottom: 1,
   },
-  valueTextContainer: {
-    width: 55,
-  },
-  label: {
+  valueLabel: {
     color: Colors.DarkBlue,
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: 'RobotoSlab-Regular',
-    width: 15,
+    width: 12,
+    textAlign: 'right',
+    marginRight: 4,
   },
-  text: {
-    color: Colors.DarkBlue,
+  valueContainer: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  valueText: {
     fontSize: 10,
-    textAlign: 'left',
+    textAlign: 'center',
     fontFamily: 'RobotoSlab-Regular',
+    fontWeight: '600',
   }
 });

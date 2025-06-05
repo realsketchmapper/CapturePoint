@@ -14,8 +14,10 @@ export const FooterContainer: React.FC = () => {
           <CurrentFeatureDisplay />
         </View>
         <View style={styles.rightSection}>
-          <NMEAQualityDisplay style={styles.nmeaDisplay} />
-          <RMSDisplay />
+          <View style={styles.statusSection}>
+            <NMEAQualityDisplay style={styles.nmeaDisplay} />
+            <RMSDisplay containerStyle={styles.rmsDisplay} />
+          </View>
         </View>
       </View>
     </View>
@@ -26,7 +28,7 @@ const styles = StyleSheet.create({
   footer: {
     width: '100%',
     backgroundColor: Colors.OffWhite,
-    padding: 8,
+    padding: 5,
     borderTopWidth: 2,
     borderTopColor: Colors.DarkBlue,
   },
@@ -39,11 +41,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rightSection: {
+    alignItems: 'flex-end',
+  },
+  statusSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
   },
   nmeaDisplay: {
-    flex: 0, // Override the flex: 1 from NMEAQualityDisplay
-    marginRight: 16,
+    // Additional styling can be added here if needed
+  },
+  rmsDisplay: {
+    // Additional styling can be added here if needed
   },
 });

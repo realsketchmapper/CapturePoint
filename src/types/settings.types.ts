@@ -5,6 +5,7 @@ export interface SettingsProps {
     collectionDuration: number;
     useTilt: boolean;
     basemapStyle: BasemapStyle;
+    hideCollectionButtonForRTKPro: boolean;
   }
   
 export interface SettingsModalProps {

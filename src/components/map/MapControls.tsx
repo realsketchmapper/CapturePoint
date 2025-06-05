@@ -283,10 +283,22 @@ export const MapControls: React.FC = () => {
           console.log('Found line point in parent line:', matchedPoint?.client_id);
         }
       } else {
-        // Find standalone feature by client_id
+        // Find standalone feature
         const matchedFeature = storedFeatures.find(f => f.client_id === clientId);
         if (matchedFeature && matchedFeature.points && matchedFeature.points.length > 0) {
           matchedPoint = matchedFeature.points[0];
+          console.log('🔍 Found standalone feature:', matchedFeature.client_id);
+          console.log('🔍 Feature structure:', {
+            name: matchedFeature.name,
+            type: matchedFeature.type,
+            pointsCount: matchedFeature.points.length,
+            attributes: matchedFeature.attributes
+          });
+          console.log('🔍 Selected point structure:', {
+            client_id: matchedPoint.client_id,
+            attributes: matchedPoint.attributes,
+            rtkProData: matchedPoint.attributes?.rtkProData
+          });
           console.log('Found standalone point:', matchedPoint?.client_id);
         }
       }
@@ -825,6 +837,18 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
         const matchedFeature = storedFeatures.find(f => f.client_id === clientId);
         if (matchedFeature && matchedFeature.points && matchedFeature.points.length > 0) {
           matchedPoint = matchedFeature.points[0];
+          console.log('🔍 Found standalone feature:', matchedFeature.client_id);
+          console.log('🔍 Feature structure:', {
+            name: matchedFeature.name,
+            type: matchedFeature.type,
+            pointsCount: matchedFeature.points.length,
+            attributes: matchedFeature.attributes
+          });
+          console.log('🔍 Selected point structure:', {
+            client_id: matchedPoint.client_id,
+            attributes: matchedPoint.attributes,
+            rtkProData: matchedPoint.attributes?.rtkProData
+          });
           console.log('Found standalone point:', matchedPoint?.client_id);
         }
       }

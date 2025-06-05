@@ -24,6 +24,7 @@ const defaultSettings: SettingsProps = {
   collectionDuration: 2,
   useTilt: false,
   basemapStyle: 'satellite',
+  hideCollectionButtonForRTKPro: true,
 };
 
 const initialState: SettingsState = {

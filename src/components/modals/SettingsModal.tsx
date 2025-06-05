@@ -1,5 +1,5 @@
-import React from 'react';
-import { Modal, View, Text, TouchableOpacity, Switch, TextInput, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { Modal, View, Text, TouchableOpacity, Switch, TextInput, StyleSheet, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '@/theme/colors';
 import { SettingsProps } from '@/types/settings.types';
@@ -21,6 +21,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const { selectedDeviceType } = useBluetooth();
   const showTiltSetting = selectedDeviceType !== 'STONEX';
+
+  const showRTKProHelp = () => {
+    Alert.alert(
+      "RTK-Pro Collection Setting",
+      "When enabled, the app's collection button will be hidden when connected to an RTK-Pro device. Use the RTK-Pro's physical button to collect points instead.",
+      [{ text: "OK" }]
+    );
+  };
 
   return (
     <Modal
@@ -48,6 +56,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                   handleSettingsChange({
                     ...settings,
                     useTimedCollection: value,
+                  })
+                }
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingLabelContainer}>
+                <Text style={styles.settingLabel}>Hide App Collection Button for RTK-Pro</Text>
+                <TouchableOpacity onPress={showRTKProHelp} style={styles.helpIcon}>
+                  <MaterialIcons name="help-outline" size={16} color="white" />
+                </TouchableOpacity>
+              </View>
+              <Switch
+                value={settings.hideCollectionButtonForRTKPro}
+                onValueChange={(value) =>
+                  handleSettingsChange({
+                    ...settings,
+                    hideCollectionButtonForRTKPro: value,
                   })
                 }
               />
@@ -210,7 +236,6 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 16,
     color: 'white',
-    flex: 1,
   },
   input: {
     width: 80,
@@ -253,6 +278,15 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
     height: 40,
+  },
+  settingLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  helpIcon: {
+    padding: 4,
   },
 });
 

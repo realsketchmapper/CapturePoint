@@ -1,10 +1,11 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet, View } from 'react-native';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { NMEA_QUALITY_TYPES } from '@/types/nmea.types';
 import { NMEAQualityDisplayProps } from '@/types/nmea.types';
 import { Colors } from '@/theme/colors';
+
 export const NMEAQualityDisplay: React.FC<NMEAQualityDisplayProps> = ({
   style,
 }) => {
@@ -12,16 +13,32 @@ export const NMEAQualityDisplay: React.FC<NMEAQualityDisplayProps> = ({
   const { locationSource } = useLocationContext();
   const [displayText, setDisplayText] = useState<string>('No Fix');
 
-  const getQualityColor = (quality: string): string => {
+  const getQualityStyle = (quality: string) => {
     switch (quality) {
       case 'RTK':
-        return '#00FF00'; // Green
+        return {
+          backgroundColor: Colors.DarkBlue,
+          color: Colors.BrightGreen,
+          borderColor: Colors.BrightGreen,
+        };
       case 'Float':
-        return '#FFFF00'; // Yellow
+        return {
+          backgroundColor: Colors.DarkBlue,
+          color: Colors.Yellow,
+          borderColor: Colors.Yellow,
+        };
       case 'Device':
-        return Colors.BrightRed; // White for device GPS
+        return {
+          backgroundColor: Colors.Grey,
+          color: 'white',
+          borderColor: Colors.Grey,
+        };
       default:
-        return Colors.BrightRed; // Red
+        return {
+          backgroundColor: Colors.VeryLightGrey,
+          color: Colors.BrightRed,
+          borderColor: Colors.BrightRed,
+        };
     }
   };
 
@@ -34,7 +51,6 @@ export const NMEAQualityDisplay: React.FC<NMEAQualityDisplayProps> = ({
     if (!ggaData) return 'No Fix';
     
     const quality = NMEA_QUALITY_TYPES[ggaData.quality as keyof typeof NMEA_QUALITY_TYPES];
-    //const satellites = ggaData.satellites;
     
     return quality;
   }, [ggaData?.quality, locationSource]);
@@ -44,26 +60,56 @@ export const NMEAQualityDisplay: React.FC<NMEAQualityDisplayProps> = ({
     setDisplayText(qualityText);
   }, [qualityText]);
 
+  const qualityStyle = getQualityStyle(displayText);
+
   return (
-    <Text 
-      style={[
-        styles.text,
-        { color: getQualityColor(displayText) },
-        style
-      ]}
-      numberOfLines={1}
-      ellipsizeMode="tail"
-    >
-      {displayText}
-    </Text>
+    <View style={[styles.container, style]}>
+      <Text style={styles.label}>RTK Status</Text>
+      <View style={[
+        styles.statusContainer,
+        {
+          backgroundColor: qualityStyle.backgroundColor,
+          borderColor: qualityStyle.borderColor,
+        }
+      ]}>
+        <Text 
+          style={[
+            styles.text,
+            { color: qualityStyle.color }
+          ]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {displayText}
+        </Text>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+  },
+  label: {
+    fontSize: 9,
+    color: Colors.Grey,
+    fontFamily: 'RobotoSlab-Regular',
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  statusContainer: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 5,
+    borderWidth: 1,
+    minWidth: 55,
+    alignItems: 'center',
+  },
   text: {
-    fontSize: 22,
-    textAlign: 'left',
+    fontSize: 13,
+    textAlign: 'center',
     fontFamily: 'RobotoSlab-Medium',
-    paddingRight: 8
+    fontWeight: '600',
   }
 });

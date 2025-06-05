@@ -15,10 +15,21 @@ export const useBluetooth = () => {
   
   // Device states
   const [selectedDeviceType, setSelectedDeviceType] = useState<BluetoothDeviceType | null>(null);
-  const [connectedDevice, setConnectedDevice] = useState<BluetoothDevice | null>(null);
   
-  // Get connectToDevice function from context
-  const { connectToDevice } = useBluetoothContext();
+  // Get Bluetooth state and functions from context
+  const { 
+    connectedDevice,
+    isScanning,
+    isConnecting,
+    isDisconnecting,
+    error,
+    connectionError,
+    isBluetoothEnabled,
+    connectToDevice,
+    scanDevices,
+    disconnectFromDevice,
+    clearErrors
+  } = useBluetoothContext();
 
   /**
    * Handles the Bluetooth button press
@@ -46,7 +57,6 @@ export const useBluetooth = () => {
   const handleDeviceSelection = useCallback(async (device: BluetoothDevice): Promise<boolean> => {
     const success = await connectToDevice(device);
     if (success) {
-      setConnectedDevice(device);
       setIsDeviceSelectionModalVisible(false);
     }
     return success;
@@ -66,20 +76,41 @@ export const useBluetooth = () => {
     setIsDeviceSelectionModalVisible(false);
   }, []);
 
+  const isConnectedToRTKPro = useCallback((): boolean => {
+    if (!connectedDevice) return false;
+    
+    // Check if the connected device is an RTK-Pro device
+    // RTK-Pro devices have names that start with 'vLoc3-RTK-Pro'
+    const isRTKPro = connectedDevice.name?.startsWith('vLoc3-RTK-Pro') || false;
+    return isRTKPro;
+  }, [connectedDevice]);
+
   return {
     // Modal visibility states
     isDeviceTypeModalVisible,
     isDeviceSelectionModalVisible,
     
-    // Device states
+    // Device states from context
     selectedDeviceType,
     connectedDevice,
+    isScanning,
+    isConnecting,
+    isDisconnecting,
+    error,
+    connectionError,
+    isBluetoothEnabled,
     
     // Event handlers
     handleBluetoothPress,
     handleDeviceTypeSelection,
     handleDeviceSelection,
     handleCloseDeviceTypeModal,
-    handleCloseDeviceSelectionModal
+    handleCloseDeviceSelectionModal,
+    isConnectedToRTKPro,
+    
+    // Context functions
+    scanDevices,
+    disconnectFromDevice,
+    clearErrors,
   };
 }; 

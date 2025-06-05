@@ -3,14 +3,18 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocationContext } from '@/contexts/LocationContext';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
+import { useSettingsContext } from '@/contexts/SettingsContext';
 import { Colors } from '@/theme/colors';
 import { usePointCollection } from '@/hooks/usePointCollection';
 import { useCollectionContext } from '@/contexts/CollectionContext';
+import { useBluetooth } from '@/hooks/useBluetooth';
 import { FeatureFormModal } from '@/components/modals/PointModals/FeatureFormModal';
 
 const CollectionButton = () => {
   const { locationSource, currentLocation } = useLocationContext();
   const { selectedFeatureType } = useFeatureTypeContext();
+  const { settings } = useSettingsContext();
+  const { isConnectedToRTKPro, connectedDevice } = useBluetooth();
   const { 
     handlePointCollection, 
     isFormModalVisible, 
@@ -26,6 +30,11 @@ const CollectionButton = () => {
 
   // Don't render if not using NMEA
   if (locationSource !== 'nmea') {
+    return null;
+  }
+
+  // Hide the collection button if connected to RTK-Pro and the setting is enabled
+  if (settings.hideCollectionButtonForRTKPro && isConnectedToRTKPro()) {
     return null;
   }
 
