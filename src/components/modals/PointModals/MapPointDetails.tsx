@@ -43,6 +43,12 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Reset description when point changes
+  useEffect(() => {
+    setDescription(point.description || '');
+    setIsEditing(false);
+  }, [point.client_id, point.description]);
+
   // Determine if this is a line point
   const isLinePoint = point.attributes?.isLinePoint === true;
   const parentLineId = point.attributes?.parentLineId;
@@ -121,25 +127,6 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
 
   // Get point data for display
   const nmeaData = getNmeaData(point);
-
-  // Debug RTK-Pro data to see what's actually stored
-  console.log('🔍 === RTK-Pro Debug Info ===');
-  console.log('🔍 Point type:', isLinePoint ? 'Line Point' : 'Feature Point');
-  console.log('🔍 Point client_id:', point.client_id);
-  console.log('🔍 Point name:', point.name);
-  console.log('🔍 Full point structure:');
-  console.log('  - point.attributes:', point.attributes);
-  console.log('  - point.points:', point.points);
-  console.log('🔍 RTK-Pro data paths:');
-  console.log('  - point.attributes?.rtkProData:', point.attributes?.rtkProData);
-  console.log('  - point.points?.[0]?.attributes?.rtkProData:', point.points?.[0]?.attributes?.rtkProData);
-  console.log('🔍 RTK-Pro locate data:');
-  console.log('  - From attributes:', point.attributes?.rtkProData?.locateData);
-  console.log('  - From points[0]:', point.points?.[0]?.attributes?.rtkProData?.locateData);
-  console.log('🔍 RTK-Pro GPS data:');
-  console.log('  - From attributes:', point.attributes?.rtkProData?.gpsData);
-  console.log('  - From points[0]:', point.points?.[0]?.attributes?.rtkProData?.gpsData);
-  console.log('🔍 === End RTK-Pro Debug ===');
 
   // Format for display
   const formatValue = (value: any): string => {

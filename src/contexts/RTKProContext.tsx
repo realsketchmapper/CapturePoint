@@ -89,11 +89,21 @@ export const RTKProProvider: React.FC<RTKProProviderProps> = ({ children }) => {
         if (parsedData.locateData) {
           console.log('🎯 RTK-Pro Locate Data Captured:', parsedData.locateData);
           dispatch({ type: 'SET_LOCATE_DATA', payload: parsedData.locateData });
+          console.log('📊 Current state after locate data set:', { 
+            currentLocateData: parsedData.locateData,
+            currentGPSData: state.currentGPSData,
+            lastButtonPressTime: new Date().toISOString()
+          });
         }
         
         if (parsedData.gpsData) {
           console.log('🌍 RTK-Pro GPS Data Captured:', parsedData.gpsData);
           dispatch({ type: 'SET_GPS_DATA', payload: parsedData.gpsData });
+          console.log('📊 Current state after GPS data set:', { 
+            currentLocateData: state.currentLocateData,
+            currentGPSData: parsedData.gpsData,
+            lastButtonPressTime: new Date().toISOString()
+          });
         }
       }
       
@@ -159,5 +169,15 @@ export const useRTKPro = (): RTKProContextType => {
   if (context === undefined) {
     throw new Error('useRTKPro must be used within an RTKProProvider');
   }
+  
+  // Debug logging to see what values are being returned
+  React.useEffect(() => {
+    console.log('🔍 useRTKPro values changed:', {
+      currentLocateData: context.currentLocateData,
+      currentGPSData: context.currentGPSData,
+      lastButtonPressTime: context.lastButtonPressTime
+    });
+  }, [context.currentLocateData, context.currentGPSData, context.lastButtonPressTime]);
+  
   return context;
 }; 

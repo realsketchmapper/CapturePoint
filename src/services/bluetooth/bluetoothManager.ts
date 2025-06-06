@@ -51,13 +51,19 @@ export class BluetoothManager {
   private readonly CACHE_TTL = 5000; // 5 seconds
   private currentConnectedDevice: BluetoothDevice | null = null;
   
-  // Add connection monitoring properties
+  // Connection monitoring
   private connectionMonitorInterval: NodeJS.Timeout | null = null;
   private dataTimeoutInterval: NodeJS.Timeout | null = null;
   private lastDataReceived: Date | null = null;
   private readonly CONNECTION_CHECK_INTERVAL = 5000; // Check every 5 seconds
   private readonly DATA_TIMEOUT_DURATION = 15000; // 15 seconds without data = timeout
   private connectionEventListeners: Array<(event: BluetoothConnectionEventData) => void> = [];
+
+  // RTK-Pro button press debouncing
+  private lastButtonPressTime: number = 0;
+  private readonly BUTTON_PRESS_DEBOUNCE_MS = 2000; // 2 seconds debounce between button presses
+  private processedLogNumbers: Set<string> = new Set(); // Track processed log numbers
+  private readonly LOG_NUMBER_CACHE_SIZE = 50; // Keep last 50 log numbers in memory
 
   private constructor() {}
 
@@ -327,17 +333,56 @@ export class BluetoothManager {
               (global as any).rtkProDataHandler(receivedData);
             }
             
-            // Trigger automatic point collection on button press
-            console.log('🎯 RTK-Pro button press detected - triggering automatic point collection');
-            if ((global as any).autoCollectPoint) {
-              try {
-                (global as any).autoCollectPoint();
-                console.log('✅ Automatic point collection triggered successfully');
-              } catch (error) {
-                console.error('❌ Failed to trigger automatic point collection:', error);
+            // Extract log number for deduplication
+            const logNumber = this.extractLogNumber(receivedData);
+            
+            if (logNumber) {
+              console.log(`🔍 Extracted log identifier: ${logNumber}`);
+              
+              // Check if we've already processed this log number
+              if (this.isLogNumberProcessed(logNumber)) {
+                console.log(`🚦 Ignoring duplicate log entry: ${logNumber}`);
+                console.log(`📝 This log number has already been processed for auto-collection`);
+              } else {
+                // This is a new log entry - trigger auto-collection and mark as processed
+                this.addProcessedLogNumber(logNumber);
+                console.log(`🎯 New RTK-Pro log entry detected: ${logNumber}`);
+                console.log(`⏱️ Triggering automatic point collection`);
+                
+                setTimeout(() => {
+                  if ((global as any).autoCollectPoint) {
+                    try {
+                      (global as any).autoCollectPoint();
+                      console.log('✅ Automatic point collection triggered successfully');
+                    } catch (error) {
+                      console.error('❌ Failed to trigger automatic point collection:', error);
+                    }
+                  } else {
+                    console.warn('⚠️ Auto point collection handler not available');
+                  }
+                }, 100); // 100ms delay to allow React state to update
               }
             } else {
-              console.warn('⚠️ Auto point collection handler not available');
+              console.log(`⚠️ Could not extract log number from RTK-Pro data: ${receivedData}`);
+              // Fallback to time-based debouncing for non-standard messages
+              const currentTime = Date.now();
+              const timeSinceLastPress = currentTime - this.lastButtonPressTime;
+              
+              if (timeSinceLastPress >= this.BUTTON_PRESS_DEBOUNCE_MS) {
+                this.lastButtonPressTime = currentTime;
+                console.log('🎯 RTK-Pro button press detected (fallback) - triggering automatic point collection');
+                
+                setTimeout(() => {
+                  if ((global as any).autoCollectPoint) {
+                    try {
+                      (global as any).autoCollectPoint();
+                      console.log('✅ Automatic point collection triggered successfully (fallback)');
+                    } catch (error) {
+                      console.error('❌ Failed to trigger automatic point collection (fallback):', error);
+                    }
+                  }
+                }, 100);
+              }
             }
           }
         }
@@ -412,6 +457,53 @@ export class BluetoothManager {
         console.error(`❌ Health check failed for ${device.name}:`, error);
       }
     }, 30000); // Check every 30 seconds
+  }
+
+  /**
+   * Extract log number from RTK-Pro data message
+   * Format: LOG,LOC3,787,22601181323... or LOG,TLT3,787,22601181323...
+   */
+  private extractLogNumber(data: string): string | null {
+    const trimmedData = data.trim().toUpperCase();
+    
+    // Match LOG,LOC3,### or LOG,TLT3,### patterns
+    const logMatch = trimmedData.match(/^LOG,(LOC3|TLT3),(\d+),/);
+    if (logMatch) {
+      const logType = logMatch[1]; // LOC3 or TLT3
+      const logNumber = logMatch[2]; // The number
+      return `${logType}-${logNumber}`; // e.g., "LOC3-787" or "TLT3-787"
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if this log number has already been processed for auto-collection
+   */
+  private isLogNumberProcessed(logNumber: string): boolean {
+    // For the same button press, we only want to trigger on LOC3, not TLT3
+    // So we check if we've seen ANY data (LOC3 or TLT3) for this log number
+    const baseLogNumber = logNumber.split('-')[1]; // Extract just the number part
+    
+    const hasLOC3 = this.processedLogNumbers.has(`LOC3-${baseLogNumber}`);
+    const hasTLT3 = this.processedLogNumbers.has(`TLT3-${baseLogNumber}`);
+    
+    return hasLOC3 || hasTLT3;
+  }
+
+  /**
+   * Add log number to processed set with cache size management
+   */
+  private addProcessedLogNumber(logNumber: string): void {
+    this.processedLogNumbers.add(logNumber);
+    
+    // Manage cache size - remove oldest entries if we exceed the limit
+    if (this.processedLogNumbers.size > this.LOG_NUMBER_CACHE_SIZE) {
+      const entries = Array.from(this.processedLogNumbers);
+      // Remove the first (oldest) entries
+      const entriesToRemove = entries.slice(0, this.processedLogNumbers.size - this.LOG_NUMBER_CACHE_SIZE);
+      entriesToRemove.forEach(entry => this.processedLogNumbers.delete(entry));
+    }
   }
 
   /**

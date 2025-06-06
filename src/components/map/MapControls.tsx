@@ -296,8 +296,7 @@ export const MapControls: React.FC = () => {
           });
           console.log('🔍 Selected point structure:', {
             client_id: matchedPoint.client_id,
-            attributes: matchedPoint.attributes,
-            rtkProData: matchedPoint.attributes?.rtkProData
+            attributes: matchedPoint.attributes
           });
           console.log('Found standalone point:', matchedPoint?.client_id);
         }
@@ -846,8 +845,7 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
           });
           console.log('🔍 Selected point structure:', {
             client_id: matchedPoint.client_id,
-            attributes: matchedPoint.attributes,
-            rtkProData: matchedPoint.attributes?.rtkProData
+            attributes: matchedPoint.attributes
           });
           console.log('Found standalone point:', matchedPoint?.client_id);
         }

@@ -289,9 +289,10 @@ class SyncService {
       name = point.attributes.featureTypeName;
     }
     
-    // Create a copy of the attributes without the NMEA data for the feature
+    // Create a copy of the attributes without the NMEA data and RTK-Pro data for the feature
     const featureAttributes = { ...point.attributes };
     delete featureAttributes.nmeaData;
+    delete featureAttributes.rtkProData; // RTK-Pro data should only be at point level
     
     return {
       clientId: String(point.client_id),
@@ -374,10 +375,13 @@ class SyncService {
       }
     }));
     
-    // Create a copy of the feature attributes without NMEA data
+    // Create a copy of the feature attributes without NMEA data and RTK-Pro data
     const featureAttributes = { ...feature.attributes };
     if (featureAttributes.nmeaData) {
       delete featureAttributes.nmeaData;
+    }
+    if (featureAttributes.rtkProData) {
+      delete featureAttributes.rtkProData; // RTK-Pro data should only be at point level
     }
     
     // Return the formatted line feature

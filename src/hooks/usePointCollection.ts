@@ -79,6 +79,12 @@ export const usePointCollection = () => {
     }
 
     try {
+      // Debug RTK-Pro data availability
+      console.log('🔍 RTK-Pro data during collection:');
+      console.log('  - currentLocateData:', currentLocateData);
+      console.log('  - currentGPSData:', currentGPSData);
+      console.log('  - lastButtonPressTime:', lastButtonPressTime);
+
       // Get coordinates in the correct format
       const coordinates: [number, number] = Array.isArray(currentLocation)
         ? currentLocation
@@ -126,7 +132,10 @@ export const usePointCollection = () => {
           gpsData: currentGPSData,
           timestamp: lastButtonPressTime || new Date().toISOString()
         };
-        console.log('🎯 Including RTK-Pro data in point collection:', attributes.rtkProData);
+        console.log('🎯 RTK-Pro data added to POINT ATTRIBUTES (not feature properties):', attributes.rtkProData);
+        console.log('📍 Storage location: point.attributes.rtkProData');
+      } else {
+        console.log('⚠️ No RTK-Pro data available during point collection');
       }
 
       // Save the point to storage
@@ -153,7 +162,7 @@ export const usePointCollection = () => {
     } catch (error) {
       console.error('Error collecting point:', error);
     }
-  }, [currentLocation, selectedFeatureType, renderFeature, ggaData, gstData, activeProject, user]);
+  }, [currentLocation, selectedFeatureType, renderFeature, ggaData, gstData, currentLocateData, currentGPSData, lastButtonPressTime, activeProject, user]);
 
   /**
    * Handle form submission
@@ -210,6 +219,14 @@ export const usePointCollection = () => {
           case 'Point':
             // For Point features, collect a single point
             console.log('📍 Collecting Point feature');
+            
+            // Get fresh RTK-Pro data directly from context
+            console.log('🔍 Getting fresh RTK-Pro data for auto-collection:');
+            console.log('  - currentLocateData:', currentLocateData);
+            console.log('  - currentGPSData:', currentGPSData);
+            console.log('  - lastButtonPressTime:', lastButtonPressTime);
+            
+            // Call collectPoint with fresh data context
             await collectPoint();
             console.log('✅ Point collection completed successfully!');
             break;
@@ -259,7 +276,7 @@ export const usePointCollection = () => {
     return () => {
       (global as any).autoCollectPoint = null;
     };
-  }, [selectedFeatureType, currentLocation, collectPoint, isCollecting, startCollection, recordPoint]);
+  }, [selectedFeatureType, currentLocation, collectPoint, isCollecting, startCollection, recordPoint, currentLocateData, currentGPSData, lastButtonPressTime]);
 
   return {
     handlePointCollection,
