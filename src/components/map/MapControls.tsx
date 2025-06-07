@@ -1,6 +1,6 @@
 // components/MapControls.tsx
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Alert } from 'react-native';
 import {
   MapView,
   ShapeSource,
@@ -35,6 +35,7 @@ import { Coordinates } from '@/types/collection.types';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useNMEAContext } from '@/contexts/NMEAContext';
 import { useRTKPro } from '@/contexts/RTKProContext';
+import SelectedPointIndicator from './SelectedPointIndicator';
 import { getCurrentStandardizedTime } from '@/utils/datetime';
 import { Coordinate } from '@/types/map.types';
 import { generateId } from '@/utils/collections';
@@ -144,6 +145,7 @@ export const MapControls: React.FC = () => {
   // State for point details modal
   const [selectedPoint, setSelectedPoint] = useState<PointCollected | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedPointForCollection, setSelectedPointForCollection] = useState<PointCollected | null>(null);
   
   // Collection context for adding points
   const { isCollecting, activeFeatureType, startCollection, recordPoint } = useCollectionContext();
@@ -318,6 +320,40 @@ export const MapControls: React.FC = () => {
     setIsModalVisible(false);
     setSelectedPoint(null);
   };
+
+  // Handle collect from point
+  const handleCollectFromPoint = useCallback((point: PointCollected, selectedFeatureType: FeatureType) => {
+    try {
+      // Get the point coordinates
+      const longitude = point.attributes?.nmeaData?.gga?.longitude || point.attributes?.longitude;
+      const latitude = point.attributes?.nmeaData?.gga?.latitude || point.attributes?.latitude;
+      
+      if (typeof longitude !== 'number' || typeof latitude !== 'number') {
+        Alert.alert('Error', 'Could not get valid coordinates from this point.');
+        return;
+      }
+
+      // Set the selected point for visual indicator
+      setSelectedPointForCollection(point);
+
+      // Start line collection from this point
+      const position: Position = [longitude, latitude];
+      startCollection(position, selectedFeatureType);
+      
+      console.log(`Started ${selectedFeatureType.name} collection from point:`, point.client_id);
+    } catch (error) {
+      console.error('Error starting collection from point:', error);
+      Alert.alert('Error', 'Failed to start collection from this point.');
+      setSelectedPointForCollection(null);
+    }
+  }, [startCollection]);
+
+  // Clear selected point indicator when collection ends
+  useEffect(() => {
+    if (!isCollecting && selectedPointForCollection) {
+      setSelectedPointForCollection(null);
+    }
+  }, [isCollecting, selectedPointForCollection]);
 
   const handleClearStorage = async () => {
     if (!activeProject?.id) {
@@ -886,6 +922,23 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
           />
         )}
 
+        {/* Render selected point indicator for collect from functionality */}
+        {selectedPointForCollection && (() => {
+          const longitude = selectedPointForCollection.attributes?.nmeaData?.gga?.longitude || selectedPointForCollection.attributes?.longitude;
+          const latitude = selectedPointForCollection.attributes?.nmeaData?.gga?.latitude || selectedPointForCollection.attributes?.latitude;
+          
+          if (typeof longitude === 'number' && typeof latitude === 'number') {
+            return (
+              <SelectedPointIndicator
+                coordinates={[longitude, latitude]}
+                color="#FF6B00"
+                isVisible={true}
+              />
+            );
+          }
+          return null;
+        })()}
+
         {/* Render line features using direct LineLayer */}
         <LineFeatureRenderer features={features.features} />
 
@@ -1066,6 +1119,7 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
         isVisible={isModalVisible}
         onClose={handleModalClose}
         point={selectedPoint}
+        onCollectFromPoint={handleCollectFromPoint}
       />
     </View>
   );

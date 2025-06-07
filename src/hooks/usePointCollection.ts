@@ -24,7 +24,7 @@ export const usePointCollection = () => {
   const { currentLocateData, currentGPSData, lastButtonPressTime } = useRTKPro();
   const { activeProject } = useProjectContext();
   const { user } = useAuthContext();
-  const { isCollecting, startCollection, recordPoint } = useCollectionContext();
+  const { isCollecting, activeFeatureType, startCollection, recordPoint } = useCollectionContext();
   
   // State for form modal
   const [isFormModalVisible, setIsFormModalVisible] = useState(false);
@@ -196,9 +196,13 @@ export const usePointCollection = () => {
       
       console.log('🎯 Auto-collection triggered from RTK-Pro button press');
       
-      if (!selectedFeatureType) {
+      // Use activeFeatureType if collecting (line mode), otherwise use selectedFeatureType
+      const featureTypeToUse = isCollecting ? activeFeatureType : selectedFeatureType;
+      
+      if (!featureTypeToUse) {
         console.warn('⚠️ No feature type selected - cannot auto-collect point');
         console.log('📝 Please select a feature type in the app before pressing the RTK-Pro collect button');
+        console.log(`📊 Collection state: isCollecting=${isCollecting}, activeFeatureType=${activeFeatureType?.name}, selectedFeatureType=${selectedFeatureType?.name}`);
         isProcessing = false;
         return;
       }
@@ -210,12 +214,13 @@ export const usePointCollection = () => {
         return;
       }
       
-      console.log(`🚀 Auto-collecting ${selectedFeatureType.name} (${selectedFeatureType.type}) from RTK-Pro button press`);
+      console.log(`🚀 Auto-collecting ${featureTypeToUse.name} (${featureTypeToUse.type}) from RTK-Pro button press`);
       console.log(`📍 Location: [${Array.isArray(currentLocation) ? currentLocation.join(', ') : `${currentLocation.longitude}, ${currentLocation.latitude}`}]`);
+      console.log(`📊 Using ${isCollecting ? 'activeFeatureType' : 'selectedFeatureType'} for collection`);
       
       try {
         // Handle different feature types
-        switch (selectedFeatureType.type) {
+        switch (featureTypeToUse.type) {
           case 'Point':
             // For Point features, collect a single point
             console.log('📍 Collecting Point feature');
@@ -246,7 +251,7 @@ export const usePointCollection = () => {
               // Start a new line collection
               console.log('📏 Starting new line collection');
               try {
-                startCollection(currentLocation, selectedFeatureType);
+                startCollection(currentLocation, featureTypeToUse);
                 console.log('✅ Line collection started successfully!');
                 console.log('📝 Press the RTK-Pro button again to add more points, or use the app to finish the line');
               } catch (error) {
@@ -256,7 +261,7 @@ export const usePointCollection = () => {
             break;
             
           default:
-            console.warn(`⚠️ Unsupported feature type: ${selectedFeatureType.type}`);
+            console.warn(`⚠️ Unsupported feature type: ${featureTypeToUse.type}`);
             console.log('📝 Falling back to point collection');
             await collectPoint();
             break;
@@ -276,7 +281,7 @@ export const usePointCollection = () => {
     return () => {
       (global as any).autoCollectPoint = null;
     };
-  }, [selectedFeatureType, currentLocation, collectPoint, isCollecting, startCollection, recordPoint, currentLocateData, currentGPSData, lastButtonPressTime]);
+  }, [selectedFeatureType, activeFeatureType, isCollecting, currentLocation, collectPoint, startCollection, recordPoint, currentLocateData, currentGPSData, lastButtonPressTime]);
 
   return {
     handlePointCollection,

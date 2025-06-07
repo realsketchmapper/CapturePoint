@@ -15,9 +15,11 @@ import { collectedFeatureService } from '@/services/features/collectedFeatureSer
 import { Feature } from 'geojson';
 import { CollectedFeature } from '@/types/currentFeatures.types';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
-import { FormQuestion } from '@/types/featureType.types';
+import { FormQuestion, FeatureType } from '@/types/featureType.types';
 import RTKProDataDisplay from './RTKProDataDisplay';
 import { calculateLineDistance, formatDistance } from '@/utils/collections';
+import { useCollectionContext } from '@/contexts/CollectionContext';
+import { LineFeatureListModal } from '../FeatureModals/LineFeatureListModal';
 
 const MAX_DESCRIPTION_LENGTH = 500;
 
@@ -25,12 +27,14 @@ interface MapPointDetailsProps {
   isVisible: boolean;
   onClose: () => void;
   point: PointCollected | null;
+  onCollectFromPoint?: (point: PointCollected, selectedFeatureType: FeatureType) => void;
 }
 
 const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   isVisible,
   onClose,
-  point
+  point,
+  onCollectFromPoint
 }) => {
   if (!point) return null;
 
@@ -38,10 +42,12 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   const { activeProject } = useContext(ProjectContext);
   const { clearFeatures, renderFeature } = useMapContext();
   const { getFeatureTypeByName } = useFeatureTypeContext();
+  const { startCollection } = useCollectionContext();
   const [description, setDescription] = useState(point.description || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isLineFeatureModalVisible, setIsLineFeatureModalVisible] = useState(false);
 
   // Reset description when point changes
   useEffect(() => {
@@ -195,6 +201,83 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
     }
   }, [point, description, isSaving, user?.id, isLinePoint]);
 
+  const handleCollectFrom = useCallback(async () => {
+    if (!point || !onCollectFromPoint || !activeProject) return;
+    
+    // Check if this is a line point
+    if (isLinePoint && parentLineId) {
+      try {
+        // Get all features to find the parent line
+        const features = await featureStorageService.getFeaturesForProject(activeProject.id);
+        const parentLine = features.find(f => f.client_id === parentLineId);
+        
+        if (parentLine) {
+          // Get the feature type from the parent line's attributes
+          const featureTypeName = parentLine.attributes?.featureTypeName || parentLine.name?.split(/\s+\d+$/)[0];
+          
+          if (featureTypeName) {
+            // Get the full feature type object
+            const featureType = getFeatureTypeByName(featureTypeName);
+            
+            if (featureType) {
+              console.log(`Auto-detected line type: ${featureType.name} for line point`);
+              
+              // Get the point coordinates
+              const longitude = point.attributes?.nmeaData?.gga?.longitude || point.attributes?.longitude;
+              const latitude = point.attributes?.nmeaData?.gga?.latitude || point.attributes?.latitude;
+              
+              if (typeof longitude !== 'number' || typeof latitude !== 'number') {
+                Alert.alert('Error', 'Could not get valid coordinates from this point.');
+                return;
+              }
+
+              // Close modal and start collection directly
+              onClose();
+              onCollectFromPoint(point, featureType);
+              return;
+            }
+          }
+        }
+        
+        console.warn('Could not determine line type for line point, falling back to selection modal');
+      } catch (error) {
+        console.error('Error auto-detecting line type:', error);
+      }
+    }
+    
+    // For standalone points or if auto-detection failed, show the feature selection modal
+    setIsLineFeatureModalVisible(true);
+  }, [point, onCollectFromPoint, activeProject, isLinePoint, parentLineId, getFeatureTypeByName, onClose]);
+
+  const handleLineFeatureSelect = useCallback((selectedFeatureType: FeatureType) => {
+    if (!point || !onCollectFromPoint) return;
+    
+    try {
+      // Get the point coordinates
+      const longitude = point.attributes?.nmeaData?.gga?.longitude || point.attributes?.longitude;
+      const latitude = point.attributes?.nmeaData?.gga?.latitude || point.attributes?.latitude;
+      
+      if (typeof longitude !== 'number' || typeof latitude !== 'number') {
+        Alert.alert('Error', 'Could not get valid coordinates from this point.');
+        return;
+      }
+
+      // Close both modals
+      setIsLineFeatureModalVisible(false);
+      onClose();
+      
+      // Start collection from this point
+      onCollectFromPoint(point, selectedFeatureType);
+    } catch (error) {
+      console.error('Error starting collection from point:', error);
+      Alert.alert('Error', 'Failed to start collection from this point.');
+    }
+  }, [point, onCollectFromPoint, onClose]);
+
+  const handleLineFeatureModalClose = useCallback(() => {
+    setIsLineFeatureModalVisible(false);
+  }, []);
+
   const handleDelete = useCallback(async () => {
     if (!point || !activeProject || isDeleting) return;
 
@@ -275,6 +358,16 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
           <View style={styles.header}>
             <Text style={styles.title}>Point Details</Text>
             <View style={styles.headerButtons}>
+              {onCollectFromPoint && (
+                <TouchableOpacity 
+                  onPress={handleCollectFrom}
+                  style={[styles.headerButton, styles.collectFromButton]}
+                >
+                  <Text style={styles.collectFromButtonText}>
+                    {isLinePoint ? 'Continue Line' : 'Collect From'}
+                  </Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity 
                 onPress={handleDelete}
                 style={[styles.headerButton, styles.deleteButton]}
@@ -485,6 +578,13 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
           </ScrollView>
         </View>
       </View>
+
+      {/* Line Feature Selection Modal */}
+      <LineFeatureListModal
+        isVisible={isLineFeatureModalVisible}
+        onClose={handleLineFeatureModalClose}
+        onFeatureSelect={handleLineFeatureSelect}
+      />
     </Modal>
   );
 };
@@ -534,6 +634,14 @@ const styles = StyleSheet.create({
   headerButton: {
     padding: 8,
     borderRadius: 5,
+  },
+  collectFromButton: {
+    backgroundColor: Colors.Aqua,
+  },
+  collectFromButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
   deleteButton: {
     backgroundColor: Colors.BrightRed,
