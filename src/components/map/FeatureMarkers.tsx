@@ -151,13 +151,12 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
             style={{ 
               alignItems: 'center',
               justifyContent: 'center',
-              // Increased hit area for better touch response
-              minWidth: 44,
-              minHeight: 44,
-              padding: 6
+              // Exact marker size - must click directly on the visual marker
+              width: 32,
+              height: 32,
+              padding: 0
             }}
             activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             {featureType.image_url ? (
               <Image

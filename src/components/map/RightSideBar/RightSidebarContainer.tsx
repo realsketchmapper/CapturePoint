@@ -52,6 +52,7 @@ export const RightSidebarContainer: React.FC = () => {
           right: insets.right + 1
         }
       ]}
+      pointerEvents="box-none"
     >
       <CollectionButton />
       

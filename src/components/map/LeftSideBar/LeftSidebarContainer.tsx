@@ -16,6 +16,7 @@ export const LeftSidebarContainer: React.FC = () => {
           left: insets.left + 1
         }
       ]}
+      pointerEvents="box-none"
     >
       <LayerControl />
     </View>

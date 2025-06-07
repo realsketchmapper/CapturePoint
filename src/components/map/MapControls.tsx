@@ -244,8 +244,8 @@ export const MapControls: React.FC = () => {
       let closestFeature = null;
       let minDistance = Infinity;
 
-      // Increase the detection radius for easier clicking
-      const CLICK_DETECTION_RADIUS = 0.00005; // About 15 meters at equator, increased for better touch response
+      // Small radius for precise clicking - balanced for line points and standalone features
+      const CLICK_DETECTION_RADIUS = 0.000005; // Very small radius but allows clicking on line points
 
       for (const feature of pointFeatures) {
         const featureCoords = (feature.geometry as any).coordinates;
