@@ -10,6 +10,7 @@ import { useLocationContext } from '@/contexts/LocationContext';
 import { useCollectionContext } from '@/contexts/CollectionContext';
 import { calculateDistance, HALF_MILE_IN_METERS } from '@/utils/distance';
 import { ProjectDistanceWarningModal } from '@/components/modals/ProjectModals/ProjectDistanceWarningModal';
+import { MotivationalLoadingPopup } from '@/components/shared';
 import { syncService } from '@/services/sync/syncService';
 import { featureStorageService } from '@/services/storage/featureStorageService';
 import { projectStorageService } from '@/services/storage/projectStorageService';
@@ -29,6 +30,7 @@ const ProjectView = () => {
   const [showWarning, setShowWarning] = useState(false);
   const [distance, setDistance] = useState(0);
   const [isClearing, setIsClearing] = useState(false);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
 
   const calculateDistanceFromProject = (project: Project): number => {
     if (!currentLocation) return 0;
@@ -65,6 +67,7 @@ const ProjectView = () => {
 
   const openProject = async (project: Project) => {
     try {
+      setIsLoadingProject(true);
       console.log('Opening project:', project.name);
       
       // Reset any active collection state and clear feature type selection
@@ -106,6 +109,8 @@ const ProjectView = () => {
       console.log('Navigating to mapview');
     } catch (error) {
       console.error('Error loading project features:', error);
+    } finally {
+      setIsLoadingProject(false);
     }
   };
 
@@ -309,6 +314,13 @@ const ProjectView = () => {
         distance={distance}
         projectName={selectedProject?.name || ''}
         projectAddress={selectedProject?.address || ''}
+      />
+
+      <MotivationalLoadingPopup
+        visible={isLoadingProject}
+        title="Loading Project"
+        showMessages={true}
+        messageInterval={3000}
       />
     </>
   );
