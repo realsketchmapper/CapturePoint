@@ -10,7 +10,7 @@ interface FeatureFormModalProps {
   featureType: FeatureType;
 }
 
-export const FeatureFormModal: React.FC<FeatureFormModalProps> = ({
+export const FeatureFormModal: React.FC<FeatureFormModalProps> = React.memo(({
   isVisible,
   onClose,
   onSubmit,
@@ -19,30 +19,13 @@ export const FeatureFormModal: React.FC<FeatureFormModalProps> = ({
   const [formData, setFormData] = useState<{ [key: string]: any }>({});
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   
-  // Add debug logging
-  useEffect(() => {
-    console.log('FeatureFormModal visibility changed:', isVisible);
-    if (isVisible && featureType) {
-      console.log('FeatureFormModal rendering for:', featureType.name);
-      console.log('Form definition available:', 
-        featureType.form_definition ? `Yes, with ${featureType.form_definition.questions.length} questions` : 'No');
-      
-      // Log each question for debugging
-      if (featureType.form_definition?.questions) {
-        featureType.form_definition.questions.forEach(q => {
-          console.log(`Question: ${q.question}, Type: ${q.type}, ID: ${q.id}`);
-        });
-      }
-    }
-  }, [isVisible, featureType]);
-  
   // Reset form data when the modal is opened with a new feature type
   useEffect(() => {
     if (isVisible && featureType) {
       setFormData({});
       setErrors({});
     }
-  }, [isVisible, featureType]);
+  }, [isVisible, featureType?.id]); // Use featureType.id to prevent unnecessary resets
 
   // Handle form field changes
   const handleChange = (questionId: string, value: any) => {
@@ -223,7 +206,7 @@ export const FeatureFormModal: React.FC<FeatureFormModalProps> = ({
       </View>
     </Modal>
   );
-};
+});
 
 const styles = StyleSheet.create({
   modalContainer: {

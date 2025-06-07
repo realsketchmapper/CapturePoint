@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useContext, useEffect } from 'react';
+import React, { useState, useCallback, useContext, useEffect, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Alert } from 'react-native';
 import { Colors } from '@/theme/colors';
 import { PointCollected } from '@/types/pointCollected.types';
@@ -36,33 +36,91 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   point,
   onCollectFromPoint
 }) => {
+  // Early return BEFORE any hooks are called
   if (!point) return null;
-
+  
+  // Initialize refs for component lifecycle management
+  const mountedRef = React.useRef(true);
+  const initializedRef = React.useRef(false);
+  
   const { user } = useContext(AuthContext) as AuthContextState;
   const { activeProject } = useContext(ProjectContext);
   const { clearFeatures, renderFeature } = useMapContext();
   const { getFeatureTypeByName } = useFeatureTypeContext();
   const { startCollection } = useCollectionContext();
-  const [description, setDescription] = useState(point.description || '');
+  
+  // Initialize state with safe defaults
+  const [description, setDescription] = useState(() => point?.description || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLineFeatureModalVisible, setIsLineFeatureModalVisible] = useState(false);
+  const [lineDistance, setLineDistance] = useState<number>(0);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Reset description when point changes
+  // Cleanup on unmount
   useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Initialize component when point changes
+  useEffect(() => {
+    if (!point || !mountedRef.current) return;
+    
+    // Reset states when point changes
     setDescription(point.description || '');
     setIsEditing(false);
-  }, [point.client_id, point.description]);
+    setIsSaving(false);
+    setIsDeleting(false);
+    setIsLineFeatureModalVisible(false);
+    setLineDistance(0);
+    
+    // Mark as initialized after a brief delay to ensure stability
+    const initTimer = setTimeout(() => {
+      if (mountedRef.current) {
+        setIsInitialized(true);
+        initializedRef.current = true;
+      }
+    }, 50);
+    
+    return () => {
+      clearTimeout(initTimer);
+      setIsInitialized(false);
+      initializedRef.current = false;
+    };
+  }, [point?.client_id]);
 
-  // Determine if this is a line point
-  const isLinePoint = point.attributes?.isLinePoint === true;
-  const parentLineId = point.attributes?.parentLineId;
-  const pointIndex = point.attributes?.pointIndex;
+  // Memoize derived values to prevent unnecessary recalculations
+  const pointInfo = useMemo(() => {
+    if (!point) return { isLinePoint: false, parentLineId: undefined, pointIndex: undefined };
+    
+    return {
+      isLinePoint: point.attributes?.isLinePoint === true,
+      parentLineId: point.attributes?.parentLineId,
+      pointIndex: point.attributes?.pointIndex
+    };
+  }, [point?.attributes?.isLinePoint, point?.attributes?.parentLineId, point?.attributes?.pointIndex]);
+
+  // Helper function to get nmeaData regardless of point structure
+  const nmeaData = useMemo(() => {
+    if (!point) return null;
+    
+    // Check if nmeaData is directly on the point
+    if (point.attributes?.nmeaData) {
+      return point.attributes.nmeaData;
+    }
+    // Check if nmeaData is in points[0].attributes
+    if (point.points?.[0]?.attributes?.nmeaData) {
+      return point.points[0].attributes.nmeaData;
+    }
+    return null;
+  }, [point?.attributes?.nmeaData, point?.points]);
 
   // Helper function to get the total line distance
   const getLineDistance = useCallback(async (): Promise<number> => {
-    if (!isLinePoint || !parentLineId || !activeProject) {
+    if (!pointInfo.isLinePoint || !pointInfo.parentLineId || !activeProject || !mountedRef.current) {
       return 0;
     }
     
@@ -71,7 +129,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
       const features = await featureStorageService.getFeaturesForProject(activeProject.id);
       
       // Find the parent line feature
-      const lineFeature = features.find(f => f.client_id === parentLineId);
+      const lineFeature = features.find(f => f.client_id === pointInfo.parentLineId);
       if (!lineFeature || !lineFeature.points || lineFeature.points.length < 2) {
         return 0;
       }
@@ -106,36 +164,21 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
       console.error('Error calculating line distance:', error);
       return 0;
     }
-  }, [isLinePoint, parentLineId, activeProject]);
-
-  // State for line distance
-  const [lineDistance, setLineDistance] = React.useState<number>(0);
+  }, [pointInfo.isLinePoint, pointInfo.parentLineId, activeProject]);
   
   // Load line distance when component mounts or when the line data changes
-  React.useEffect(() => {
-    if (isLinePoint) {
-      getLineDistance().then(setLineDistance);
+  useEffect(() => {
+    if (pointInfo.isLinePoint && isInitialized && mountedRef.current) {
+      getLineDistance().then(distance => {
+        if (mountedRef.current) {
+          setLineDistance(distance);
+        }
+      });
     }
-  }, [isLinePoint, getLineDistance]);
-
-  // Helper function to get nmeaData regardless of point structure
-  const getNmeaData = (point: PointCollected) => {
-    // Check if nmeaData is directly on the point
-    if (point.attributes?.nmeaData) {
-      return point.attributes.nmeaData;
-    }
-    // Check if nmeaData is in points[0].attributes
-    if (point.points?.[0]?.attributes?.nmeaData) {
-      return point.points[0].attributes.nmeaData;
-    }
-    return null;
-  };
-
-  // Get point data for display
-  const nmeaData = getNmeaData(point);
+  }, [pointInfo.isLinePoint, getLineDistance, isInitialized]);
 
   // Format for display
-  const formatValue = (value: any): string => {
+  const formatValue = useCallback((value: any): string => {
     if (value === null || value === undefined) return 'N/A';
     if (typeof value === 'string') return value;
     if (typeof value === 'number') {
@@ -147,9 +190,9 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
       return value.toFixed(3);
     }
     return JSON.stringify(value);
-  };
+  }, []);
 
-  const getFixQualityText = (quality: number): string => {
+  const getFixQualityText = useCallback((quality: number): string => {
     switch (quality) {
       case 0: return 'Invalid';
       case 1: return 'GPS Fix';
@@ -162,10 +205,10 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
       case 8: return 'Simulation';
       default: return 'Unknown';
     }
-  };
+  }, []);
 
   const handleSaveDescription = useCallback(async () => {
-    if (!point || isSaving) return;
+    if (!point || isSaving || !mountedRef.current) return;
 
     try {
       setIsSaving(true);
@@ -175,7 +218,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
         draw_layer: point.draw_layer,
         client_id: point.client_id,
         project_id: point.project_id,
-        type: isLinePoint ? 'Line' : 'Point',
+        type: pointInfo.isLinePoint ? 'Line' : 'Point',
         points: [{
           ...point,
           description,
@@ -192,24 +235,31 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
       
       // Save back to storage using updateFeature
       await featureStorageService.updateFeature(updatedFeature);
-      setIsEditing(false);
+      
+      if (mountedRef.current) {
+        setIsEditing(false);
+      }
     } catch (error) {
       console.error('Error saving description:', error);
-      Alert.alert('Error', 'Failed to save description. Please try again.');
+      if (mountedRef.current) {
+        Alert.alert('Error', 'Failed to save description. Please try again.');
+      }
     } finally {
-      setIsSaving(false);
+      if (mountedRef.current) {
+        setIsSaving(false);
+      }
     }
-  }, [point, description, isSaving, user?.id, isLinePoint]);
+  }, [point, description, isSaving, user?.id, pointInfo.isLinePoint]);
 
   const handleCollectFrom = useCallback(async () => {
-    if (!point || !onCollectFromPoint || !activeProject) return;
+    if (!point || !onCollectFromPoint || !activeProject || !mountedRef.current) return;
     
     // Check if this is a line point
-    if (isLinePoint && parentLineId) {
+    if (pointInfo.isLinePoint && pointInfo.parentLineId) {
       try {
         // Get all features to find the parent line
         const features = await featureStorageService.getFeaturesForProject(activeProject.id);
-        const parentLine = features.find(f => f.client_id === parentLineId);
+        const parentLine = features.find(f => f.client_id === pointInfo.parentLineId);
         
         if (parentLine) {
           // Get the feature type from the parent line's attributes
@@ -246,11 +296,13 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
     }
     
     // For standalone points or if auto-detection failed, show the feature selection modal
-    setIsLineFeatureModalVisible(true);
-  }, [point, onCollectFromPoint, activeProject, isLinePoint, parentLineId, getFeatureTypeByName, onClose]);
+    if (mountedRef.current) {
+      setIsLineFeatureModalVisible(true);
+    }
+  }, [point, onCollectFromPoint, activeProject, pointInfo.isLinePoint, pointInfo.parentLineId, getFeatureTypeByName, onClose]);
 
   const handleLineFeatureSelect = useCallback((selectedFeatureType: FeatureType) => {
-    if (!point || !onCollectFromPoint) return;
+    if (!point || !onCollectFromPoint || !mountedRef.current) return;
     
     try {
       // Get the point coordinates
@@ -275,11 +327,13 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
   }, [point, onCollectFromPoint, onClose]);
 
   const handleLineFeatureModalClose = useCallback(() => {
-    setIsLineFeatureModalVisible(false);
+    if (mountedRef.current) {
+      setIsLineFeatureModalVisible(false);
+    }
   }, []);
 
   const handleDelete = useCallback(async () => {
-    if (!point || !activeProject || isDeleting) return;
+    if (!point || !activeProject || isDeleting || !mountedRef.current) return;
 
     Alert.alert(
       'Delete Point',
@@ -293,6 +347,8 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
+            if (!mountedRef.current) return;
+            
             try {
               setIsDeleting(true);
               
@@ -336,9 +392,13 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
               onClose();
             } catch (error) {
               console.error('Error refreshing features:', error);
-              Alert.alert('Warning', 'The map may need to be refreshed manually.');
+              if (mountedRef.current) {
+                Alert.alert('Warning', 'The map may need to be refreshed manually.');
+              }
             } finally {
-              setIsDeleting(false);
+              if (mountedRef.current) {
+                setIsDeleting(false);
+              }
             }
           }
         }
@@ -346,8 +406,36 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
     );
   }, [point, activeProject, isDeleting, onClose, clearFeatures, renderFeature]);
 
+  // Memoize form data entries to prevent unnecessary re-renders
+  const formDataEntries = useMemo(() => {
+    if (!point?.attributes?.formData || Object.keys(point.attributes.formData).length === 0 || !isInitialized) {
+      return [];
+    }
+    
+    return Object.entries(point.attributes.formData).map(([questionId, answer]) => {
+      // Try to find the original question text if available
+      const featureType = getFeatureTypeByName(point.name);
+      const question = featureType?.form_definition?.questions.find((q: FormQuestion) => q.id === questionId);
+      const questionText = question?.question || questionId;
+      
+      return {
+        questionId,
+        questionText,
+        answer: typeof answer === 'boolean' 
+          ? (answer ? 'Yes' : 'No') 
+          : String(answer || 'Not answered')
+      };
+    });
+  }, [point?.attributes?.formData, point?.name, getFeatureTypeByName, isInitialized]);
+
+  // Don't render until properly initialized to prevent React errors
+  if (!isInitialized) {
+    return null;
+  }
+
   return (
     <Modal
+      key={`point-details-${point.client_id}`}
       visible={isVisible}
       animationType="fade"
       transparent={true}
@@ -364,7 +452,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                   style={[styles.headerButton, styles.collectFromButton]}
                 >
                   <Text style={styles.collectFromButtonText}>
-                    {isLinePoint ? 'Continue Line' : 'Collect From'}
+                    {pointInfo.isLinePoint ? 'Continue Line' : 'Collect From'}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -397,7 +485,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Type:</Text>
-                  <Text style={styles.value}>{isLinePoint ? 'Line Point' : 'Point'}</Text>
+                  <Text style={styles.value}>{pointInfo.isLinePoint ? 'Line Point' : 'Point'}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.label}>Collected By:</Text>
@@ -522,15 +610,15 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
               </View>
 
               {/* Line Point Information */}
-              {isLinePoint && (
-                <>
+              {pointInfo.isLinePoint && (
+                <View style={styles.section}>
                   <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Line Information</Text>
                   </View>
                   <View style={styles.sectionContent}>
                     <View style={styles.detailRow}>
                       <Text style={styles.label}>Parent Line:</Text>
-                      <Text style={styles.value}>{parentLineId || 'N/A'}</Text>
+                      <Text style={styles.value}>{pointInfo.parentLineId || 'N/A'}</Text>
                     </View>
                     <View style={styles.detailRow}>
                       <Text style={styles.label}>Total Line Distance:</Text>
@@ -538,33 +626,22 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
                     </View>
                     <View style={styles.detailRow}>
                       <Text style={styles.label}>Point Index:</Text>
-                      <Text style={styles.value}>{pointIndex !== undefined ? (pointIndex + 1) : 'N/A'}</Text>
+                      <Text style={styles.value}>{pointInfo.pointIndex !== undefined ? (pointInfo.pointIndex + 1) : 'N/A'}</Text>
                     </View>
                   </View>
-                </>
+                </View>
               )}
 
               {/* Form Data */}
-              {point?.attributes?.formData && Object.keys(point.attributes.formData).length > 0 && (
+              {formDataEntries.length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Form Data</Text>
-                  {Object.entries(point.attributes.formData).map(([questionId, answer], index) => {
-                    // Try to find the original question text if available
-                    const featureType = getFeatureTypeByName(point.name);
-                    const question = featureType?.form_definition?.questions.find((q: FormQuestion) => q.id === questionId);
-                    const questionText = question?.question || questionId;
-                    
-                    return (
-                      <View key={questionId} style={styles.detailRow}>
-                        <Text style={styles.label}>{questionText}:</Text>
-                        <Text style={styles.value}>
-                          {typeof answer === 'boolean' 
-                            ? (answer ? 'Yes' : 'No') 
-                            : String(answer || 'Not answered')}
-                        </Text>
-                      </View>
-                    );
-                  })}
+                  {formDataEntries.map(({ questionId, questionText, answer }) => (
+                    <View key={questionId} style={styles.detailRow}>
+                      <Text style={styles.label}>{questionText}:</Text>
+                      <Text style={styles.value}>{answer}</Text>
+                    </View>
+                  ))}
                 </View>
               )}
 
@@ -572,7 +649,7 @@ const MapPointDetails: React.FC<MapPointDetailsProps> = ({
               <RTKProDataDisplay
                 locateData={point.attributes?.rtkProData?.locateData || point.points?.[0]?.attributes?.rtkProData?.locateData}
                 gpsData={point.attributes?.rtkProData?.gpsData || point.points?.[0]?.attributes?.rtkProData?.gpsData}
-                isLinePoint={isLinePoint}
+                isLinePoint={pointInfo.isLinePoint}
               />
             </View>
           </ScrollView>

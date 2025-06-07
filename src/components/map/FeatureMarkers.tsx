@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback, useRef } from 'react';
 import { View, Image, TouchableOpacity } from 'react-native';
 import { MarkerView } from '@maplibre/maplibre-react-native';
 import { useFeatureTypeContext } from '@/contexts/FeatureTypeContext';
@@ -26,6 +26,7 @@ const validateCoordinates = (coords: any): boolean => {
 const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ features, onFeaturePress }) => {
   const { featureTypes, getFeatureTypeByName } = useFeatureTypeContext();
   const { visibleLayers } = useMapContext();
+  const debounceRef = useRef<{ [key: string]: number }>({});
 
   // Convert and filter features to points
   const pointFeatures = useMemo(() => {
@@ -96,6 +97,32 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
     });
   }, [pointFeatures, visibleLayers]);
 
+  // Create debounced press handler
+  const createPressHandler = useCallback((feature: any) => {
+    return () => {
+      const clientId = feature.properties.client_id;
+      const now = Date.now();
+      
+      // Debounce: prevent multiple clicks within 300ms
+      if (debounceRef.current[clientId] && (now - debounceRef.current[clientId]) < 300) {
+        console.log('Debounced click for:', clientId);
+        return;
+      }
+      
+      debounceRef.current[clientId] = now;
+      
+      console.log('Image marker pressed:', clientId);
+      if (onFeaturePress) {
+        // Ensure the feature has the format expected by the handler
+        onFeaturePress({
+          ...feature,
+          id: feature.properties.client_id,
+          properties: feature.properties
+        });
+      }
+    };
+  }, [onFeaturePress]);
+
   // Memoize the rendered markers
   const renderedMarkers = useMemo(() => {
     return visibleFeatures.map(feature => {
@@ -110,18 +137,8 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
         return null;
       }
 
-      // Handle press event for this marker
-      const handlePress = () => {
-        console.log('Image marker pressed:', feature.properties.client_id);
-        if (onFeaturePress) {
-          // Ensure the feature has the format expected by the handler
-          onFeaturePress({
-            ...feature,
-            id: feature.properties.client_id,
-            properties: feature.properties
-          });
-        }
-      };
+      // Create stable press handler for this feature
+      const handlePress = createPressHandler(feature);
 
       return (
         <MarkerView
@@ -131,7 +148,16 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
         >
           <TouchableOpacity 
             onPress={handlePress}
-            style={{ alignItems: 'center' }}
+            style={{ 
+              alignItems: 'center',
+              justifyContent: 'center',
+              // Increased hit area for better touch response
+              minWidth: 44,
+              minHeight: 44,
+              padding: 6
+            }}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             {featureType.image_url ? (
               <Image
@@ -140,6 +166,7 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
                   width: 32,
                   height: 32
                 }}
+                resizeMode="contain"
               />
             ) : (
               <View style={{
@@ -155,7 +182,7 @@ const FeatureMarkers: React.FC<ExtendedFeatureMarkersProps> = React.memo(({ feat
         </MarkerView>
       );
     }).filter(Boolean); // Filter out null values
-  }, [visibleFeatures, onFeaturePress]);
+  }, [visibleFeatures, createPressHandler]);
 
   return <>{renderedMarkers}</>;
 });

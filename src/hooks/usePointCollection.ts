@@ -39,32 +39,16 @@ export const usePointCollection = () => {
       return;
     }
 
-    // Add debugging logs
-    console.log('Selected feature type:', selectedFeatureType.name);
-    console.log('Has form definition?', !!selectedFeatureType.form_definition);
-    if (selectedFeatureType.form_definition) {
-      console.log('Form questions count:', selectedFeatureType.form_definition.questions?.length || 0);
-      
-      // Log full form definition for debugging
-      console.log('Full form definition:', JSON.stringify(selectedFeatureType.form_definition));
-      
-      // Log each question
-      selectedFeatureType.form_definition.questions?.forEach((q, i) => {
-        console.log(`Question ${i+1}: ${q.question}, Type: ${q.type}, Required: ${q.required}, ID: ${q.id}`);
-      });
-    }
+    // Check for form definition
 
     // Check if the feature type has a form definition
     if (selectedFeatureType.form_definition && 
         selectedFeatureType.form_definition.questions && 
         selectedFeatureType.form_definition.questions.length > 0) {
-      console.log('Showing form modal for', selectedFeatureType.name);
       // Show form modal
       setIsFormModalVisible(true);
       return;
     }
-
-    console.log('No form definition found, collecting point directly');
     // If no form definition, collect point immediately
     await collectPoint();
   }, [currentLocation, selectedFeatureType, ggaData, gstData, activeProject, user]);
@@ -168,7 +152,6 @@ export const usePointCollection = () => {
    * Handle form submission
    */
   const handleFormSubmit = useCallback((formResponses: { [key: string]: any }) => {
-    setFormData(formResponses);
     collectPoint(formResponses);
   }, [collectPoint]);
 
@@ -177,7 +160,6 @@ export const usePointCollection = () => {
    */
   const handleFormCancel = useCallback(() => {
     setIsFormModalVisible(false);
-    setFormData({});
   }, []);
 
   // Register auto-collection handler globally for RTK-Pro button press integration
@@ -222,18 +204,33 @@ export const usePointCollection = () => {
         // Handle different feature types
         switch (featureTypeToUse.type) {
           case 'Point':
-            // For Point features, collect a single point
+            // For Point features, check if it has a form definition
             console.log('📍 Collecting Point feature');
             
-            // Get fresh RTK-Pro data directly from context
-            console.log('🔍 Getting fresh RTK-Pro data for auto-collection:');
-            console.log('  - currentLocateData:', currentLocateData);
-            console.log('  - currentGPSData:', currentGPSData);
-            console.log('  - lastButtonPressTime:', lastButtonPressTime);
-            
-            // Call collectPoint with fresh data context
-            await collectPoint();
-            console.log('✅ Point collection completed successfully!');
+            // Check if the feature type has a form definition that requires user input
+            if (featureTypeToUse.form_definition && 
+                featureTypeToUse.form_definition.questions && 
+                featureTypeToUse.form_definition.questions.length > 0) {
+              console.log('📋 Feature has form definition - showing form modal for RTK-Pro collection');
+              console.log(`📋 Form has ${featureTypeToUse.form_definition.questions.length} questions`);
+              
+              // Show the form modal for RTK-Pro triggered collection
+              setIsFormModalVisible(true);
+              console.log('✅ Form modal triggered for RTK-Pro auto-collection');
+            } else {
+              // No form definition, collect point directly
+              console.log('📍 No form definition - collecting point directly');
+              
+              // Get fresh RTK-Pro data directly from context
+              console.log('🔍 Getting fresh RTK-Pro data for auto-collection:');
+              console.log('  - currentLocateData:', currentLocateData);
+              console.log('  - currentGPSData:', currentGPSData);
+              console.log('  - lastButtonPressTime:', lastButtonPressTime);
+              
+              // Call collectPoint with fresh data context
+              await collectPoint();
+              console.log('✅ Point collection completed successfully!');
+            }
             break;
             
           case 'Line':
@@ -281,7 +278,7 @@ export const usePointCollection = () => {
     return () => {
       (global as any).autoCollectPoint = null;
     };
-  }, [selectedFeatureType, activeFeatureType, isCollecting, currentLocation, collectPoint, startCollection, recordPoint, currentLocateData, currentGPSData, lastButtonPressTime]);
+  }, [selectedFeatureType, activeFeatureType, isCollecting, currentLocation, collectPoint, startCollection, recordPoint, currentLocateData, currentGPSData, lastButtonPressTime, setIsFormModalVisible]);
 
   return {
     handlePointCollection,

@@ -122,9 +122,6 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
   // Get a feature type by name (case-insensitive)
   const getFeatureTypeByName = useCallback((name: string): FeatureType | undefined => {
     if (!name) return undefined;
-    console.log('=== FeatureTypeContext Debug ===');
-    console.log('Looking up feature type for name:', name);
-    console.log('Available feature types:', featureTypes.map(f => f.name));
     
     // Extract base feature type name from point names
     let searchName = name;
@@ -134,7 +131,6 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
       const parts = name.split(' Point ');
       if (parts.length > 0 && parts[0]) {
         searchName = parts[0];
-        console.log('Extracted base feature type name from Point pattern:', searchName);
       }
     }
     // Handle "Vertex" suffix pattern (e.g., "Elec. Line Vertex 1")
@@ -142,7 +138,6 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
       const parts = name.split(' Vertex ');
       if (parts.length > 0 && parts[0]) {
         searchName = parts[0];
-        console.log('Extracted base feature type name from Vertex pattern:', searchName);
       }
     }
     // Handle numbered suffix pattern (e.g., "Elec. Line 1")
@@ -154,7 +149,6 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
         // and doesn't end with a number
         if (match[1] !== name && !match[1].match(/\d+$/)) {
           searchName = match[1];
-          console.log('Extracted base feature type name from number pattern:', searchName);
         }
       }
     }
@@ -171,12 +165,10 @@ export const FeatureTypeProvider: React.FC<{ children: ReactNode }> = ({ childre
       );
       
       if (matchingType) {
-        console.log('Found partial match by prefix:', matchingType.name);
         found = matchingType;
       }
     }
     
-    console.log('Found feature type:', found);
     return found;
   }, [featureTypes]);
 

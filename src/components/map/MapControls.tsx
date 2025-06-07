@@ -40,6 +40,8 @@ import { getCurrentStandardizedTime } from '@/utils/datetime';
 import { Coordinate } from '@/types/map.types';
 import { generateId } from '@/utils/collections';
 import { calculateLineDistance } from '@/utils/collections';
+import { usePointCollection } from '@/hooks/usePointCollection';
+import { FeatureFormModal } from '@/components/modals/PointModals/FeatureFormModal';
 
 // Helper function to convert Position to coordinates array
 const positionToCoordinates = (position: Position): [number, number] => {
@@ -141,6 +143,7 @@ export const MapControls: React.FC = () => {
   const [isLoadingFeatures, setIsLoadingFeatures] = useState(false);
   const featuresLoadedRef = useRef<boolean>(false);
   const lastSyncTimeRef = useRef<number>(0);
+  const lastClickTimeRef = useRef<number>(0);
   
   // State for point details modal
   const [selectedPoint, setSelectedPoint] = useState<PointCollected | null>(null);
@@ -156,6 +159,13 @@ export const MapControls: React.FC = () => {
   const { user } = useAuthContext();
   const { ggaData, gstData } = useNMEAContext();
   const { currentLocateData, currentGPSData, lastButtonPressTime } = useRTKPro();
+  
+  // Form modal for RTK-Pro auto-collection
+  const { 
+    isFormModalVisible, 
+    handleFormSubmit, 
+    handleFormCancel 
+  } = usePointCollection();
   
   const handleMapReady = () => {
     setIsMapReady(true);
@@ -198,6 +208,15 @@ export const MapControls: React.FC = () => {
   // Handle map click
   const handleMapClick = useCallback(async (event: any) => {
     try {
+      const now = Date.now();
+      
+      // Debounce: prevent multiple clicks within 500ms
+      if (lastClickTimeRef.current && (now - lastClickTimeRef.current) < 500) {
+        console.log('Debounced map click');
+        return;
+      }
+      lastClickTimeRef.current = now;
+      
       console.log('\n=== Map Click Event ===');
       console.log('Click event:', event);
       console.log('Properties:', event.properties);
@@ -226,7 +245,7 @@ export const MapControls: React.FC = () => {
       let minDistance = Infinity;
 
       // Increase the detection radius for easier clicking
-      const CLICK_DETECTION_RADIUS = 0.00002; // About 5.5 meters at equator, increased from 0.00001
+      const CLICK_DETECTION_RADIUS = 0.00005; // About 15 meters at equator, increased for better touch response
 
       for (const feature of pointFeatures) {
         const featureCoords = (feature.geometry as any).coordinates;
@@ -316,10 +335,13 @@ export const MapControls: React.FC = () => {
   }, [features, activeProject, isCollecting, selectedFeatureType, setSelectedPoint, setIsModalVisible]);
 
   // Handle modal close
-  const handleModalClose = () => {
+  const handleModalClose = useCallback(() => {
     setIsModalVisible(false);
-    setSelectedPoint(null);
-  };
+    // Small delay before clearing selected point to prevent React reconciliation issues
+    setTimeout(() => {
+      setSelectedPoint(null);
+    }, 100);
+  }, []);
 
   // Handle collect from point
   const handleCollectFromPoint = useCallback((point: PointCollected, selectedFeatureType: FeatureType) => {
@@ -835,6 +857,15 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
  
   // Handle direct feature click events
   const handleFeaturePress = useCallback(async (feature: any) => {
+    const now = Date.now();
+    
+    // Debounce feature presses
+    if (lastClickTimeRef.current && (now - lastClickTimeRef.current) < 300) {
+      console.log('Debounced feature press');
+      return;
+    }
+    lastClickTimeRef.current = now;
+    
     console.log('Feature pressed:', feature);
     
     if (!feature || !activeProject?.id) {
@@ -952,7 +983,7 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
           onFeaturePress={handleFeaturePress}
         />
 
-        {/* Render standalone point features as circles (fallback/legacy) */}
+        {/* Render standalone point features as circles (fallback/legacy) - Only for features without images */}
         <ShapeSource
           id="standalone-points-source"
           shape={{
@@ -963,10 +994,6 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
               (f.properties?.isLinePoint !== true || !f.properties?.parentLineId) &&
               (!f.properties?.featureType?.image_url) // Only render points that don't have an image_url
             )
-          }}
-          onPress={(event) => {
-            console.log('Feature pressed directly:', event.features[0].properties);
-            handleFeaturePress(event.features[0]);
           }}
         >
           <CircleLayer
@@ -995,10 +1022,6 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
               f.properties?.draw_layer && // Add layer visibility check
               visibleLayers[f.properties.draw_layer] !== false
             )
-          }}
-          onPress={(event) => {
-            console.log('Line point pressed directly:', event.features[0].properties);
-            handleFeaturePress(event.features[0]);
           }}
         >
           <CircleLayer
@@ -1121,6 +1144,16 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
         point={selectedPoint}
         onCollectFromPoint={handleCollectFromPoint}
       />
+
+      {/* Feature Form Modal for RTK-Pro auto-collection */}
+      {selectedFeatureType && (
+        <FeatureFormModal
+          isVisible={isFormModalVisible}
+          onClose={handleFormCancel}
+          onSubmit={handleFormSubmit}
+          featureType={selectedFeatureType}
+        />
+      )}
     </View>
   );
 };
