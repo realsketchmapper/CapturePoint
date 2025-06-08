@@ -44,7 +44,7 @@ def sync_project(project_id):
         # Get client features and last sync timestamp
         client_features = data.get('features', [])
         client_last_sync = data.get('lastSyncTimestamp')
-        
+
         # Get client timezone if provided, default to UTC
         client_timezone = data.get('timezone', 'UTC')
 
@@ -88,7 +88,7 @@ def sync_project(project_id):
                 if not feature_full_data:
                     failed_feature_ids.append(client_id)
                     continue
-                    
+
                 # Store timezone in attributes if not already present
                 feature_attributes = feature_full_data.get('attributes', {}) or {}
                 if 'timezone' not in feature_attributes:
@@ -149,16 +149,17 @@ def sync_project(project_id):
 
                     # Get coordinates, defaulting to [0,0] if invalid
                     coords = point_data.get('coords', [0, 0])
-                    if not isinstance(coords, list) or len(coords) < 2:
-                        coords = [0, 0]
+
+                    # if not isinstance(coords, list) or len(coords) < 2:
+                        # coords = [0, 0]
 
                     point_geom = Point(coords[0], coords[1])
-                    
+
                     # Store timezone in point attributes if not already present
                     point_attributes = point_data.get('attributes', {}) or {}
                     if 'timezone' not in point_attributes:
                         point_attributes['timezone'] = client_timezone
-                    
+
                     if existing_point:
                         # Update existing point
                         existing_point.coords = from_shape(point_geom, srid=4326)
@@ -225,6 +226,7 @@ def get_server_changes_since(project_id, last_sync_time, current_user_id):
     Returns:
         List of changed features with their points
     """
+
     # Ensure last_sync_time is timezone-aware UTC time for consistent comparison
     if last_sync_time.tzinfo is None:
         # If naive, assume it's UTC
@@ -232,7 +234,7 @@ def get_server_changes_since(project_id, last_sync_time, current_user_id):
     else:
         # Convert to UTC if it has a different timezone
         last_sync_time = last_sync_time.astimezone(timezone.utc)
-    
+
     # Query features updated since last sync
     query = db.session.query(CollectedFeatures) \
         .filter(CollectedFeatures.project_id == project_id) \
@@ -284,7 +286,7 @@ def get_server_changes_since(project_id, last_sync_time, current_user_id):
 
 
 def parse_iso_datetime(datetime_str):
-    """Convert ISO format datetime string to a Python datetime in UTC"""
+    """Convert ISO format datetime string to a Python  in UTC"""
     if not datetime_str or not isinstance(datetime_str, str):
         return None
 
@@ -373,3 +375,6 @@ def get_active_features(project_id):
             "success": False,
             "error": f"Server error: {str(e)}"
         }), 500
+
+
+ 

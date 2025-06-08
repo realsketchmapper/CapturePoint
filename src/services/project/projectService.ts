@@ -1,4 +1,4 @@
-import { Project } from '@/types/project.types';
+import { Project, ProjectAttributes, UserFootageSummary } from '@/types/project.types';
 import { api } from '@/api/clients';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { ApiResponse } from '@/types/api.types';
@@ -27,6 +27,10 @@ class ProjectService {
       return false;
     }
   }
+
+
+
+
 
   /**
    * Fetches all projects from the API or local storage if offline

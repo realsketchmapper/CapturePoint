@@ -7,6 +7,7 @@ export interface Project {
     address: string;
     coords: [number, number];
     work_type: string;
+    attributes?: ProjectAttributes; // New field for storing project metadata
     
     // Legacy format support properties - optional
     title?: string;        // Alternative to name
@@ -18,7 +19,28 @@ export interface Project {
     workType?: string;     // Alternative to work_type
     type?: string;         // Another alternative to work_type
 }
-  
+
+// Interface for project attributes
+export interface ProjectAttributes {
+    userFootage?: UserFootageData; // Footage data per user
+    [key: string]: any; // Allow other attributes
+}
+
+// Interface for tracking footage per user
+export interface UserFootageData {
+    [userId: string]: UserFootageSummary;
+}
+
+// Interface for individual user's footage summary
+export interface UserFootageSummary {
+    userName: string;
+    lastCalculated: string; // ISO timestamp
+    distancesByType: {
+        [featureType: string]: number; // Distance in meters
+    };
+    totalDistance: number; // Total distance in meters
+}
+
 export interface ProjectListProps {
   projects: Project[];
   onProjectPress: (project: Project) => void;

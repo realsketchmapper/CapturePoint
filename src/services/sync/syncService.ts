@@ -8,6 +8,10 @@ import { syncLogger } from '../logging/syncLogger';
 import { AppState, AppStateStatus } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CollectedFeature } from '@/types/currentFeatures.types';
+import { footageStorageService } from '@/services/storage/footageStorageService';
+import { calculateLineDistance } from '@/utils/collections';
+import { UserFootageSummary } from '@/types/project.types';
+import { tokenStorage } from '@/services/auth/tokenStorage';
 
 /**
  * Interface representing the result of a sync operation
@@ -466,7 +470,8 @@ class SyncService {
       console.log('Using epoch start time for full sync:', startTime);
 
       // Make the sync request to the server
-      const response = await api.post(`/${projectId}/sync`, {
+      const endpoint = API_ENDPOINTS.SYNC_COLLECTED_FEATURES.replace(':projectId', projectId.toString());
+      const response = await api.post(endpoint, {
         lastSyncTime: startTime,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone // Add device timezone
       });
@@ -609,6 +614,104 @@ class SyncService {
   }
 
   /**
+   * Calculate footage data for the current user
+   * @param projectId - The project ID to calculate footage for
+   * @returns UserFootageSummary or null if no user/footage found
+   */
+  private async calculateUserFootage(projectId: number): Promise<UserFootageSummary | null> {
+    try {
+      // Get current user from stored credentials
+      const credentials = await tokenStorage.getStoredCredentials();
+      
+      if (!credentials) {
+        console.log('No user credentials found for footage calculation');
+        return null;
+      }
+
+      const userId = parseInt(credentials.userId);
+      const userName = credentials.name;
+
+      // Get all features for the project
+      const allFeatures = await featureStorageService.getFeaturesForProject(projectId);
+      
+      // Filter line features created by current user
+      const userLineFeatures = allFeatures.filter(feature => 
+        feature.type === 'Line' && 
+        feature.points && 
+        feature.points.length >= 2 &&
+        feature.created_by === userId
+      );
+
+      if (userLineFeatures.length === 0) {
+        console.log(`No line features found for user ${userId} on project ${projectId}`);
+        return null;
+      }
+
+      // Calculate distances by feature type (draw_layer)
+      const distancesByType: { [featureType: string]: number } = {};
+      
+      userLineFeatures.forEach(feature => {
+        const layerName = feature.draw_layer;
+        
+        // Check if distance is already calculated and stored
+        let lineDistance = 0;
+        if (feature.attributes?.totalDistance && typeof feature.attributes.totalDistance === 'number') {
+          lineDistance = feature.attributes.totalDistance;
+        } else {
+          // Calculate distance from coordinates
+          const coordinates: [number, number][] = [];
+          
+          // Sort points by their index to ensure correct order
+          const sortedPoints = [...feature.points].sort((a, b) => 
+            (a.attributes?.pointIndex || 0) - (b.attributes?.pointIndex || 0)
+          );
+          
+          for (const point of sortedPoints) {
+            const longitude = point.attributes?.nmeaData?.gga?.longitude;
+            const latitude = point.attributes?.nmeaData?.gga?.latitude;
+            if (typeof longitude === 'number' && typeof latitude === 'number') {
+              coordinates.push([longitude, latitude]);
+            }
+          }
+          
+          if (coordinates.length >= 2) {
+            lineDistance = calculateLineDistance(coordinates);
+          }
+        }
+        
+        // Add to the total for this layer
+        if (lineDistance > 0) {
+          distancesByType[layerName] = (distancesByType[layerName] || 0) + lineDistance;
+        }
+      });
+
+      if (Object.keys(distancesByType).length === 0) {
+        console.log(`No valid distances calculated for user ${userId} on project ${projectId}`);
+        return null;
+      }
+
+      // Calculate total distance
+      const totalDistance = Object.values(distancesByType).reduce((sum, distance) => sum + distance, 0);
+
+      const footageSummary: UserFootageSummary = {
+        userName: userName,
+        lastCalculated: new Date().toISOString(),
+        distancesByType: distancesByType,
+        totalDistance: totalDistance
+      };
+
+      // Save footage data locally as well
+      await footageStorageService.saveUserFootage(projectId, userId, footageSummary);
+      
+      console.log(`Calculated footage for user ${userId}: ${totalDistance.toFixed(2)} meters total`);
+      return footageSummary;
+    } catch (error) {
+      console.error('Error calculating user footage:', error);
+      return null;
+    }
+  }
+
+  /**
    * Syncs features from local storage to server
    * @param projectId - The project ID to sync features for
    * @returns Promise resolving to SyncResult
@@ -661,13 +764,25 @@ class SyncService {
           };
         }
 
-        // Send features to server
+        // Send features to server (without footage data)
         const endpoint = API_ENDPOINTS.SYNC_COLLECTED_FEATURES.replace(':projectId', projectId.toString());
         const response = await api.post(endpoint, {
           features: formattedFeatures,
           lastSyncTimestamp: this.standardizeDateTime(new Date()),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone // Send client device timezone
         });
+
+        // Separately sync footage data to avoid transaction conflicts
+        console.log('🔍 About to calculate user footage...');
+        const footageData = await this.calculateUserFootage(projectId);
+        console.log('🔍 Footage data calculated:', footageData);
+        
+        if (footageData) {
+          console.log('🔍 Footage data exists, calling syncProjectAttributes...');
+          await this.syncProjectAttributes(projectId, footageData);
+        } else {
+          console.log('❌ No footage data found, skipping attribute sync');
+        }
 
         if (response.data && response.data.success) {
           const syncedIds = response.data.processed || [];
@@ -695,6 +810,41 @@ class SyncService {
       'syncFromLocalToServer',
       projectId
     );
+  }
+
+  /**
+   * Syncs project attributes like footage data to the server
+   * @param projectId - The project ID
+   * @param footageData - The footage data to sync
+   */
+  private async syncProjectAttributes(projectId: number, footageData: UserFootageSummary): Promise<void> {
+    try {
+      const endpoint = API_ENDPOINTS.SYNC_PROJECT_ATTRIBUTES.replace(':projectId', projectId.toString());
+      const payload = {
+        footageData: footageData
+      };
+      
+      console.log(`🔍 Calling sync-attributes endpoint: ${endpoint}`);
+      console.log(`🔍 Payload:`, JSON.stringify(payload, null, 2));
+      console.log(`🔍 Full URL will be: ${API_ENDPOINTS.BASE_URL}${endpoint}`);
+      
+      const response = await api.post(endpoint, payload);
+
+      if (response.data && response.data.success) {
+        console.log(`✅ Project attributes synced successfully for project ${projectId}`);
+      } else {
+        console.error(`❌ Failed to sync project attributes: ${response.data?.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error syncing project attributes:', error);
+      if (error instanceof Error && 'response' in error) {
+        const axiosError = error as any;
+        console.error('Error details:', axiosError.response?.data);
+        console.error('Error status:', axiosError.response?.status);
+        console.error('Error config:', axiosError.config);
+      }
+      // Don't throw the error to avoid breaking the main sync process
+    }
   }
 
   /**
