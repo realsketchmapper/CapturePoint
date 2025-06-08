@@ -466,13 +466,19 @@ class SyncService {
     try {
       // Get the last sync timestamp from storage
       const lastSyncTime = await this.getLastSyncTimestamp(projectId);
-      const startTime = lastSyncTime || '1970-01-01T00:00:00Z';
-      console.log('Using epoch start time for full sync:', startTime);
+      
+      // Use smart timestamp windows - look back 6 hours from last sync to catch any missed items
+      const startTime = lastSyncTime 
+        ? new Date(new Date(lastSyncTime).getTime() - (6 * 60 * 60 * 1000)).toISOString()
+        : '1970-01-01T00:00:00Z';
+        
+      console.log('Last sync timestamp:', lastSyncTime);
+      console.log('Using safe sync time with 6hr overlap:', startTime);
 
       // Make the sync request to the server
       const endpoint = API_ENDPOINTS.SYNC_COLLECTED_FEATURES.replace(':projectId', projectId.toString());
       const response = await api.post(endpoint, {
-        lastSyncTime: startTime,
+        last_sync: startTime,  // Server expects "last_sync", not "lastSyncTime"
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone // Add device timezone
       });
 
@@ -482,7 +488,8 @@ class SyncService {
         throw new Error('Server sync failed');
       }
 
-      const serverChanges = response.data.changes || [];
+      // Handle both response formats: new format with 'changes' or old format with 'serverPoints'
+      const serverChanges = response.data.changes || response.data.serverPoints || [];
       console.log('Server changes:', serverChanges.length);
 
       // Process each change from the server
@@ -494,8 +501,8 @@ class SyncService {
         }
       }
 
-      // Update the last sync timestamp
-      const serverTimestamp = response.data.serverTimestamp;
+      // Update the last sync timestamp - handle both formats
+      const serverTimestamp = response.data.serverTimestamp || response.data.serverTime;
       console.log('Updating last sync timestamp:', serverTimestamp);
       await this.setLastSyncTimestamp(projectId, serverTimestamp);
 
@@ -509,12 +516,16 @@ class SyncService {
   }
 
   private async handleServerFeature(projectId: number, change: any) {
-    console.log('Processing server feature:', change.clientId);
-    const feature = change.data;
+    // Handle both formats: new 'changes' format and old 'serverPoints' format
+    const clientId = change.clientId || change.client_id;
+    const feature = change.data || change; // Support both new format (change.data) and old format (change itself)
+    
+    console.log('Processing server feature:', clientId);
+    console.log('Feature type:', feature.type);
 
     if (feature.type === 'Point') {
-      console.log('Processing point:', change.clientId);
-      const point = feature.points[0];
+      console.log('Processing point:', clientId);
+      const point = feature.points ? feature.points[0] : feature;
       
       // Convert server timestamps to standardized format
       const standardizedPoint = {
@@ -543,7 +554,7 @@ class SyncService {
       console.log('Returning cached features:', existingFeatures.length);
 
       // Check if the feature already exists
-      const existingFeatureIndex = existingFeatures.findIndex(f => f.client_id === change.clientId);
+      const existingFeatureIndex = existingFeatures.findIndex(f => f.client_id === clientId);
       
       if (existingFeatureIndex >= 0) {
         // Update existing feature
@@ -565,7 +576,7 @@ class SyncService {
       } else {
         // Add new feature
         const pointToSave: PointCollected = {
-          client_id: change.clientId,
+          client_id: clientId,
           name: feature.name,
           description: feature.description || '',
           draw_layer: feature.draw_layer,
@@ -580,7 +591,156 @@ class SyncService {
         };
         await featureStorageService.savePoint(pointToSave);
       }
+    } else if (feature.type === 'Line') {
+      console.log('Processing line feature:', clientId);
+      
+      // Handle both new format (with feature.points array) and old format (individual point records)
+      if (feature.points && Array.isArray(feature.points)) {
+        // New format - feature has points array
+        const lineFeature: CollectedFeature = {
+          client_id: clientId,
+          name: feature.name,
+          type: 'Line',
+          draw_layer: feature.draw_layer,
+          project_id: projectId,
+          is_active: true,
+          created_by: feature.created_by || 0,
+          updated_by: feature.updated_by || 0,
+          created_at: this.standardizeDateTime(feature.created_at),
+          updated_at: this.standardizeDateTime(feature.updated_at),
+          attributes: {
+            ...feature.attributes,
+            isLine: true
+          },
+          points: feature.points.map((point: any, index: number) => ({
+            client_id: point.client_id,
+            name: `${feature.name} Point ${index + 1}`,
+            description: feature.description || '',
+            draw_layer: feature.draw_layer,
+            attributes: {
+              ...point.attributes,
+              isLinePoint: true,
+              parentLineId: clientId,
+              pointIndex: index,
+              nmeaData: {
+                gga: {
+                  longitude: point.coords[0],
+                  latitude: point.coords[1],
+                  time: this.standardizeDateTime(point.created_at)
+                }
+              }
+            },
+            created_by: String(point.created_by || feature.created_by || 0),
+            created_at: this.standardizeDateTime(point.created_at),
+            updated_at: this.standardizeDateTime(point.updated_at),
+            updated_by: String(point.updated_by || feature.updated_by || 0),
+            synced: true,
+            feature_id: 0,
+            project_id: projectId
+          }))
+        };
+
+        await featureStorageService.saveFeatures(projectId, [lineFeature]);
+        console.log('Saved line feature with', lineFeature.points.length, 'points');
+      } else {
+        // Old format - individual point record that belongs to a line
+        await this.handleOldFormatLinePoint(projectId, feature, clientId);
+      }
     }
+  }
+
+  /**
+   * Handles old format line points where each point comes as an individual record
+   * Groups them by line name and creates or updates line features
+   */
+  private async handleOldFormatLinePoint(projectId: number, serverPoint: any, clientId: string) {
+    console.log('Handling old format line point:', clientId, 'for line:', serverPoint.name);
+    
+    const existingFeatures = await featureStorageService.getFeaturesForProject(projectId);
+    
+    // Look for an existing line feature with this name and draw_layer
+    let lineFeature = existingFeatures.find(f => 
+      f.name === serverPoint.name && 
+      f.type === 'Line' && 
+      f.draw_layer === serverPoint.draw_layer &&
+      f.attributes?.isLine === true
+    );
+    
+    if (!lineFeature) {
+      // Create new line feature
+      const lineId = `line_${serverPoint.name.replace(/\s+/g, '_')}_${serverPoint.draw_layer}_${Date.now()}`;
+      lineFeature = {
+        client_id: lineId,
+        name: serverPoint.name,
+        type: 'Line',
+        draw_layer: serverPoint.draw_layer,
+        project_id: projectId,
+        is_active: true,
+        created_by: serverPoint.created_by || 0,
+        updated_by: serverPoint.created_by || 0,
+        created_at: this.standardizeDateTime(serverPoint.created_at),
+        updated_at: this.standardizeDateTime(serverPoint.updated_at),
+        attributes: {
+          ...serverPoint.attributes,
+          isLine: true
+        },
+        points: []
+      };
+      console.log('Created new line feature:', lineId);
+    }
+    
+    // Check if this point already exists in the line
+    const existingPointIndex = lineFeature.points.findIndex(p => p.client_id === clientId);
+    
+    // Create the line point
+    const linePoint: PointCollected = {
+      client_id: clientId,
+      name: `${serverPoint.name} Point ${lineFeature.points.length + 1}`,
+      description: '',
+      draw_layer: serverPoint.draw_layer,
+      attributes: {
+        ...serverPoint.attributes,
+        isLinePoint: true,
+        parentLineId: lineFeature.client_id,
+        pointIndex: existingPointIndex >= 0 ? lineFeature.points[existingPointIndex].attributes?.pointIndex || 0 : lineFeature.points.length,
+        nmeaData: {
+          gga: {
+            longitude: serverPoint.coords[0],
+            latitude: serverPoint.coords[1],
+            time: this.standardizeDateTime(serverPoint.created_at)
+          }
+        }
+      },
+      created_by: String(serverPoint.created_by || 0),
+      created_at: this.standardizeDateTime(serverPoint.created_at),
+      updated_at: this.standardizeDateTime(serverPoint.updated_at),
+      updated_by: String(serverPoint.created_by || 0),
+      synced: true,
+      feature_id: 0,
+      project_id: projectId
+    };
+    
+    if (existingPointIndex >= 0) {
+      // Update existing point
+      lineFeature.points[existingPointIndex] = linePoint;
+      console.log('Updated existing point in line feature');
+    } else {
+      // Add new point to line
+      lineFeature.points.push(linePoint);
+      console.log('Added new point to line feature');
+    }
+    
+    // Sort points by their index to maintain line order (if pointIndex is available)
+    lineFeature.points.sort((a, b) => 
+      (a.attributes?.pointIndex || 0) - (b.attributes?.pointIndex || 0)
+    );
+    
+    // Update the line feature timestamp
+    lineFeature.updated_at = this.standardizeDateTime(serverPoint.updated_at);
+    
+    // Save the updated line feature
+    await featureStorageService.saveFeatures(projectId, [lineFeature]);
+    console.log('Saved line feature:', lineFeature.name, 'with', lineFeature.points.length, 'points');
   }
 
   /**
@@ -767,8 +927,8 @@ class SyncService {
         // Send features to server (without footage data)
         const endpoint = API_ENDPOINTS.SYNC_COLLECTED_FEATURES.replace(':projectId', projectId.toString());
         const response = await api.post(endpoint, {
-          features: formattedFeatures,
-          lastSyncTimestamp: this.standardizeDateTime(new Date()),
+          points: formattedFeatures,  // Server expects "points", not "features"
+          last_sync: this.standardizeDateTime(new Date()),  // Server expects "last_sync"
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone // Send client device timezone
         });
 

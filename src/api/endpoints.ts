@@ -2,7 +2,7 @@ export const API_ENDPOINTS = {
     BASE_URL: 'https://v2.sketchmapper.com',
     LOGIN: '/login',
     PROJECTS: '/projects', // Get all projects
-    SYNC_COLLECTED_FEATURES: '/:projectId/sync-points', // Get sync points for a project
+    SYNC_COLLECTED_FEATURES: '/:projectId/sync-points', // Sync features (points and lines) to server
     VALIDATE_TOKEN: '/validate/', // Validate token
     INACTIVATE_FEATURE: '/:projectId/inactivate-feature', // Inactivate a collected feature
     ACTIVE_FEATURES: '/:projectId/active-features', // Get active collected features for a project

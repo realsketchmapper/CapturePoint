@@ -635,9 +635,15 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
         for (const point of sortedPoints) {
           const longitude = point.attributes?.nmeaData?.gga?.longitude;
           const latitude = point.attributes?.nmeaData?.gga?.latitude;
+          
+          console.log(`Point ${point.client_id} coordinates:`, { longitude, latitude });
+          console.log(`Point attributes:`, point.attributes);
+          
           if (typeof longitude === 'number' && typeof latitude === 'number') {
             coordinates.push([longitude, latitude]);
             validPoints.push(point);
+          } else {
+            console.log(`⚠️ Invalid coordinates for point ${point.client_id}:`, { longitude, latitude });
           }
         }
 
@@ -741,6 +747,14 @@ Sorted point order: ${sortedPoints.map(p => `${p.client_id} (index: ${p.attribut
       featuresLoadedRef.current = true;
     }
   }, [isMapReady, activeProject, loadFeaturesFromStorage, isLoadingFeatures]);
+
+  // Effect to reload features after sync completion
+  useEffect(() => {
+    if (!isSyncing && activeProject && isMapReady && featuresLoadedRef.current) {
+      console.log('Sync completed, reloading features');
+      loadFeaturesFromStorage();
+    }
+  }, [isSyncing, activeProject, isMapReady, loadFeaturesFromStorage]);
 
   // Memoize feature type lookup
   const memoizedGetFeatureTypeByName = useCallback((name: string) => {
